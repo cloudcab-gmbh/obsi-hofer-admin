@@ -1,0 +1,10 @@
+# Prevent Git's CRLF/LF normalization from touching binary files.
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
