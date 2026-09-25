@@ -1,6 +1,6 @@
 # PROJ-1: Entra-ID-Login mit Rollen (Bearbeiter/Freigeber)
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-09-25
 **Last Updated:** 2026-09-25
 
@@ -62,12 +62,37 @@
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Auth.js mit Microsoft-Entra-ID-Provider (Single-Tenant, Workforce-Tenant) statt eigenem Login-Formular | OBSI-Hofer-Mitarbeitende haben bereits ein Microsoft-365-Konto; kein zusätzliches Passwort, keine eigene Nutzerverwaltung nötig | 2026-09-25 |
+| Keine eigene Datenbank/Tabelle für Rollen — Rollen ausschliesslich aus dem Entra-ID-Token gelesen | Entra ID pflegt das bereits zuverlässig; eine zweite Datenquelle für dieselbe Information wäre nur ein Risiko für Widersprüche | 2026-09-25 |
+| Federated Logout von Anfang an eingeplant (nicht nachträglich) | Vermeidet den im Kundenportal-Projekt (dortiges PROJ-2, Entra-External-ID-Phase) erst nachträglich gefundenen Bug, bei dem die Microsoft-Sitzung nach dem Abmelden weiterlief | 2026-09-25 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### A) Komponentenstruktur
+```
+Login-Seite
+└── "Mit Microsoft anmelden"-Button
+
+Nach Anmeldung: geschützter Bereich (App-Rahmen)
+├── Kopfzeile (Name des Nutzers, Abmelden-Button)
+├── Navigation (Menüpunkt "Sync-Freigabe" nur sichtbar für Freigeber)
+└── Seiteninhalt (je nach Bereich: Geräte, Prüfberichte, Sync-Freigabe)
+
+Kein-Zugang-Seite (bei erfolgreicher Anmeldung, aber ohne zugewiesene Rolle)
+└── Hinweistext + Abmelden-Button
+```
+
+### B) Datenmodell (in einfachen Worten)
+Keine eigene Datenbank für Nutzer/Rollen. Alles, was die App über einen Nutzer weiss, kommt direkt aus dem Microsoft-Anmeldevorgang: Name, E-Mail-Adresse, und die Liste zugewiesener Rollen ("Bearbeiter", "Freigeber") — diese Liste wird ausschliesslich in Microsoft Entra ID gepflegt. Die App merkt sich pro Sitzung nur, ob die Person angemeldet ist und welche Rollen im Token stehen.
+
+### C) Tech-Entscheidungen
+Siehe Technical Decisions oben.
+
+### D) Abhängigkeiten
+Auth.js mit Microsoft-Entra-ID-Baustein (Single-Tenant) — keine weiteren neuen Pakete nötig.
 
 ## QA Test Results
 _To be added by /qa_
