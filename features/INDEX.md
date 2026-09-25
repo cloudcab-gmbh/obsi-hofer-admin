@@ -15,7 +15,28 @@
 
 | ID | Feature | Status | Spec | Created |
 |----|---------|--------|------|---------|
+| PROJ-1 | Entra-ID-Login mit Rollen (Bearbeiter/Freigeber) | Roadmap | — | 2026-09-25 |
+| PROJ-2 | Dataverse-Web-API-Anbindung | Roadmap | — | 2026-09-25 |
+| PROJ-3 | Geräte-Verwaltung | Roadmap | — | 2026-09-25 |
+| PROJ-4 | Prüfberichte-Verwaltung | Roadmap | — | 2026-09-25 |
+| PROJ-5 | Sync-Freigabe pro Firma | Roadmap | — | 2026-09-25 |
+| PROJ-6 | Sync-Status/-Verlauf einsehen | Roadmap | — | 2026-09-25 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-1
+## Next Available ID: PROJ-7
+
+## Dependencies (für /write-spec)
+- PROJ-1: None
+- PROJ-2: None
+- PROJ-3: Requires PROJ-1, PROJ-2
+- PROJ-4: Requires PROJ-1, PROJ-2, PROJ-3 (Prüfbericht gehört zu einem Gerät)
+- PROJ-5: Requires PROJ-1, PROJ-2 — zusätzlich Cross-Repo-Abhängigkeit: Firma-Filter-Erweiterung des Sync-Endpoints im Kundenportal-Repo (separates Projekt, dort separat einzuplanen)
+- PROJ-6: Requires PROJ-5
+
+## Empfohlene Baureihenfolge
+1. PROJ-1 und PROJ-2 parallel (beide unabhängig, beide Grundlage für alles Weitere)
+2. PROJ-3 (Geräte-Verwaltung)
+3. PROJ-4 (Prüfberichte-Verwaltung, baut auf Geräte auf)
+4. PROJ-5 (Sync-Freigabe pro Firma) — vorher/parallel: Firma-Filter im Kundenportal-Repo umsetzen
+5. PROJ-6 (Sync-Status/-Verlauf, P1, kann auch später folgen)
