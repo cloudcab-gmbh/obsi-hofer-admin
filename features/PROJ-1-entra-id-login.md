@@ -1,6 +1,6 @@
 # PROJ-1: Entra-ID-Login mit Rollen (Bearbeiter/Freigeber)
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-09-25
 **Last Updated:** 2026-09-25
 
@@ -93,6 +93,17 @@ Siehe Technical Decisions oben.
 
 ### D) Abhängigkeiten
 Auth.js mit Microsoft-Entra-ID-Baustein (Single-Tenant) — keine weiteren neuen Pakete nötig.
+
+## Implementation Notes (Frontend)
+
+- Neue Seiten: `src/app/login/page.tsx` (Anmelde-Button), `src/app/kein-zugang/page.tsx`, `src/app/(protected)/start/page.tsx` (Platzhalter-Startseite, da Geräte-Verwaltung/PROJ-3 noch nicht existiert) mit `src/app/(protected)/layout.tsx` als umschliessendes Layout.
+- Neue Komponente `src/components/app-header.tsx`: Logo, Navigation (Geräte/Prüfberichte immer sichtbar, "Sync-Freigabe" nur für Freigeber), Nutzername, Abmelden-Button, Dark-Mode-Toggle.
+- **TEMPORÄR:** `src/lib/auth/mock-session.ts` liefert eine feste Fake-Session (Name, E-Mail, Rollen) für die visuelle Vorschau — echte Auth.js/Entra-ID-Session-Anbindung folgt in `/backend`. Wird dort vollständig ersetzt/gelöscht.
+- Design-System (`docs/design-system.md`, `globals.css`, Logo-Assets) 1:1 vom Kundenportal-Projekt übernommen, keine Anpassungen nötig für diese Seiten.
+- `src/app/page.tsx` (Root) leitet auf `/login` weiter, identisches Muster zum Kundenportal-Projekt.
+- Stolperstein: `(protected)/page.tsx` (leere Route-Gruppe) hätte mit dem Root-`page.tsx` auf dieselbe URL `/` kollidiert — Next.js liess das ohne Fehlermeldung durchgehen, die Seite wäre aber nie erreichbar gewesen. Nach `src/app/(protected)/start/page.tsx` verschoben (eigener URL-Pfad `/start`).
+- Visuell geprüft (Playwright-Skript, `chromium-cli` war in dieser Umgebung nicht verfügbar): `/login`, `/start`, `/kein-zugang` — alle drei rendern korrekt mit Design-System (Bergfoto-Hintergrund, Stahlblau-Button, korrekte Header-Navigation inkl. rollenabhängigem "Sync-Freigabe"-Link), keine Konsolen-Fehler.
+- `npx tsc --noEmit`, `npx eslint .` und `npm run build` laufen fehlerfrei durch.
 
 ## QA Test Results
 _To be added by /qa_
