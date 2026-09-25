@@ -14,7 +14,7 @@ Anmeldung über das bestehende Microsoft-365-/Entra-ID-Konto (interner Firmen-Te
 
 | Priority | Feature | Status |
 |----------|---------|--------|
-| P0 (MVP) | Microsoft-Entra-ID-Login mit Rollen (Bearbeiter/Freigeber via App Roles) | Roadmap |
+| P0 (MVP) | Microsoft-Entra-ID-Login mit Rollen (Bearbeiter/Freigeber via App Roles) | Planned |
 | P0 (MVP) | Dataverse-Web-API-Anbindung (Auth + generische Read/Write-Hilfsfunktionen) | Roadmap |
 | P0 (MVP) | Geräte-Verwaltung (Anzeigen, Bearbeiten, Neuanlage, live gegen Dataverse) | Roadmap |
 | P0 (MVP) | Prüfberichte-Verwaltung (Erfassen, Bearbeiten, Stornieren statt Löschen) | Roadmap |
