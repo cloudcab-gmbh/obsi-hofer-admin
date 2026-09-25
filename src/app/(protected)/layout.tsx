@@ -1,7 +1,8 @@
 import { AppHeader } from "@/components/app-header";
 
-// TEMPORÄR: Echte Zugriffsprüfung (Entra-ID-Session + Rollen-Check, Redirect
-// zu /login bzw. /kein-zugang) folgt in /backend (siehe PROJ-1 Tech Design).
+// Die eigentliche Zugriffsprüfung (Session + Rollen-Check, Redirect zu
+// /login bzw. /kein-zugang) läuft bereits in middleware.ts — hier nur noch
+// der Seitenrahmen.
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">

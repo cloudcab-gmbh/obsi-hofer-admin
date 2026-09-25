@@ -46,6 +46,7 @@
 
 ## Open Questions
 - [ ] Wird künftig eine dritte Rolle (z.B. reiner Lesezugriff) benötigt? Aktuell nicht vorgesehen, bei Bedarf in `/refine PROJ-1` nachziehen
+- [ ] Echter Login-Flow mit einem echten Microsoft-Konto steht noch aus — dafür muss der Nutzer zuerst die App-Registrierung im Entra Admin Center einrichten (siehe Implementation Notes, Setup-Schritte). Bis dahin bleibt der Happy Path nur strukturell (Redirect-Logik), nicht end-to-end verifiziert
 
 ## Decision Log
 
@@ -65,6 +66,8 @@
 | Auth.js mit Microsoft-Entra-ID-Provider (Single-Tenant, Workforce-Tenant) statt eigenem Login-Formular | OBSI-Hofer-Mitarbeitende haben bereits ein Microsoft-365-Konto; kein zusätzliches Passwort, keine eigene Nutzerverwaltung nötig | 2026-09-25 |
 | Keine eigene Datenbank/Tabelle für Rollen — Rollen ausschliesslich aus dem Entra-ID-Token gelesen | Entra ID pflegt das bereits zuverlässig; eine zweite Datenquelle für dieselbe Information wäre nur ein Risiko für Widersprüche | 2026-09-25 |
 | Federated Logout von Anfang an eingeplant (nicht nachträglich) | Vermeidet den im Kundenportal-Projekt (dortiges PROJ-2, Entra-External-ID-Phase) erst nachträglich gefundenen Bug, bei dem die Microsoft-Sitzung nach dem Abmelden weiterlief | 2026-09-25 |
+| Zugriffsprüfung komplett in `src/proxy.ts` (kein zusätzlicher Server-Layout-Check) | Rollen stecken direkt im JWT, keine Datenbank-Abfrage nötig — anders als beim Kundenportal-Projekt, das dafür einen separaten `(protected)/layout.tsx`-Check brauchte, weil Middleware dort keine DB erreichen konnte | 2026-09-25 |
+| Datei heisst `src/proxy.ts`, nicht `middleware.ts`, und liegt unter `src/`, nicht im Root | Next.js 16 hat `middleware.ts` durch `proxy.ts` ersetzt (alte Datei wird kommentarlos ignoriert); bei einem `src/`-Layout muss `proxy.ts` auf gleicher Ebene wie `src/app` liegen, sonst ebenfalls stillschweigend wirkungslos — beides live erprobt, siehe Implementation Notes | 2026-09-25 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
@@ -104,6 +107,34 @@ Auth.js mit Microsoft-Entra-ID-Baustein (Single-Tenant) — keine weiteren neuen
 - Stolperstein: `(protected)/page.tsx` (leere Route-Gruppe) hätte mit dem Root-`page.tsx` auf dieselbe URL `/` kollidiert — Next.js liess das ohne Fehlermeldung durchgehen, die Seite wäre aber nie erreichbar gewesen. Nach `src/app/(protected)/start/page.tsx` verschoben (eigener URL-Pfad `/start`).
 - Visuell geprüft (Playwright-Skript, `chromium-cli` war in dieser Umgebung nicht verfügbar): `/login`, `/start`, `/kein-zugang` — alle drei rendern korrekt mit Design-System (Bergfoto-Hintergrund, Stahlblau-Button, korrekte Header-Navigation inkl. rollenabhängigem "Sync-Freigabe"-Link), keine Konsolen-Fehler.
 - `npx tsc --noEmit`, `npx eslint .` und `npm run build` laufen fehlerfrei durch.
+
+## Implementation Notes (Backend)
+
+- `next-auth@beta` (Auth.js v5) installiert — passendes Werkzeug für App-Router-Anwendungen mit Microsoft-Entra-ID-SSO.
+- `src/auth.ts`: NextAuth-Konfiguration mit `MicrosoftEntraID`-Provider (Single-Tenant, Issuer `https://login.microsoftonline.com/<TENANT_ID>/v2.0`). `jwt`/`session`-Callbacks übernehmen die `roles`-Claim aus dem ID-Token ins Session-Objekt (`session.user.roles`).
+- `types/next-auth.d.ts`: Modul-Erweiterung, damit `session.user.roles` typsicher ist.
+- `src/app/api/auth/[...nextauth]/route.ts`: exportiert `GET`/`POST` aus den Auth.js-`handlers`.
+- **Wichtiger technischer Fund — Next.js 16 `proxy.ts` (zweiter Fall dieser Art im Projektumfeld):** Next.js 16 hat `middleware.ts` zu `proxy.ts` umbenannt (`middleware.ts` wird jetzt **kommentarlos ignoriert**, keine Fehlermeldung, keine Warnung — siehe `node_modules/next/dist/docs/.../middleware.md`). Zusätzlich muss `proxy.ts` bei einem Projekt mit `src/`-Verzeichnis **unter `src/proxy.ts`** liegen (auf gleicher Ebene wie `src/app`), **nicht im Projekt-Root** — anders als `middleware.ts` im separaten Kundenportal-Projekt, das bewusst im Root liegt (dort ein anderer, ebenfalls Next-16-spezifischer Namens-Stolperstein, siehe dessen PROJ-2 Decision Log). Beide Abweichungen (falscher Name, falscher Ort) scheitern **ohne jede Fehlermeldung** — die Datei wird einfach nie aufgerufen, was das Debuggen erschwert hat. Gefunden durch einen minimalen Test-Proxy mit unbedingtem Redirect + `console.error`-Debug-Ausgabe, die trotz Server-Neustart und geleertem `.next`-Cache nie erschien, bis die Datei nach `src/proxy.ts` verschoben wurde.
+- `src/proxy.ts` (ehemals als `middleware.ts` geplant): grobe Zugriffsprüfung direkt über die JWT-Session (`auth()`-Wrapper von Auth.js) — kein Login → `/login`, Login ohne Rolle → `/kein-zugang`, bereits eingeloggt mit Rolle auf `/login`/`/kein-zugang` → `/start`. Keine Datenbank-Abhängigkeit nötig (anders als beim Kundenportal-Projekt), da die Rollen direkt im Token stecken.
+- `src/lib/auth/sign-out.ts`: Federated Logout — `signOut({ redirect: false })` beendet die eigene Session, danach expliziter Redirect zu Microsofts `oauth2/v2.0/logout`-Endpoint mit `post_logout_redirect_uri` zurück auf `/login`. Von Anfang an eingeplant (siehe Product Decisions), nicht erst nachträglich gefunden wie im Kundenportal-Projekt.
+- `login/page.tsx`, `app-header.tsx`, `(protected)/start/page.tsx`, `kein-zugang/page.tsx`: von der temporären Mock-Session (`src/lib/auth/mock-session.ts`, jetzt gelöscht) auf die echte Auth.js-Session (`auth()`) bzw. echten Sign-in/Sign-out umgestellt.
+- `.env.local.example` bereinigt: die beim Projekt-Bootstrap unreflektiert vom Kundenportal-Repo mitkopierten Supabase-/`SYNC_API_KEY`-Variablen (dort PROJ-1 = Dataverse-Sync-Service, in diesem Projekt existiert kein eigenes Supabase — siehe PRD-Constraint) entfernt, dafür Auth.js/Entra-ID-Variablen sowie Platzhalter für die spätere Dataverse- und Sync-Freigabe-Anbindung (PROJ-2/PROJ-5) ergänzt.
+- Zusätzlich fehlte `src/test/setup.ts` (von Vitest via `vitest.config.ts` referenziert, aber beim Bootstrap vergessen) — nachträglich vom Kundenportal-Repo ergänzt (`import '@testing-library/jest-dom'`), sonst hätte kein einziger Test gestartet.
+- 9 neue Tests in `src/proxy.test.ts`: `@/auth`s `auth()`-Wrapper wird als Identitätsfunktion gemockt, damit der eigentliche Redirect-Callback direkt mit frei konstruierten Fake-Sessions (kein Login / Login ohne Rolle / Bearbeiter / Freigeber, auf verschiedenen Pfaden) geprüft werden kann — deckt alle Verzweigungen der Zugriffsprüfung ab.
+- **Nicht automatisiert testbar:** der komplette echte OAuth-Redirect-/Callback-Flow mit einem echten Microsoft-Konto — dafür fehlt die Azure-App-Registrierung (siehe Open Questions/Setup-Schritte unten). Strukturell geprüft: unangemeldeter Zugriff auf eine geschützte Seite wird korrekt zu `/login` umgeleitet (lokaler Dev-Server, Platzhalter-Zugangsdaten in `.env.local`, echte Anmeldung damit nicht möglich, aber die Redirect-Logik selbst schon).
+- `npx tsc --noEmit`, `npx eslint .`, `npx vitest run` (9 Tests) und `npm run build` laufen fehlerfrei durch.
+
+### Setup-Schritte für den Nutzer (Azure Entra Admin Center, OBSI-Hofer-Firmen-Tenant)
+
+1. **App registrations → New registration**
+   - Name: z.B. "OBSI Hofer Admin"
+   - Supported account types: "Accounts in this organizational directory only" (Single-Tenant)
+   - Redirect URI (Web): `http://localhost:3000/api/auth/callback/microsoft-entra-id` für lokale Entwicklung; die Produktions-URL-Variante nach dem ersten Deploy ergänzen
+2. **Certificates & secrets → New client secret** — den Wert sofort kopieren (wird nur einmal angezeigt)
+3. Auf der Overview-Seite **Application (client) ID** und **Directory (tenant) ID** notieren
+4. **App roles → Create app role** — zwei Rollen anlegen: "Bearbeiter" (Value: `bearbeiter`) und "Freigeber" (Value: `freigeber`), Allowed member types: Users/Groups
+5. **Enterprise applications** → diese App suchen → **Users and groups** → einzelnen Personen die Rolle "Bearbeiter" bzw. "Freigeber" zuweisen
+6. `.env.local` befüllen (siehe `.env.local.example`): `AUTH_SECRET` (z.B. via `npx auth secret` erzeugen), `AUTH_URL`, `AUTH_MICROSOFT_ENTRA_ID_ID`/`_SECRET`/`_TENANT_ID`
 
 ## QA Test Results
 _To be added by /qa_

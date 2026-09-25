@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -8,9 +7,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { signIn } from "@/auth";
 
-// TEMPORÄR: Der Button navigiert direkt weiter, statt Auth.js/Entra ID
-// aufzurufen — echte Anmeldung folgt in /backend (siehe PROJ-1 Tech Design).
 export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
@@ -22,9 +20,16 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button asChild className="w-full">
-            <Link href="/start">Mit Microsoft anmelden</Link>
-          </Button>
+          <form
+            action={async () => {
+              "use server";
+              await signIn("microsoft-entra-id", { redirectTo: "/start" });
+            }}
+          >
+            <Button type="submit" className="w-full">
+              Mit Microsoft anmelden
+            </Button>
+          </form>
         </CardContent>
         <CardFooter>
           <p className="text-xs text-muted-foreground">

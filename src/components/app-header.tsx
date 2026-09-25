@@ -2,14 +2,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { getMockSession, hatRolle } from "@/lib/auth/mock-session";
+import { auth } from "@/auth";
+import { signOutEverywhere } from "@/lib/auth/sign-out";
 
-// TEMPORÄR: nutzt getMockSession() statt einer echten Entra-ID-Session,
-// siehe PROJ-1 Tech Design. "Sync-Freigabe" ist nur für Freigeber sichtbar
-// (Freigeber ist eine Erweiterung von Bearbeiter, siehe Product Decisions).
-export function AppHeader() {
-  const session = getMockSession();
-  const istFreigeber = hatRolle(session, "freigeber");
+// "Sync-Freigabe" ist nur für Freigeber sichtbar (Freigeber ist eine
+// Erweiterung von Bearbeiter, siehe PROJ-1 Product Decisions).
+export async function AppHeader() {
+  const session = await auth();
+  const istFreigeber = session?.user?.roles?.includes("freigeber") ?? false;
 
   return (
     <header className="flex h-14 flex-wrap items-center justify-between gap-3 border-b bg-background px-4 sm:px-6">
@@ -31,12 +31,14 @@ export function AppHeader() {
         )}
       </nav>
       <div className="flex items-center gap-3">
-        {session && (
-          <span className="hidden text-sm text-muted-foreground sm:inline">{session.name}</span>
+        {session?.user?.name && (
+          <span className="hidden text-sm text-muted-foreground sm:inline">{session.user.name}</span>
         )}
-        <Button asChild variant="outline" size="sm">
-          <Link href="/login">Abmelden</Link>
-        </Button>
+        <form action={signOutEverywhere}>
+          <Button type="submit" variant="outline" size="sm">
+            Abmelden
+          </Button>
+        </form>
         <ThemeToggle />
       </div>
     </header>

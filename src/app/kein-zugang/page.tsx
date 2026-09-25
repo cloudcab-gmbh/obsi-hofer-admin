@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -8,6 +7,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { signOutEverywhere } from "@/lib/auth/sign-out";
 
 // Wird gezeigt, wenn die Anmeldung erfolgreich war, aber weder die Rolle
 // "Bearbeiter" noch "Freigeber" im Entra-ID-Token steht (siehe PROJ-1
@@ -30,9 +30,11 @@ export default function KeinZugangPage() {
           </p>
         </CardContent>
         <CardFooter>
-          <Button asChild variant="outline" className="w-full">
-            <Link href="/login">Abmelden</Link>
-          </Button>
+          <form action={signOutEverywhere} className="w-full">
+            <Button type="submit" variant="outline" className="w-full">
+              Abmelden
+            </Button>
+          </form>
         </CardFooter>
       </Card>
     </main>
