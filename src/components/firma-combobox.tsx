@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,19 @@ export function FirmaCombobox({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [suche, setSuche] = useState("");
   const selected = firmen.find((f) => f.id === selectedFirmaId);
+
+  // cmdks eingebaute Fuzzy-Suche vergibt bei vielen, ähnlich langen
+  // Firmennamen oft auch auf offensichtlich unpassende Treffer einen
+  // Score > 0 und blendet sie dadurch nicht aus — der gesuchte Eintrag
+  // landet dann weit unten in der Scrollliste. Stattdessen hier eine
+  // einfache, vorhersagbare Teilstring-Suche selbst filtern.
+  const gefiltert = useMemo(() => {
+    const suchbegriff = suche.trim().toLowerCase();
+    if (!suchbegriff) return firmen;
+    return firmen.filter((f) => f.name.toLowerCase().includes(suchbegriff));
+  }, [firmen, suche]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -33,15 +45,15 @@ export function FirmaCombobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-        <Command>
-          <CommandInput placeholder="Firma suchen..." />
+        <Command shouldFilter={false}>
+          <CommandInput placeholder="Firma suchen..." value={suche} onValueChange={setSuche} />
           <CommandList>
             <CommandEmpty>Keine Firma gefunden.</CommandEmpty>
             <CommandGroup>
-              {firmen.map((firma) => (
+              {gefiltert.map((firma) => (
                 <CommandItem
                   key={firma.id}
-                  value={firma.name}
+                  value={firma.id}
                   onSelect={() => {
                     setOpen(false);
                     router.push(`/geraete?firmaId=${firma.id}`);

@@ -168,6 +168,8 @@ Umgesetzt (UI + Server Actions in einem Schritt, kein separater `/backend`-Durch
 
 **Nachtrag (2026-10-05, Nutzerwunsch):** Zusätzlich zum Link oben auf der Seite gibt es jetzt auch einen "Zurück"-Button direkt neben "Speichern" am Ende des Formulars (derselbe Ziel-Link) — vermeidet Hochscrollen nach dem Ausfüllen des Formulars.
 
+**Bug gefunden beim ersten echten Test (2026-10-05):** Die Firma-Suche in der Combobox zeigte bei einer Eingabe wie "reha" weiterhin offensichtlich nicht passende Firmen an, der gesuchte Eintrag war erst nach Scrollen sichtbar. Ursache: `cmdk`s eingebaute Fuzzy-Suche vergibt bei vielen ähnlich langen Firmennamen auch unpassenden Treffern oft einen Score > 0 und blendet sie dadurch nicht aus. Behoben, indem `Command` auf `shouldFilter={false}` gesetzt und stattdessen selbst eine einfache, vorhersagbare Teilstring-Suche (case-insensitive `includes()`) über die Firmenliste gelegt wurde.
+
 ## QA Test Results
 _To be added by /qa_
 
