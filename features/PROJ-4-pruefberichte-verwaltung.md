@@ -204,6 +204,7 @@ Funktional/strukturell per Code-Review verifiziert; Schreibpfad (Anlegen/Bearbei
   4. Erwartet: Ein serverseitiger Versuch, einen stornierten Bericht zu bearbeiten, wird abgelehnt (die Spec verlangt "komplett read-only", nicht nur UI-seitig)
   5. Tatsächlich: Ein direkter Aufruf der Server Action (z.B. nach Reaktivieren eines alten Browser-Tabs mit noch aktivem Formular, oder durch einen manuell nachgebauten Request) würde den stornierten Bericht trotzdem ändern
 - **Priority:** Fix before deployment
+- **Status:** ✅ Fixed (2026-10-05) — `updatePruefbericht()`/`stornierePruefbericht()` laden den Bestandsdatensatz zuerst (`getPruefbericht()`) und lehnen mit einer `DataverseError("validation_error", ...)` ab, wenn er bereits storniert ist. Regressionstests: `pruefberichte.test.ts` ("rejects editing an already stornierten Prüfbericht…", "rejects stornieren an already stornierten Prüfbericht again").
 
 #### BUG-2: Ergebnis-Wert wird serverseitig nicht auf die drei erlaubten Werte beschränkt
 - **Severity:** Medium
@@ -212,6 +213,7 @@ Funktional/strukturell per Code-Review verifiziert; Schreibpfad (Anlegen/Bearbei
   2. Erwartet: Nur die drei definierten Werte werden akzeptiert
   3. Tatsächlich: Ein beliebiger nicht-leerer String würde die Validierung passieren und (falls das Dataverse-Feld kein strenges Choice/Options-Set ist, sondern Freitext) gespeichert — Anzeige würde dann als neutrale graue Badge erscheinen, ohne Fehlermeldung
 - **Priority:** Fix before deployment
+- **Status:** ✅ Fixed (2026-10-05) — `ergebnis` nutzt jetzt `z.enum(ERGEBNIS_OPTIONEN)` statt einer reinen Nicht-leer-Prüfung. Regressionstest: `actions.test.ts` ("rejects an Ergebnis value outside the three allowed options").
 
 #### BUG-3: `geraetId` bei Bearbeiten/Stornieren wird vom Aufrufer übernommen statt aus dem Datensatz abgeleitet
 - **Severity:** Medium
@@ -221,14 +223,18 @@ Funktional/strukturell per Code-Review verifiziert; Schreibpfad (Anlegen/Bearbei
   3. Erwartet: Die Kaskade sollte robust gegen einen falschen/inkonsistenten `geraetId`-Parameter sein, z.B. durch Ableitung aus `_bmvcc_gearaet_value` des Datensatzes selbst
   4. Tatsächlich: Bei einem (aktuell nicht auftretenden, aber nicht ausgeschlossenen) Aufruf mit falschem `geraetId` würde das eigentlich betroffene Gerät NICHT neu synchronisiert, ein unbeteiligtes Gerät hingegen schon (dort allerdings folgenlos, da die Synchronisation immer den tatsächlichen Istzustand abfragt)
 - **Priority:** Nice to have (keine beobachtete reale Auswirkung, aber ein Robustheits-/Verteidigungslinie-Gewinn für wenig Aufwand)
+- **Status:** ✅ Fixed (2026-10-05) — gleich mitbehoben, da dieselbe Codestelle betroffen war: `updatePruefbericht(id, input)` und `stornierePruefbericht(id)` nehmen `geraetId` gar nicht mehr als Parameter entgegen, sondern lesen `_bmvcc_gearaet_value` aus dem geladenen Datensatz und geben ihn zurück (`{ geraetId }`) — die Server Actions nutzen diesen Rückgabewert für die Cache-Revalidierung. Regressionstests: `pruefberichte.test.ts` ("re-syncs the Gerät status derived from the record itself"), `actions.test.ts` ("revalidates using the geraetId returned by updatePruefbericht, not a caller-supplied one").
+
+### Retest (2026-10-05)
+Alle drei Bugs behoben, Testsuite um 5 neue Fälle erweitert (35 → 40 in diesem Feature, 97 → 102 gesamt im Projekt). `npm test` (102/102), `npm run lint` und `npm run build` (inkl. TypeScript-Check) alle grün.
 
 ### Summary
 - **Acceptance Criteria:** 7/13 vollständig verifiziert (Code-Review + Unit-Test), 6/13 unit-getestet aber noch nicht live gegen echtes Dataverse geprüft (ausstehend laut Nutzeransage)
-- **Bugs Found:** 3 total (0 critical, 1 high, 2 medium, 0 low)
-- **Security:** 2 offene Findings (BUG-1 High, BUG-2 Medium), 1 Nice-to-have (BUG-3)
-- **Neue Unit-Tests:** 35 (`pruefer-kuerzel.test.ts`, `pruefberichte.test.ts`, `actions.test.ts`) — Testsuite insgesamt jetzt 97/97 grün
-- **Production Ready:** NO
-- **Recommendation:** BUG-1 und BUG-2 vor Deployment beheben (beide serverseitige Durchsetzung bereits dokumentierter Spec-Regeln). BUG-3 optional. Danach: Nutzer verifiziert den Schreibpfad (Anlegen/Bearbeiten/Stornieren) live im Browser — insbesondere den unverifizierten `@odata.bind`-Navigationsnamen (siehe Implementation Notes) —, bevor erneut auf `/deploy` gegangen wird.
+- **Bugs Found:** 3 total (0 critical, 1 high, 2 medium, 0 low) — **alle 3 behoben**
+- **Security:** Keine offenen Findings mehr
+- **Neue Unit-Tests:** 40 insgesamt für dieses Feature (`pruefer-kuerzel.test.ts`, `pruefberichte.test.ts`, `actions.test.ts`) — Testsuite insgesamt jetzt 102/102 grün
+- **Production Ready:** Bedingt — der Code ist bereit (keine offenen Bugs), aber der Schreibpfad (Anlegen/Bearbeiten/Stornieren gegen echtes Dataverse, insbesondere der unverifizierte `@odata.bind`-Navigationsname) ist laut Nutzeransage noch nicht live getestet.
+- **Recommendation:** Nutzer verifiziert jetzt den Schreibpfad live im Browser. Falls das Anlegen eines Prüfberichts an der Navigationseigenschaft scheitert, zuerst das beheben, dann erneut kurz testen, bevor auf `/deploy` gegangen wird.
 
 ## Deployment
 _To be added by /deploy_

@@ -10,6 +10,7 @@ vi.mock("@/lib/dataverse/pruefberichte", () => ({
   createPruefbericht: (...args: unknown[]) => createPruefbericht(...args),
   updatePruefbericht: (...args: unknown[]) => updatePruefbericht(...args),
   stornierePruefbericht: (...args: unknown[]) => stornierePruefbericht(...args),
+  ERGEBNIS_OPTIONEN: ["Freigabe", "keine Freigabe", "letzte Freigabe"],
 }));
 vi.mock("@/auth", () => ({ auth: () => authMock() }));
 vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => revalidatePath(...args) }));
@@ -55,6 +56,16 @@ describe("createPruefberichtAction", () => {
     expect(createPruefbericht).not.toHaveBeenCalled();
   });
 
+  it("rejects an Ergebnis value outside the three allowed options (QA BUG-2 fix)", async () => {
+    const result = await createPruefberichtAction(
+      GERAET_ID,
+      formDataWith({ pruefdatum: "2026-01-15", ergebnis: "irgendwas", bemerkungen: "" })
+    );
+
+    expect(result.success).toBe(false);
+    expect(createPruefbericht).not.toHaveBeenCalled();
+  });
+
   it("derives the Prüfer-Kürzel from the logged-in session name", async () => {
     authMock.mockResolvedValue({ user: { name: "Max Mustermann" } });
     createPruefbericht.mockResolvedValue({ id: BERICHT_ID });
@@ -91,7 +102,6 @@ describe("updatePruefberichtAction", () => {
   it("rejects an empty Ergebnis without calling updatePruefbericht", async () => {
     const result = await updatePruefberichtAction(
       BERICHT_ID,
-      GERAET_ID,
       formDataWith({ pruefdatum: "2026-01-15", ergebnis: "", bemerkungen: "" })
     );
 
@@ -100,37 +110,50 @@ describe("updatePruefberichtAction", () => {
   });
 
   it("forwards trimmed values and converts blank Bemerkungen to null", async () => {
-    updatePruefbericht.mockResolvedValue(undefined);
+    updatePruefbericht.mockResolvedValue({ geraetId: GERAET_ID });
 
-    await updatePruefberichtAction(
-      BERICHT_ID,
-      GERAET_ID,
-      formDataWith({ pruefdatum: "2026-01-15", ergebnis: "Freigabe", bemerkungen: "  " })
+    await updatePruefberichtAction(BERICHT_ID, formDataWith({ pruefdatum: "2026-01-15", ergebnis: "Freigabe", bemerkungen: "  " }));
+
+    expect(updatePruefbericht).toHaveBeenCalledWith(BERICHT_ID, expect.objectContaining({ bemerkungen: null }));
+  });
+
+  it("revalidates using the geraetId returned by updatePruefbericht, not a caller-supplied one", async () => {
+    updatePruefbericht.mockResolvedValue({ geraetId: GERAET_ID });
+
+    await updatePruefberichtAction(BERICHT_ID, formDataWith({ pruefdatum: "2026-01-15", ergebnis: "Freigabe", bemerkungen: "" }));
+
+    expect(revalidatePath).toHaveBeenCalledWith(`/geraete/${GERAET_ID}`);
+  });
+
+  it("surfaces a validation_error DataverseError when the Bericht is already storniert", async () => {
+    updatePruefbericht.mockRejectedValue(
+      new DataverseError("validation_error", "Ein stornierter Prüfbericht kann nicht mehr bearbeitet werden.")
     );
 
-    expect(updatePruefbericht).toHaveBeenCalledWith(
-      BERICHT_ID,
-      GERAET_ID,
-      expect.objectContaining({ bemerkungen: null })
-    );
+    const result = await updatePruefberichtAction(BERICHT_ID, formDataWith({ pruefdatum: "2026-01-15", ergebnis: "Freigabe", bemerkungen: "" }));
+
+    expect(result).toEqual({
+      success: false,
+      message: "Ein stornierter Prüfbericht kann nicht mehr bearbeitet werden.",
+    });
   });
 });
 
 describe("stornierePruefberichtAction", () => {
-  it("calls stornierePruefbericht and revalidates on success", async () => {
-    stornierePruefbericht.mockResolvedValue(undefined);
+  it("calls stornierePruefbericht and revalidates using its returned geraetId", async () => {
+    stornierePruefbericht.mockResolvedValue({ geraetId: GERAET_ID });
 
-    const result = await stornierePruefberichtAction(BERICHT_ID, GERAET_ID);
+    const result = await stornierePruefberichtAction(BERICHT_ID);
 
     expect(result).toEqual({ success: true });
-    expect(stornierePruefbericht).toHaveBeenCalledWith(BERICHT_ID, GERAET_ID);
+    expect(stornierePruefbericht).toHaveBeenCalledWith(BERICHT_ID);
     expect(revalidatePath).toHaveBeenCalledWith(`/geraete/${GERAET_ID}`);
   });
 
   it("surfaces a DataverseError message on failure", async () => {
     stornierePruefbericht.mockRejectedValue(new DataverseError("permission_denied", "Keine Berechtigung."));
 
-    const result = await stornierePruefberichtAction(BERICHT_ID, GERAET_ID);
+    const result = await stornierePruefberichtAction(BERICHT_ID);
 
     expect(result).toEqual({ success: false, message: "Keine Berechtigung." });
   });

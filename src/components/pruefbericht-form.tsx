@@ -83,7 +83,7 @@ export function PruefberichtForm({
       const result =
         mode === "create"
           ? await createPruefberichtAction(geraetId, formData)
-          : await updatePruefberichtAction(pruefbericht!.id, geraetId, formData);
+          : await updatePruefberichtAction(pruefbericht!.id, formData);
 
       if (!result.success) {
         setServerError(result.message);
@@ -98,7 +98,7 @@ export function PruefberichtForm({
   const onStornieren = () => {
     setServerError(null);
     startTransition(async () => {
-      const result = await stornierePruefberichtAction(pruefbericht!.id, geraetId);
+      const result = await stornierePruefberichtAction(pruefbericht!.id);
       if (!result.success) {
         setServerError(result.message);
       } else {

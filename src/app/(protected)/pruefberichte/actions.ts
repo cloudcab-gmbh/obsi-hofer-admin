@@ -3,13 +3,13 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { createPruefbericht, updatePruefbericht, stornierePruefbericht } from "@/lib/dataverse/pruefberichte";
+import { createPruefbericht, updatePruefbericht, stornierePruefbericht, ERGEBNIS_OPTIONEN } from "@/lib/dataverse/pruefberichte";
 import { computePrueferKuerzel } from "@/lib/pruefer-kuerzel";
 import { DataverseError } from "@/lib/dataverse/errors";
 
 const pruefberichtSchema = z.object({
   pruefdatum: z.string().trim().min(1, "Prüfdatum darf nicht leer sein."),
-  ergebnis: z.string().trim().min(1, "Bitte ein Ergebnis auswählen."),
+  ergebnis: z.enum(ERGEBNIS_OPTIONEN, { message: "Bitte ein gültiges Ergebnis auswählen." }),
   bemerkungen: z.string().trim().nullable(),
 });
 
@@ -52,18 +52,15 @@ export async function createPruefberichtAction(
   return { success: true };
 }
 
-export async function updatePruefberichtAction(
-  id: string,
-  geraetId: string,
-  formData: FormData
-): Promise<PruefberichtActionResult> {
+export async function updatePruefberichtAction(id: string, formData: FormData): Promise<PruefberichtActionResult> {
   const parsed = parsePruefberichtFormData(formData);
   if (!parsed.success) {
     return { success: false, message: parsed.error.issues[0]?.message ?? "Ungültige Eingabe." };
   }
 
+  let geraetId: string;
   try {
-    await updatePruefbericht(id, geraetId, parsed.data);
+    ({ geraetId } = await updatePruefbericht(id, parsed.data));
   } catch (error) {
     const message = error instanceof DataverseError ? error.message : "Unbekannter Fehler beim Speichern.";
     return { success: false, message };
@@ -75,12 +72,10 @@ export async function updatePruefberichtAction(
   return { success: true };
 }
 
-export async function stornierePruefberichtAction(
-  id: string,
-  geraetId: string
-): Promise<PruefberichtActionResult> {
+export async function stornierePruefberichtAction(id: string): Promise<PruefberichtActionResult> {
+  let geraetId: string;
   try {
-    await stornierePruefbericht(id, geraetId);
+    ({ geraetId } = await stornierePruefbericht(id));
   } catch (error) {
     const message = error instanceof DataverseError ? error.message : "Unbekannter Fehler beim Stornieren.";
     return { success: false, message };

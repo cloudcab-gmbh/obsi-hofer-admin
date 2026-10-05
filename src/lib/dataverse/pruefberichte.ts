@@ -1,4 +1,5 @@
 import { getRecord, listRecords, createRecord, updateRecord } from "./records";
+import { DataverseError } from "./errors";
 
 // Dataverse-Entität/Feldnamen stammen aus dem bereits gegen die echte Umgebung
 // verifizierten Sync-Job-Mapping im Kundenportal-Repo (src/lib/sync/jobs.ts,
@@ -178,22 +179,39 @@ export async function createPruefbericht(
   return result;
 }
 
-export async function updatePruefbericht(id: string, geraetId: string, input: PruefberichtInput): Promise<void> {
+// geraetId wird bewusst NICHT vom Aufrufer übernommen, sondern aus dem
+// bestehenden Datensatz selbst gelesen — verhindert, dass ein falscher
+// Parameter das falsche Gerät (nicht) synchronisiert (siehe QA BUG-3).
+// Dieselbe Abfrage dient gleich als serverseitige Durchsetzung, dass ein
+// bereits stornierter Prüfbericht nicht mehr verändert werden kann (siehe
+// QA BUG-1) — die UI blendet das zwar schon aus, aber ohne diese Prüfung
+// liesse sich die Regel über einen direkten Server-Action-Aufruf umgehen.
+export async function updatePruefbericht(id: string, input: PruefberichtInput): Promise<{ geraetId: string }> {
   requireValidGuid(id, "id");
-  requireValidGuid(geraetId, "geraetId");
+
+  const bestehender = await getPruefbericht(id);
+  if (bestehender.storniert) {
+    throw new DataverseError("validation_error", "Ein stornierter Prüfbericht kann nicht mehr bearbeitet werden.");
+  }
 
   await updateRecord(PRUEFBERICHTE_ENTITY, id, {
     bmvcc_inspectiondate: input.pruefdatum,
     bmvcc_inspectionresult: input.ergebnis,
     bmvcc_remark: input.bemerkungen,
   });
-  await syncGeraetStatusFromPruefberichte(geraetId);
+  await syncGeraetStatusFromPruefberichte(bestehender.geraetId);
+  return { geraetId: bestehender.geraetId };
 }
 
-export async function stornierePruefbericht(id: string, geraetId: string): Promise<void> {
+export async function stornierePruefbericht(id: string): Promise<{ geraetId: string }> {
   requireValidGuid(id, "id");
-  requireValidGuid(geraetId, "geraetId");
+
+  const bestehender = await getPruefbericht(id);
+  if (bestehender.storniert) {
+    throw new DataverseError("validation_error", "Dieser Prüfbericht ist bereits storniert.");
+  }
 
   await updateRecord(PRUEFBERICHTE_ENTITY, id, { bmvcc_isarchived: true });
-  await syncGeraetStatusFromPruefberichte(geraetId);
+  await syncGeraetStatusFromPruefberichte(bestehender.geraetId);
+  return { geraetId: bestehender.geraetId };
 }

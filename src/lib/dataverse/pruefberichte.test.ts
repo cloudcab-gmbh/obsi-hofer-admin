@@ -225,16 +225,18 @@ describe("createPruefbericht", () => {
 });
 
 describe("updatePruefbericht", () => {
-  it("updates the Pruefbericht fields and re-syncs the Gerät status", async () => {
+  it("updates the Pruefbericht fields and re-syncs the Gerät status derived from the record itself", async () => {
+    getRecord.mockResolvedValue(rawBericht());
     updateRecord.mockResolvedValue(undefined);
     listRecords.mockResolvedValue({ records: [rawBericht()], nextPageCursor: null });
 
-    await updatePruefbericht(BERICHT_ID, GERAET_ID, {
+    const result = await updatePruefbericht(BERICHT_ID, {
       pruefdatum: "2026-02-01",
       ergebnis: "keine Freigabe",
       bemerkungen: "Korrigiert",
     });
 
+    expect(result).toEqual({ geraetId: GERAET_ID });
     expect(updateRecord).toHaveBeenNthCalledWith(
       1,
       "bmvcc_pruefberichts",
@@ -245,10 +247,11 @@ describe("updatePruefbericht", () => {
   });
 
   it("does not touch bmvcc_inspector (Prüfer is never editable)", async () => {
+    getRecord.mockResolvedValue(rawBericht());
     updateRecord.mockResolvedValue(undefined);
     listRecords.mockResolvedValue({ records: [rawBericht()], nextPageCursor: null });
 
-    await updatePruefbericht(BERICHT_ID, GERAET_ID, {
+    await updatePruefbericht(BERICHT_ID, {
       pruefdatum: "2026-02-01",
       ergebnis: "keine Freigabe",
       bemerkungen: null,
@@ -257,18 +260,29 @@ describe("updatePruefbericht", () => {
     const payload = updateRecord.mock.calls[0][2];
     expect(payload).not.toHaveProperty("bmvcc_inspector");
   });
+
+  it("rejects editing an already stornierten Prüfbericht without writing anything (QA BUG-1 fix)", async () => {
+    getRecord.mockResolvedValue(rawBericht({ bmvcc_isarchived: true }));
+
+    await expect(
+      updatePruefbericht(BERICHT_ID, { pruefdatum: "2026-02-01", ergebnis: "keine Freigabe", bemerkungen: null })
+    ).rejects.toMatchObject({ category: "validation_error" });
+    expect(updateRecord).not.toHaveBeenCalled();
+  });
 });
 
 describe("stornierePruefbericht", () => {
   it("sets bmvcc_isarchived and re-syncs the Gerät status from the next-most-recent active Bericht", async () => {
+    getRecord.mockResolvedValue(rawBericht());
     updateRecord.mockResolvedValue(undefined);
     listRecords.mockResolvedValue({
       records: [rawBericht({ bmvcc_pruefberichtid: "older", bmvcc_inspectiondate: "2025-01-01", bmvcc_inspectionresult: "letzte Freigabe" })],
       nextPageCursor: null,
     });
 
-    await stornierePruefbericht(BERICHT_ID, GERAET_ID);
+    const result = await stornierePruefbericht(BERICHT_ID);
 
+    expect(result).toEqual({ geraetId: GERAET_ID });
     expect(updateRecord).toHaveBeenNthCalledWith(1, "bmvcc_pruefberichts", BERICHT_ID, { bmvcc_isarchived: true });
     expect(updateRecord).toHaveBeenNthCalledWith(
       2,
@@ -279,10 +293,11 @@ describe("stornierePruefbericht", () => {
   });
 
   it("clears the Gerät status fields when no active Bericht remains after stornieren", async () => {
+    getRecord.mockResolvedValue(rawBericht());
     updateRecord.mockResolvedValue(undefined);
     listRecords.mockResolvedValue({ records: [], nextPageCursor: null });
 
-    await stornierePruefbericht(BERICHT_ID, GERAET_ID);
+    await stornierePruefbericht(BERICHT_ID);
 
     expect(updateRecord).toHaveBeenNthCalledWith(
       2,
@@ -290,5 +305,12 @@ describe("stornierePruefbericht", () => {
       GERAET_ID,
       { bmvcc_letztepruefung: null, bmvcc_betriebsmittelstatus: null, bmvcc_pruefer: null }
     );
+  });
+
+  it("rejects stornieren an already stornierten Prüfbericht again", async () => {
+    getRecord.mockResolvedValue(rawBericht({ bmvcc_isarchived: true }));
+
+    await expect(stornierePruefbericht(BERICHT_ID)).rejects.toMatchObject({ category: "validation_error" });
+    expect(updateRecord).not.toHaveBeenCalled();
   });
 });
