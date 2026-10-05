@@ -59,8 +59,7 @@
 - Prüfer-Kürzel wird aus `session.user.name` abgeleitet, exakt nach demselben Algorithmus wie die bestehende Power App (siehe Product Decisions)
 
 ## Open Questions
-- [ ] Exakte Tie-Breaking-Regel, wenn zwei Prüfberichte eines Geräts dasselbe Prüfdatum haben (z.B. nach Erstellungszeitpunkt oder Datensatz-ID) — wird in `/architecture` festgelegt
-- [ ] Fallback-Verhalten der Prüfer-Kürzel-Berechnung bei ungewöhnlichen Namen (nur ein Wort, mehrere Nachnamen) — wird in `/architecture` festgelegt
+_Keine offenen Fragen mehr — Tie-Breaking und Prüfer-Kürzel-Fallback wurden in `/architecture` festgelegt, siehe Tech Design._
 
 ## Decision Log
 
@@ -83,12 +82,56 @@
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Server Actions statt eigener API-Routen | Konsistent mit PROJ-3; direkter Aufruf der PROJ-2-Funktionen | 2026-10-05 |
+| Gerät-Status-Kaskade läuft in derselben Server Action wie Speichern/Stornieren | Vermeidet inkonsistenten Zwischenzustand bei nur teilweise durchlaufender Logik | 2026-10-05 |
+| "Aktuellster aktiver Bericht" wird bei Bedarf frisch ermittelt (Prüfdatum, dann Erstellungszeitpunkt, beides absteigend), nicht zwischengespeichert | Vermeidet Stale-Data; nutzt das von Dataverse automatisch gepflegte Erstellungszeitpunkt-Feld als Tie-Breaker, kein neues Feld nötig | 2026-10-05 |
+| Prüfer-Kürzel-Berechnung als eigene, reine Funktion mit Fallback (ganzer Name auf 4 Zeichen gekürzt, falls kein Leerzeichen enthalten) | Deterministisch und testbar; deckt den Edge Case ungewöhnlicher Namen ab | 2026-10-05 |
+| Stornieren als eigene Server Action, nicht über die generische Bearbeiten-Funktion | Macht die Absicht im Code klar, ermöglicht eigene Bestätigungs-UI vor einem endgültigen Schritt | 2026-10-05 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### A) Component Structure
+```
+Gerät-Detailseite (PROJ-3, erweitert)
++-- Prüfbericht-Historie (Tabelle: Datum, Ergebnis-Badge, Prüfer, Bemerkungen)
+|   +-- Stornierte standardmässig ausgeblendet, Checkbox "auch stornierte anzeigen"
+|   +-- Leer-Zustand ("Noch keine Prüfberichte")
++-- "Neuer Prüfbericht"-Button
+    +-- Formular: Prüfdatum (vorausgefüllt: heute), Ergebnis (Dropdown), Bemerkungen (optional)
+        Prüfer automatisch/read-only angezeigt
+
+Prüfbericht-Detailseite (/pruefberichte/[id])
++-- Kontext-Info: zugehöriges Gerät (read-only, Link zurück zum Gerät)
++-- Formular (editierbar: Prüfdatum, Ergebnis, Bemerkungen) — komplett read-only, falls storniert
++-- "Stornieren"-Button mit Bestätigungsdialog (ausgeblendet, wenn bereits storniert)
+
+Prüfberichte-Übersicht (/pruefberichte)
++-- Hinweis mit Link zu /start, falls keine Firma in der Session gewählt
++-- Suchfeld (Gerätename/Barcode) + Ergebnis-Filter + "auch stornierte anzeigen"-Checkbox
++-- Tabelle (Gerät, Datum, Ergebnis-Badge, Prüfer), sortiert nach Prüfdatum absteigend
++-- Leer-Zustand
+```
+
+### B) Data Model (plain language)
+Kein eigenes Datenmodell — alle Daten kommen live aus Dataverse über PROJ-2. Jeder Prüfbericht hat: zugehöriges Gerät (fix), Prüfdatum, Ergebnis (Freigabe/keine Freigabe/letzte Freigabe), Prüfer (automatisch), Bemerkungen (optional) und ein Storniert-Flag.
+
+**"Aktuellster aktiver Prüfbericht" eines Geräts** wird bei jedem relevanten Vorgang (Neuanlage, Bearbeiten, Stornieren) frisch aus Dataverse ermittelt — nicht zwischengespeichert, um Stale-Data zu vermeiden: zuerst nach Prüfdatum absteigend sortiert, bei zwei Berichten mit demselben Datum entscheidet zusätzlich der (von Dataverse automatisch gepflegte) Erstellungszeitpunkt, ebenfalls absteigend *(löst die offene Tie-Breaking-Frage aus der Spec)*. Nur nicht-stornierte Berichte zählen dabei mit.
+
+### C) Tech Decisions
+- **Server Actions statt eigener API-Routen**, analog PROJ-3: Anlegen/Bearbeiten/Stornieren rufen direkt die PROJ-2-Funktionen auf, kein eigener REST-Layer.
+- **Kaskaden-Logik (Gerät-Status aktualisieren) läuft in derselben Server Action** wie das Speichern/Stornieren eines Prüfberichts, nicht als separater Folgeschritt — vermeidet einen inkonsistenten Zwischenzustand, falls nur ein Teil durchläuft.
+- **"Aktuellster aktiver Bericht" wird bei Bedarf frisch ermittelt**, siehe Data Model — löst zugleich die Tie-Breaking-Frage über das Dataverse-Systemfeld für den Erstellungszeitpunkt (kein neues Feld nötig).
+- **Prüfer-Kürzel-Berechnung als eigene, reine Funktion** (Session-Name → Kürzel, erste 2 Buchstaben vor dem ersten Leerzeichen + erste 2 Buchstaben danach, beides klein): Fallback, falls der Name kein Leerzeichen enthält (z.B. nur ein Wort) → ganzer Name auf 4 Zeichen gekürzt, klein geschrieben *(löst die offene Fallback-Frage aus der Spec)*.
+- **Stornieren als eigene, einfache Server Action**, nicht über die generische Bearbeiten-Funktion — macht die Absicht im Code klar und ermöglicht eine eigene Bestätigungs-UI (shadcn `alert-dialog`, bereits installiert) vor diesem endgültigen Schritt.
+- **Formular-Validierung mit Zod + react-hook-form** (Prüfdatum und Ergebnis Pflicht, Bemerkungen optional), analog PROJ-3.
+- **Kein eigener Zwischenspeicher/Cache**, passend zum PRD-Grundsatz "live lesen, keine eigene Datenhaltung".
+
+### D) Dependencies
+- Keine neuen shadcn-Komponenten nötig — `alert-dialog`, `select`, `input`, `table`, `card`, `badge` sind bereits installiert und in Verwendung (PROJ-1/PROJ-3)
+- Keine neuen npm-Pakete
 
 ## QA Test Results
 _To be added by /qa_
