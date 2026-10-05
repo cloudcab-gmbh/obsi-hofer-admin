@@ -21,7 +21,7 @@
 | PROJ-4 | Prüfberichte-Verwaltung | In Review | [Spec](../features/PROJ-4-pruefberichte-verwaltung.md) | 2026-09-25 |
 | PROJ-5 | Sync-Freigabe pro Firma | Roadmap | — | 2026-09-25 |
 | PROJ-6 | Sync-Status/-Verlauf einsehen | Roadmap | — | 2026-09-25 |
-| PROJ-7 | PDF-Export Prüfberichte (kundenspezifisches Template) | Planned | [Spec](../features/PROJ-7-pdf-export-pruefberichte.md) | 2026-10-05 |
+| PROJ-7 | PDF-Export Prüfberichte (kundenspezifisches Template) | Architected | [Spec](../features/PROJ-7-pdf-export-pruefberichte.md) | 2026-10-05 |
 
 <!-- Add features above this line -->
 

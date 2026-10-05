@@ -1,6 +1,6 @@
 # PROJ-7: PDF-Export Prüfberichte (kundenspezifisches Template)
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-10-05
 **Last Updated:** 2026-10-05
 
@@ -57,11 +57,12 @@
 - Die neuen Microsoft-Graph-Berechtigungen (Zugriff auf die Vorlagen-/Archiv-Bibliothek) müssen als Application Permission in der bestehenden Azure-AD-App-Registrierung ergänzt und von einem Admin freigegeben (Consent) werden
 
 ## Open Questions
-- [ ] Welche konkrete SharePoint-Site/-Bibliothek dient als Vorlagen-Ablage, und wie heisst die Metadaten-Spalte für die Firma-Zuordnung (z.B. Text-Spalte mit exaktem Firmennamen, oder Lookup-Spalte)? Vom Nutzer einzurichten bzw. in `/architecture` final festzulegen.
-- [ ] Wie wird die Standard-Vorlage technisch bereitgestellt — selbst als Datei in derselben SharePoint-Bibliothek (ohne Firma-Zuordnung, als "default" markiert), oder fest im Code/Repo hinterlegt? Zu klären in `/architecture`.
-- [ ] Technischer Ansatz für die Word→PDF-Umwandlung inkl. der verpflichtenden farblichen Hervorhebung (z.B. Microsoft-Graph-eigene Konvertierung plus Vorverarbeitung der Vorlage, oder eine andere Merge-Technologie) — bewusst keine technische Festlegung in dieser Spec, da Sache von `/architecture`. Risiko: datengetriebene Zellfarben in einer reinen Word-Mail-Merge-Vorlage sind technisch anspruchsvoller als reiner Text-Merge und könnten die Wahl der Architektur einschränken.
-- [ ] Exakte Liste und Benennung der als Platzhalter verfügbaren Felder (siehe Product Decisions für die inhaltliche Liste) muss für die Admin-Dokumentation/Anleitung zur Vorlagen-Erstellung technisch festgelegt werden (z.B. Platzhalter-Syntax) — Sache von `/architecture`/`/backend`.
-- [ ] Muss die Azure-AD-App-Registrierung für die neuen Graph-Berechtigungen erweitert werden, oder braucht es eine separate App-Registrierung für den SharePoint-Zugriff? Abhängig von der in `/architecture` gewählten Lösung.
+- [ ] Welche konkrete SharePoint-Site soll die beiden neuen Dokumentbibliotheken ("Prüfbericht-Vorlagen" und "Generierte Prüfberichte") enthalten — eine bestehende Site oder eine neu anzulegende? Muss der Nutzer festlegen/einrichten, bevor `/backend` die Graph-Anbindung konfigurieren kann.
+- [x] Wie wird die Standard-Vorlage technisch bereitgestellt — **entschieden in `/architecture`:** als normale Datei mit reserviertem Namen in derselben Vorlagen-Bibliothek, nicht im Code/Repo (siehe Tech Design)
+- [x] Technischer Ansatz für die Word→PDF-Umwandlung inkl. der farblichen Hervorhebung — **entschieden in `/architecture`:** Microsoft Graph übernimmt die eigentliche PDF-Konvertierung, die Farbhervorhebung wird über ein vorbereitetes Platzhalterfeld in der Zellformatierung gelöst, das der Admin aus einer Musterzeile kopiert (siehe Tech Design)
+- [x] Platzhalter-Syntax — **entschieden in `/architecture`:** siehe Tech Design, finale Feldliste/Anleitung folgt als Teil von `/backend`
+- [x] Azure-AD-App-Registrierung — **entschieden in `/architecture`:** bestehende Registrierung aus PROJ-1/2 wird um eine zusätzliche, auf die konkrete Site beschränkte Graph-Berechtigung erweitert (siehe Tech Design), keine separate Registrierung nötig
+- [ ] Exakter Name der Metadaten-Spalte für die Firma-Zuordnung in der Vorlagen-Bibliothek sowie der reservierte Dateiname der Standard-Vorlage — kleinschrittig in `/backend` zusammen mit dem Nutzer final benannt, sobald die Site steht
 
 ## Decision Log
 
@@ -83,12 +84,51 @@
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Microsoft Graph API statt direkter SharePoint-REST-API | Ein Protokoll/Auth-Muster für Dateizugriff, Metadaten UND die PDF-Konvertierung; von Microsoft aktiv weiterentwickelt | 2026-10-05 |
+| PDF-Konvertierung über die in Microsoft 365 eingebaute Graph-Funktion ("als PDF herunterladen"), keine selbst betriebene Konvertierungs-Software | Vermeidet Betrieb/Wartung einer zusätzlichen Komponente (z.B. LibreOffice) in der schlanken Vercel-Serverless-Umgebung; nutzt die ohnehin vorhandene Microsoft-365-Lizenz; rendert mit demselben Office-Layout-Engine wie Word selbst, dadurch hohe visuelle Treue | 2026-10-05 |
+| Platzhalter-Ersetzung inkl. Tabellen-Wiederholung über eine dedizierte Word-Templating-Bibliothek (docxtemplater), nicht über eine eigene HTML/PDF-Vorlagensprache | Vorlagen bleiben waschechte, in Word frei gestaltbare Dokumente (Logo, Layout, Schriftart) — der Admin braucht kein neues Werkzeug zu lernen, nur eine Platzhalter-Syntax | 2026-10-05 |
+| Farbliche Zellhervorhebung über ein vorbereitetes Platzhalterfeld in der Zellformatierung, das der Admin 1:1 aus einer mitgelieferten Musterzeile kopiert, statt einer generischen "Bedingte Formatierung"-Funktion | Datengetriebene Zellfarben lassen sich mit reinem Text-Merge nicht lösen; ein vorgefertigtes Kopiervorlagen-Element hält die Vorlagenerstellung für den Admin trotzdem praktikabel, ohne dass er die Word-Dateistruktur verstehen muss | 2026-10-05 |
+| Standard-Vorlage ist eine normale Datei mit reserviertem, festem Namen in derselben Vorlagen-Bibliothek (nicht im Code/Repo hinterlegt) | Konsistent mit dem Grundprinzip "Admin pflegt alles direkt in SharePoint, ohne Code-Deploy" — auch die Standard-Vorlage bleibt damit vom Admin frei anpassbar | 2026-10-05 |
+| Erweiterung der bestehenden Azure-AD-App-Registrierung (PROJ-1/2) um eine zusätzliche Graph-Berechtigung, beschränkt auf die konkrete SharePoint-Site (statt tenant-weitem SharePoint-Zugriff) | Eine App-Registrierung statt zwei hält die Nutzerverwaltung einfach; auf die Site beschränkter Zugriff folgt dem Prinzip "kleinstmögliche Rechteausweitung", analog zur RLS-Denkweise im Kundenportal-Repo | 2026-10-05 |
+| Zwei getrennte Dokumentbibliotheken (Vorlagen vs. generiertes Archiv), nicht eine gemeinsame | Vermeidet Verwechslungsgefahr zwischen "editierbarer Vorlage" und "fertigem Ergebnisdokument"; eigene Ordnerstruktur (ein Ordner pro Firma) ist nur im Archiv sinnvoll, nicht bei den Vorlagen | 2026-10-05 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Komponenten-Struktur
+
+```
+Geräteliste-Seite (/geraete, bestehend aus PROJ-3)
+├── Bestehende Filterleiste (Firma, Lagerort, Standort, Letzte Prüfung) – unverändert
+├── NEU: "PDF generieren"-Button (neben der Liste)
+└── NEU: Lade-/Fehleranzeige während der Generierung
+    ├── Erfolg → Browser lädt das PDF direkt herunter
+    └── Fehler → verständliche Fehlermeldung (z.B. "Keine Geräte gefunden", "Vorlage nicht gefunden")
+
+Neuer Export-Vorgang ("PDF generieren", server-seitig)
+├── 1. Liest die aktuell gefilterte Geräteliste inkl. aktuellstem aktivem Prüfbericht je Gerät (bestehende PROJ-3/4-Logik, unverändert)
+├── 2. Ermittelt die für die aktuelle Firma zuständige Vorlage in SharePoint (Metadaten-Abfrage über Microsoft Graph) — fällt auf die Standard-Vorlage zurück, falls keine gefunden; meldet einen Fehler, falls eine Zuordnung existiert, die zugehörige Datei aber nicht mehr auffindbar ist
+├── 3. Befüllt die Vorlage mit Firma-, Geräte- und Prüfbericht-Daten, inkl. der farblichen Hervorhebung je Prüfergebnis
+├── 4. Wandelt das befüllte Dokument serverseitig über Microsoft Graph in ein PDF um
+├── 5. Legt das PDF automatisch im Archiv ab (Bibliothek "Generierte Prüfberichte", Unterordner der jeweiligen Firma, wird bei Bedarf automatisch angelegt)
+└── 6. Liefert dasselbe PDF gleichzeitig als Download an den Bearbeiter zurück
+```
+
+### Datenmodell (in Textform)
+
+- **Vorlagen-Ablage:** Eine SharePoint-Dokumentbibliothek "Prüfbericht-Vorlagen". Jede Datei darin ist eine Word-Vorlage mit einer Metadaten-Spalte "Firma" (Freitext, exakter Firmenname wie in Dataverse) — maximal eine aktive Vorlage pro Firma (bei einem Pflegefehler mit mehreren Treffern gilt die zuletzt geänderte Datei, siehe Product Decisions). Eine einzelne, besonders benannte Datei ohne Firma-Zuordnung dient als Standard-Vorlage für Firmen ohne eigene Zuordnung.
+- **Archiv-Ablage:** Eine zweite, getrennte Dokumentbibliothek "Generierte Prüfberichte". Darin wird pro Firma automatisch ein Unterordner angelegt (beim ersten Export dieser Firma), in dem alle bisher für diese Firma generierten PDFs chronologisch benannt (Firma + Zeitstempel) gesammelt werden.
+- **Platzhalter-Feldpool in der Vorlage:** Einmalig der Firmenname, sowie innerhalb einer sich automatisch wiederholenden Tabellenzeile pro Gerät: alle Gerätestammdaten (Gerätename, Kunden-ID, Barcode, Seriennummer, Lagerort, Standort, Herstelljahr, Erstgebrauch, Ablegereife, Zubehör, Bemerkungen), die zugehörigen Artikel-Stammdaten (Typ, Dimension, Hersteller) sowie die Daten des aktuellsten aktiven Prüfberichts (Datum, Prüfer, Ergebnis, Bemerkung) inklusive eines speziellen, vorbereiteten Feldes für die ergebnisabhängige Zellfarbe.
+- **Keine neue Datenbank/Tabelle:** Sowohl die Vorlagen-Zuordnung als auch das Archiv leben vollständig in SharePoint; das Admin-Tool selbst bleibt wie in der PRD festgelegt ohne eigene Datenbank.
+
+### Technische Entscheidungen (Begründung)
+Siehe Decision Log → Technical Decisions oben.
+
+### Abhängigkeiten (Packages)
+- Eine Word-Templating-Bibliothek für die Platzhalter-Ersetzung inkl. Tabellen-Wiederholung (docxtemplater) — einzige neue Abhängigkeit
+- Keine neuen Pakete für die PDF-Konvertierung selbst — läuft über die bestehende Microsoft-Graph-Anbindung, die für diese Funktion um einen zusätzlichen Berechtigungs-Scope erweitert wird (gleiches Authentifizierungsmuster wie die bestehende Dataverse-Anbindung aus PROJ-2, nur mit anderem Scope)
 
 ## QA Test Results
 _To be added by /qa_
