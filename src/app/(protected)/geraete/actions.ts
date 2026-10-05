@@ -14,6 +14,7 @@ const stammdatenSchema = z.object({
   herstelljahr: z.string().trim().nullable(),
   erstgebrauch: z.string().trim().nullable(),
   ablegereife: z.string().trim().nullable(),
+  kundenId: z.string().trim().nullable(),
 });
 
 export type SaveGeraetResult = { success: true } | { success: false; message: string };
@@ -33,6 +34,7 @@ export async function saveGeraetStammdaten(id: string, formData: FormData): Prom
     herstelljahr: emptyToNull(formData.get("herstelljahr")),
     erstgebrauch: emptyToNull(formData.get("erstgebrauch")),
     ablegereife: emptyToNull(formData.get("ablegereife")),
+    kundenId: emptyToNull(formData.get("kundenId")),
   });
 
   if (!parsed.success) {

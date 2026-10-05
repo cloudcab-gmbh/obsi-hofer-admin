@@ -180,6 +180,11 @@ Umgesetzt (UI + Server Actions in einem Schritt, kein separater `/backend`-Durch
 
 Betrifft Component-Structure/Data-Model/Tech-Decisions im Tech-Design-Abschnitt dieser Spec nur indirekt (dort weiterhin als "Firma-Auswahl" beschrieben, jetzt auf `/start` statt `/geraete` verortet) — keine separate Überarbeitung dieser Abschnitte, da die fachliche Absicht (Firma vor Geräte-Zugriff festlegen) unverändert bleibt.
 
+**Nachtrag (2026-10-05, Nutzerwunsch):** `bmvcc_kundenid` ("Kunden-eigene Gerätebezeichnung", bereits aus dem Kundenportal-Repo als PROJ-7-Zusatzspalte bekannt, dort aber ausdrücklich *nicht* für die Firma-Zuordnung verwendet) ergänzt:
+- Neue Spalte "Kunden-ID" in der Geräteliste, auch Teil der Volltextsuche
+- Neues editierbares Feld "Kunden-eigene Gerätebezeichnung" im Stammdaten-Formular (damit Bearbeiter es im Kundenauftrag anpassen können)
+- Stammdaten-Set der Spec dadurch implizit erweitert — ergänzt in `GERAET_SELECT`/`Geraet`/`GeraetStammdatenInput` in `src/lib/dataverse/geraete.ts`
+
 ## QA Test Results
 _To be added by /qa_
 

@@ -23,6 +23,7 @@ const schema = z.object({
   herstelljahr: z.string(),
   erstgebrauch: z.string(),
   ablegereife: z.string(),
+  kundenId: z.string(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -68,6 +69,7 @@ export function GeraetForm({
       herstelljahr: toDateInputValue(geraet.herstelljahr),
       erstgebrauch: toDateInputValue(geraet.erstgebrauch),
       ablegereife: toDateInputValue(geraet.ablegereife),
+      kundenId: geraet.kundenId ?? "",
     },
   });
 
@@ -154,6 +156,10 @@ export function GeraetForm({
         <div>
           <Label htmlFor="bemerkungen">Bemerkungen</Label>
           <Input id="bemerkungen" {...register("bemerkungen")} />
+        </div>
+        <div>
+          <Label htmlFor="kundenId">Kunden-eigene Gerätebezeichnung</Label>
+          <Input id="kundenId" {...register("kundenId")} />
         </div>
 
         {serverError && <p className="text-sm text-destructive">{serverError}</p>}

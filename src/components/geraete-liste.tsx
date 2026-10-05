@@ -33,7 +33,7 @@ export function GeraeteListe({ geraete, standorte }: { geraete: Geraet[]; stando
       if (standortId !== ALLE && g.standortId !== standortId) return false;
       if (lagerort !== ALLE && g.lagerort !== lagerort) return false;
       if (!suchbegriff) return true;
-      return [g.name, g.barcode, g.serienummer].some((v) => v?.toLowerCase().includes(suchbegriff));
+      return [g.name, g.barcode, g.serienummer, g.kundenId].some((v) => v?.toLowerCase().includes(suchbegriff));
     });
   }, [geraete, suche, lagerort, standortId]);
 
@@ -53,7 +53,7 @@ export function GeraeteListe({ geraete, standorte }: { geraete: Geraet[]; stando
     <div>
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
         <Input
-          placeholder="Suche nach Name, Barcode, Seriennummer..."
+          placeholder="Suche nach Name, Barcode, Seriennummer, Kunden-ID..."
           value={suche}
           onChange={(e) => setSuche(e.target.value)}
           className="sm:max-w-xs"
@@ -101,6 +101,7 @@ export function GeraeteListe({ geraete, standorte }: { geraete: Geraet[]; stando
               <TableHeader>
                 <TableRow>
                   <TableHead>Gerät</TableHead>
+                  <TableHead>Kunden-ID</TableHead>
                   <TableHead>Barcode</TableHead>
                   {zeigeStandortSpalte && <TableHead>Standort</TableHead>}
                   <TableHead>Lagerort</TableHead>
@@ -118,6 +119,7 @@ export function GeraeteListe({ geraete, standorte }: { geraete: Geraet[]; stando
                         {g.name ?? "(ohne Name)"}
                       </Link>
                     </TableCell>
+                    <TableCell>{g.kundenId ?? "—"}</TableCell>
                     <TableCell>{g.barcode ?? "—"}</TableCell>
                     {zeigeStandortSpalte && <TableCell>{standortName(g.standortId)}</TableCell>}
                     <TableCell>{g.lagerort ?? "—"}</TableCell>

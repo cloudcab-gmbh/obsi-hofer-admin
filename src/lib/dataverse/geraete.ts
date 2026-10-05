@@ -28,6 +28,7 @@ const GERAET_SELECT = [
   "bmvcc_pruefer",
   "bmvcc_zubehoer",
   "bmvcc_notitzen",
+  "bmvcc_kundenid",
 ];
 
 export interface Firma {
@@ -66,6 +67,10 @@ export interface Geraet {
   pruefer: string | null;
   zubehoer: string | null;
   bemerkungen: string | null;
+  // Kunden-eigene Gerätebezeichnung (siehe PROJ-7 im Kundenportal-Repo) —
+  // bewusst nicht für die Firma-Zuordnung verwendet, nur ein frei editierbares
+  // Label, das der Kunde intern zur Identifikation nutzt.
+  kundenId: string | null;
 }
 
 export interface GeraetStammdatenInput {
@@ -77,6 +82,7 @@ export interface GeraetStammdatenInput {
   herstelljahr: string | null;
   erstgebrauch: string | null;
   ablegereife: string | null;
+  kundenId: string | null;
 }
 
 function asString(value: unknown): string | null {
@@ -112,6 +118,7 @@ function mapGeraet(raw: Record<string, unknown>): Geraet {
     pruefer: asString(raw.bmvcc_pruefer),
     zubehoer: asString(raw.bmvcc_zubehoer),
     bemerkungen: asString(raw.bmvcc_notitzen),
+    kundenId: asString(raw.bmvcc_kundenid),
   };
 }
 
@@ -210,5 +217,6 @@ export async function updateGeraetStammdaten(id: string, input: GeraetStammdaten
     bmvcc_herstelljahr: input.herstelljahr,
     bmvcc_erstgebrauch: input.erstgebrauch,
     bmvcc_ablegereife: input.ablegereife,
+    bmvcc_kundenid: input.kundenId,
   });
 }
