@@ -20,6 +20,7 @@ Anmeldung über das bestehende Microsoft-365-/Entra-ID-Konto (interner Firmen-Te
 | P0 (MVP) | Prüfberichte-Verwaltung (Erfassen, Bearbeiten, Stornieren statt Löschen) | Planned |
 | P0 (MVP) | Sync-Freigabe pro Firma (löst den angepassten Kundenportal-Sync-Endpoint gezielt für eine Firma aus) | Roadmap |
 | P1 | Sync-Status/-Verlauf einsehen (letzter Lauf pro Firma, Erfolg/Fehler, Zeitpunkt) | Roadmap |
+| P1 | PDF-Export Prüfberichte (kundenspezifisches Word-Template pro Firma, via SharePoint) | Planned |
 
 ## Success Metrics
 - Keine direkte Dateneingabe mehr in Dataverse/Dynamics nötig für Geräte/Prüfberichte
