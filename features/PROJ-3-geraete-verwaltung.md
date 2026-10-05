@@ -185,6 +185,8 @@ Betrifft Component-Structure/Data-Model/Tech-Decisions im Tech-Design-Abschnitt 
 - Neues editierbares Feld "Kunden-eigene Gerätebezeichnung" im Stammdaten-Formular (damit Bearbeiter es im Kundenauftrag anpassen können)
 - Stammdaten-Set der Spec dadurch implizit erweitert — ergänzt in `GERAET_SELECT`/`Geraet`/`GeraetStammdatenInput` in `src/lib/dataverse/geraete.ts`
 
+**Nachtrag (2026-10-05, Nutzerwunsch):** Zusätzliche Spalte "Letzte Prüfung" in der Geräteliste, direkt hinter "Lagerort" — bisher nur im Detail-Formular read-only sichtbar, jetzt auch in der Liste auf einen Blick erkennbar. Dafür `formatDatum()` aus `geraet-form.tsx` in ein gemeinsames `src/lib/format.ts` extrahiert, um Duplikation zu vermeiden.
+
 ## QA Test Results
 _To be added by /qa_
 

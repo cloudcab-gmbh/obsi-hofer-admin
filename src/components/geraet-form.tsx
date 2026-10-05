@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { getStatusBadgeVariant } from "@/lib/status-badge";
+import { formatDatum } from "@/lib/format";
 import { saveGeraetStammdaten } from "@/app/(protected)/geraete/actions";
 import type { ArtikelInfo, Firma, Geraet, Standort } from "@/lib/dataverse/geraete";
 
@@ -27,11 +28,6 @@ const schema = z.object({
 });
 
 type FormValues = z.infer<typeof schema>;
-
-function formatDatum(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("de-CH");
-}
 
 // Manche Dataverse-Datumsfelder liefern einen vollen ISO-Zeitstempel
 // (z.B. "2020-03-14T23:00:00Z") statt eines reinen Datums — <input

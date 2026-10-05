@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getStatusBadgeVariant } from "@/lib/status-badge";
+import { formatDatum } from "@/lib/format";
 import type { Geraet, Standort } from "@/lib/dataverse/geraete";
 
 const ALLE = "__alle__";
@@ -105,6 +106,7 @@ export function GeraeteListe({ geraete, standorte }: { geraete: Geraet[]; stando
                   <TableHead>Barcode</TableHead>
                   {zeigeStandortSpalte && <TableHead>Standort</TableHead>}
                   <TableHead>Lagerort</TableHead>
+                  <TableHead>Letzte Prüfung</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -123,6 +125,7 @@ export function GeraeteListe({ geraete, standorte }: { geraete: Geraet[]; stando
                     <TableCell>{g.barcode ?? "—"}</TableCell>
                     {zeigeStandortSpalte && <TableCell>{standortName(g.standortId)}</TableCell>}
                     <TableCell>{g.lagerort ?? "—"}</TableCell>
+                    <TableCell>{formatDatum(g.letztePruefung)}</TableCell>
                     <TableCell>
                       {g.status ? <Badge variant={getStatusBadgeVariant(g.status)}>{g.status}</Badge> : "—"}
                     </TableCell>
