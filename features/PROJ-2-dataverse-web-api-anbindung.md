@@ -1,6 +1,6 @@
 # PROJ-2: Dataverse-Web-API-Anbindung
 
-## Status: Planned
+## Status: In Progress
 **Created:** 2026-10-05
 **Last Updated:** 2026-10-05
 
@@ -115,6 +115,19 @@ Jede Schreibanfrage ("erstellen"/"aktualisieren") übergibt: Tabelle, (bei Aktua
 ### D) Dependencies
 - Keine neue Paketabhängigkeit nötig — die Anbindung nutzt die in Next.js eingebaute `fetch`-Funktion direkt gegen die Dataverse Web API.
 - Hinweis (kein Teil dieser Spec, aber beim Lesen von `package.json` aufgefallen): `@supabase/ssr` und `@supabase/supabase-js` sind noch aus dem Kopiervorgang vom Kundenportal-Repo vorhanden, werden in diesem eigenständigen Datenbank-losen Projekt aber nirgends verwendet. Empfehlung: bei Gelegenheit als Aufräum-Chore entfernen (nicht Teil von PROJ-2).
+
+## Implementation Notes (Backend)
+
+Umgesetzt unter `src/lib/dataverse/`:
+- `client.ts` — `getDataverseAccessToken()` (Client-Credentials-Flow gegen `https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token`, In-Memory-Cache mit automatischer Erneuerung 60s vor Ablauf), `dataverseFetch()` als zentraler Zugriffspunkt für alle Anfragen (Standard-Header, löst sowohl relative Pfade als auch absolute URLs wie `@odata.nextLink` auf)
+- `errors.ts` — `DataverseError` mit Kategorie (`not_found`/`permission_denied`/`validation_error`/`unavailable`/`unknown`) und verständlicher deutscher Meldung; HTTP-Status wird auf Kategorien gemappt (404→not_found, 401/403→permission_denied, 400→validation_error, 429/5xx→unavailable), Netzwerkfehler→unavailable
+- `records.ts` — die vier generischen Funktionen aus der Spec: `getRecord`, `listRecords` (mit `select`/`filter`/`orderBy`/`top`/`pageCursor`, liefert `nextPageCursor` zurück statt automatisch alle Seiten zu laden), `createRecord` (liest die neue ID aus dem `OData-EntityId`-Response-Header), `updateRecord`
+
+Keine neue Paketabhängigkeit — Zugriff direkt per `fetch`, wie in der Architektur festgelegt (bewusst kein `@azure/msal-node`, obwohl der bestehende Sync-Service im Kundenportal-Repo das nutzt — der Client-Credentials-Flow ist per REST trivial nachzubilden und spart die Abhängigkeit).
+
+Keine eigenen API-Routen: Diese Schicht ist reine Server-seitige Bibliothek, die erst von PROJ-3/PROJ-4 über Server Actions/Route Handler aufgerufen wird — es gibt noch keinen eigenen HTTP-Endpoint, der getestet werden könnte.
+
+**Tests:** `src/lib/dataverse/client.test.ts` (10 Tests: Token-Beschaffung, -Cache, -Erneuerung, Fehlerfälle) und `src/lib/dataverse/records.test.ts` (14 Tests: alle vier Funktionen inkl. Fehlerpfade) — alle grün (`npm test`, 34/34 insgesamt im Projekt). `npm run lint` und `npm run build` (inkl. TypeScript-Check) ebenfalls grün.
 
 ## QA Test Results
 _To be added by /qa_
