@@ -42,7 +42,7 @@ export default async function GeraetePage({
           <CardContent className="py-10 text-center text-sm text-muted-foreground">{loadError}</CardContent>
         </Card>
       ) : (
-        <GeraeteListe geraete={geraete} standorte={standorte} />
+        <GeraeteListe geraete={geraete} standorte={standorte} firmaId={firmaId} />
       )}
     </main>
   );

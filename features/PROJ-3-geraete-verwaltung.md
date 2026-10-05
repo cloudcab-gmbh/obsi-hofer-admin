@@ -163,6 +163,8 @@ Umgesetzt (UI + Server Actions in einem Schritt, kein separater `/backend`-Durch
 
 **Folgebug (2026-10-05):** Nach der Umstellung zeigte das Herstelljahr-Feld keinen Wert mehr an. Ursache: `bmvcc_herstelljahr` liefert offenbar einen vollen ISO-Zeitstempel (z.B. `2020-03-14T23:00:00Z`) statt eines reinen Datums — `<input type="date">` akzeptiert nur exakt `YYYY-MM-DD` und bleibt bei allem anderen leer. Behoben durch eine `toDateInputValue()`-Hilfsfunktion in `GeraetForm`, die bei allen drei Datumsfeldern (Herstelljahr, Erstgebrauch, Ablegereife) nur die ersten 10 Zeichen verwendet — vorsorglich auch bei den beiden bereits funktionierenden Feldern angewendet, falls sie zufällig denselben Zeitstempel-Fall nur in bestimmten Datensätzen zeigen.
 
+**UX-Lücke gefunden beim ersten echten Test (2026-10-05):** Die Detailseite hatte keinen Weg zurück zur Geräteliste — der Nutzer musste die Firma jedes Mal neu auswählen. Behoben: Der Link von der Liste zur Detailseite trägt jetzt `?firmaId=` mit, und die Detailseite zeigt oben einen "Zurück zur Liste"-Link, der dorthin zurückführt. Bei einem direkten Aufruf der Detailseite ohne diesen Query-Parameter (z.B. über ein Lesezeichen) wird ersatzweise die über das Gerät aufgelöste Firma verwendet — nur wenn gar keine Firma ermittelbar ist, führt der Link zur leeren Firma-Auswahl.
+
 ## QA Test Results
 _To be added by /qa_
 
