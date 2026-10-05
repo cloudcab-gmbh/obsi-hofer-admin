@@ -228,7 +228,7 @@ Funktional/strukturell per Code-Review verifiziert; Schreibpfad (Anlegen/Bearbei
 ### Retest (2026-10-05)
 Alle drei Bugs behoben, Testsuite um 5 neue Fälle erweitert (35 → 40 in diesem Feature, 97 → 102 gesamt im Projekt). `npm test` (102/102), `npm run lint` und `npm run build` (inkl. TypeScript-Check) alle grün.
 
-**Nachtrag (2026-10-05, Nutzerwunsch):** Die firmenweite Übersicht übernimmt jetzt den auf `/geraete` gewählten Filter (siehe PROJ-3 Implementation Notes/`geraete-filter-session.ts`): Lagerort-/Standort-Einschränkung wirkt sich direkt auf die einbezogenen Geräte aus (mit Hinweistext + Link zurück zu `/geraete`), der Suchbegriff wird als Vorschlagswert ins eigene, weiterhin unabhängig änderbare Suchfeld der Übersicht übernommen.
+**Nachtrag (2026-10-05, Nutzerwunsch):** Die firmenweite Übersicht übernimmt jetzt den auf `/geraete` gewählten Filter (siehe PROJ-3 Implementation Notes/`geraete-filter-session.ts`): Lagerort-/Standort-/Letzte-Prüfung-Einschränkung wirkt sich direkt auf die einbezogenen Geräte aus (mit Hinweistext + Link zurück zu `/geraete`), der Suchbegriff wird als Vorschlagswert ins eigene, weiterhin unabhängig änderbare Suchfeld der Übersicht übernommen.
 
 ### Summary
 - **Acceptance Criteria:** 7/13 vollständig verifiziert (Code-Review + Unit-Test), 6/13 unit-getestet aber noch nicht live gegen echtes Dataverse geprüft (ausstehend laut Nutzeransage)

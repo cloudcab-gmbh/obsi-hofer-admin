@@ -250,31 +250,58 @@ function fixtureGeraet(overrides: Partial<Geraet> = {}): Geraet {
   };
 }
 
+const EMPTY_FILTER = { suche: "", lagerort: "", standortId: "", letztePruefungTage: "" };
+
 describe("matchesGeraeteFilter", () => {
   it("matches everything when the filter is empty", () => {
-    expect(matchesGeraeteFilter(fixtureGeraet(), { suche: "", lagerort: "", standortId: "" })).toBe(true);
+    expect(matchesGeraeteFilter(fixtureGeraet(), EMPTY_FILTER)).toBe(true);
   });
 
   it("excludes a Gerät at a different Standort", () => {
     expect(
-      matchesGeraeteFilter(fixtureGeraet(), { suche: "", lagerort: "", standortId: VALID_STANDORT_ID_2 })
+      matchesGeraeteFilter(fixtureGeraet(), { ...EMPTY_FILTER, standortId: VALID_STANDORT_ID_2 })
     ).toBe(false);
   });
 
   it("excludes a Gerät at a different Lagerort", () => {
-    expect(matchesGeraeteFilter(fixtureGeraet(), { suche: "", lagerort: "Lager B", standortId: "" })).toBe(false);
+    expect(matchesGeraeteFilter(fixtureGeraet(), { ...EMPTY_FILTER, lagerort: "Lager B" })).toBe(false);
   });
 
   it("matches a search term against name, barcode, serienummer or kundenId (case-insensitive)", () => {
-    expect(matchesGeraeteFilter(fixtureGeraet(), { suche: "seil", lagerort: "", standortId: "" })).toBe(true);
-    expect(matchesGeraeteFilter(fixtureGeraet(), { suche: "kd-42", lagerort: "", standortId: "" })).toBe(true);
-    expect(matchesGeraeteFilter(fixtureGeraet(), { suche: "nichts-passt", lagerort: "", standortId: "" })).toBe(
-      false
-    );
+    expect(matchesGeraeteFilter(fixtureGeraet(), { ...EMPTY_FILTER, suche: "seil" })).toBe(true);
+    expect(matchesGeraeteFilter(fixtureGeraet(), { ...EMPTY_FILTER, suche: "kd-42" })).toBe(true);
+    expect(matchesGeraeteFilter(fixtureGeraet(), { ...EMPTY_FILTER, suche: "nichts-passt" })).toBe(false);
+  });
+
+  it("matches a Gerät whose letzte Prüfung lies within the given number of days", () => {
+    const vorZweiTagen = new Date();
+    vorZweiTagen.setDate(vorZweiTagen.getDate() - 2);
+    const geraet = fixtureGeraet({ letztePruefung: vorZweiTagen.toISOString() });
+
+    expect(matchesGeraeteFilter(geraet, { ...EMPTY_FILTER, letztePruefungTage: "7" })).toBe(true);
+  });
+
+  it("excludes a Gerät whose letzte Prüfung lies outside the given number of days", () => {
+    const vorZehnTagen = new Date();
+    vorZehnTagen.setDate(vorZehnTagen.getDate() - 10);
+    const geraet = fixtureGeraet({ letztePruefung: vorZehnTagen.toISOString() });
+
+    expect(matchesGeraeteFilter(geraet, { ...EMPTY_FILTER, letztePruefungTage: "7" })).toBe(false);
+  });
+
+  it("excludes a Gerät that was never inspected when the Letzte-Prüfung filter is active", () => {
+    const geraet = fixtureGeraet({ letztePruefung: null });
+    expect(matchesGeraeteFilter(geraet, { ...EMPTY_FILTER, letztePruefungTage: "7" })).toBe(false);
+  });
+
+  it("ignores an invalid (non-numeric or non-positive) letztePruefungTage value", () => {
+    const geraet = fixtureGeraet({ letztePruefung: null });
+    expect(matchesGeraeteFilter(geraet, { ...EMPTY_FILTER, letztePruefungTage: "abc" })).toBe(true);
+    expect(matchesGeraeteFilter(geraet, { ...EMPTY_FILTER, letztePruefungTage: "0" })).toBe(true);
   });
 
   it("combines Standort/Lagerort restriction with a search term", () => {
-    const filter = { suche: "seil", lagerort: "Lager A", standortId: VALID_STANDORT_ID };
+    const filter = { ...EMPTY_FILTER, suche: "seil", lagerort: "Lager A", standortId: VALID_STANDORT_ID };
     expect(matchesGeraeteFilter(fixtureGeraet(), filter)).toBe(true);
     expect(matchesGeraeteFilter(fixtureGeraet({ lagerort: "Lager B" }), filter)).toBe(false);
   });

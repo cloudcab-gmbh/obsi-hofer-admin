@@ -191,6 +191,8 @@ Betrifft Component-Structure/Data-Model/Tech-Decisions im Tech-Design-Abschnitt 
 
 **Architektur-Nachtrag (2026-10-05, Nutzerwunsch, betrifft auch PROJ-4):** Der Geräteliste-Filter (Suche/Lagerort/Standort) gilt jetzt session-weit, analog zur Firma-Auswahl — neues `src/lib/geraete-filter-session.ts` (Cookie, 30 Tage) sowie eine gemeinsame reine Filter-Funktion `matchesGeraeteFilter()` in `src/lib/dataverse/geraete.ts`. `GeraeteListe` initialisiert sich daraus und schreibt Änderungen verzögert (400ms) zurück. Grund für die Verschiebung: Die firmenweite Prüfberichte-Übersicht (PROJ-4) übernimmt denselben Filter, damit der Nutzer nicht doppelt filtern muss (siehe PROJ-4 Implementation Notes).
 
+**Nachtrag (2026-10-05, Nutzerwunsch):** Zusätzlicher Filter "Letzte Prüfung (Tage)" in der Geräteliste — zeigt nur Geräte, deren letzte Prüfung höchstens N Tage zurückliegt (Zahlenfeld, leer = keine Einschränkung, Platzhalter schlägt 7 Tage vor; standardmässig AUS, konsistent mit den übrigen Filtern). Geräte ohne jemals erfasste Prüfung werden bei aktivem Filter ausgeblendet. Teil des session-weiten Filters und damit auch in der PROJ-4-Übersicht wirksam.
+
 ## QA Test Results
 
 **Tested:** 2026-10-05

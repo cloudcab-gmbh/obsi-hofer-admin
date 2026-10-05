@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -26,6 +27,7 @@ export function GeraeteListe({
   const [suche, setSuche] = useState(initialFilter.suche);
   const [lagerort, setLagerort] = useState(initialFilter.lagerort || ALLE);
   const [standortId, setStandortId] = useState(initialFilter.standortId || ALLE);
+  const [letztePruefungTage, setLetztePruefungTage] = useState(initialFilter.letztePruefungTage);
 
   // Der Filter gilt session-weit (siehe geraete-filter-session.ts), damit er
   // beim Wechsel zu /pruefberichte erhalten bleibt — verzögert geschrieben,
@@ -36,10 +38,11 @@ export function GeraeteListe({
         suche,
         lagerort: lagerort === ALLE ? "" : lagerort,
         standortId: standortId === ALLE ? "" : standortId,
+        letztePruefungTage,
       });
     }, 400);
     return () => clearTimeout(timeout);
-  }, [suche, lagerort, standortId]);
+  }, [suche, lagerort, standortId, letztePruefungTage]);
 
   const standortName = useMemo(() => {
     const map = new Map(standorte.map((s) => [s.id, s.name]));
@@ -57,9 +60,10 @@ export function GeraeteListe({
         suche,
         lagerort: lagerort === ALLE ? "" : lagerort,
         standortId: standortId === ALLE ? "" : standortId,
+        letztePruefungTage,
       })
     );
-  }, [geraete, suche, lagerort, standortId]);
+  }, [geraete, suche, lagerort, standortId, letztePruefungTage]);
 
   if (geraete.length === 0) {
     return (
@@ -112,6 +116,20 @@ export function GeraeteListe({
             </SelectContent>
           </Select>
         )}
+        <div className="flex items-center gap-2">
+          <Label htmlFor="letzte-pruefung-tage" className="whitespace-nowrap text-sm text-muted-foreground">
+            Letzte Prüfung (Tage)
+          </Label>
+          <Input
+            id="letzte-pruefung-tage"
+            type="number"
+            min={1}
+            placeholder="z.B. 7"
+            value={letztePruefungTage}
+            onChange={(e) => setLetztePruefungTage(e.target.value)}
+            className="w-24"
+          />
+        </div>
       </div>
 
       {gefiltert.length === 0 ? (

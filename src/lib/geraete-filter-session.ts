@@ -14,9 +14,11 @@ export interface GeraeteFilterState {
   lagerort: string;
   /** Leerstring = "alle Standorte". */
   standortId: string;
+  /** Leerstring = keine Einschränkung; sonst Anzahl Tage als String (z.B. "7"). */
+  letztePruefungTage: string;
 }
 
-const DEFAULT_STATE: GeraeteFilterState = { suche: "", lagerort: "", standortId: "" };
+const DEFAULT_STATE: GeraeteFilterState = { suche: "", lagerort: "", standortId: "", letztePruefungTage: "" };
 
 export async function getGeraeteFilterState(): Promise<GeraeteFilterState> {
   const store = await cookies();
@@ -29,6 +31,7 @@ export async function getGeraeteFilterState(): Promise<GeraeteFilterState> {
       suche: typeof parsed.suche === "string" ? parsed.suche : "",
       lagerort: typeof parsed.lagerort === "string" ? parsed.lagerort : "",
       standortId: typeof parsed.standortId === "string" ? parsed.standortId : "",
+      letztePruefungTage: typeof parsed.letztePruefungTage === "string" ? parsed.letztePruefungTage : "",
     };
   } catch {
     return DEFAULT_STATE;

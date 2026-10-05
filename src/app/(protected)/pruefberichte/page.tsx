@@ -30,17 +30,22 @@ export default async function PruefberichteUebersichtPage() {
   let geraetNamen = new Map<string, string>();
   let loadError: string | null = null;
 
-  // Lagerort/Standort aus dem auf /geraete gewählten Filter schränken auch
-  // hier die betroffenen Geräte ein (Nutzerwunsch 2026-10-05) — die Suche
-  // selbst wird stattdessen nur als Vorschlagswert ins eigene Suchfeld der
-  // Übersicht übernommen, da dort (anders als Lagerort/Standort) ohnehin
+  // Lagerort/Standort/Letzte-Prüfung aus dem auf /geraete gewählten Filter
+  // schränken auch hier die betroffenen Geräte ein (Nutzerwunsch 2026-10-05)
+  // — die Suche selbst wird stattdessen nur als Vorschlagswert ins eigene
+  // Suchfeld der Übersicht übernommen, da dort (anders als die übrigen) ohnehin
   // ein eigenes, unabhängig änderbares Suchfeld existiert.
-  const geraeteEingeschraenkt = Boolean(filter.lagerort || filter.standortId);
+  const geraeteEingeschraenkt = Boolean(filter.lagerort || filter.standortId || filter.letztePruefungTage);
 
   try {
     const standorte = await listStandorteForFirma(firmaId);
     const geraete = (await listGeraeteForStandorte(standorte.map((s) => s.id))).filter((g) =>
-      matchesGeraeteFilter(g, { suche: "", lagerort: filter.lagerort, standortId: filter.standortId })
+      matchesGeraeteFilter(g, {
+        suche: "",
+        lagerort: filter.lagerort,
+        standortId: filter.standortId,
+        letztePruefungTage: filter.letztePruefungTage,
+      })
     );
     geraetNamen = new Map(geraete.map((g) => [g.id, g.name ?? "(ohne Name)"]));
     berichte = await listPruefberichteForGeraete(
@@ -61,7 +66,7 @@ export default async function PruefberichteUebersichtPage() {
           <Link href="/geraete" className="font-medium text-primary underline-offset-2 hover:underline">
             Geräte
           </Link>{" "}
-          gewählten Lagerort-/Standort-Filter.
+          gewählten Filter (Lagerort/Standort/Letzte Prüfung).
         </p>
       )}
 

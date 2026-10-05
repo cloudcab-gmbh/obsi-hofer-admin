@@ -79,6 +79,8 @@ export interface GeraeteFilter {
   lagerort: string;
   /** Leerstring = "alle Standorte". */
   standortId: string;
+  /** Leerstring = keine Einschränkung; sonst nur Geräte, deren letzte Prüfung höchstens so viele Tage zurückliegt. */
+  letztePruefungTage: string;
 }
 
 // Gemeinsame Filter-Regel für Geräte — genutzt sowohl von der Geräteliste
@@ -88,6 +90,14 @@ export interface GeraeteFilter {
 export function matchesGeraeteFilter(geraet: Geraet, filter: GeraeteFilter): boolean {
   if (filter.standortId && geraet.standortId !== filter.standortId) return false;
   if (filter.lagerort && geraet.lagerort !== filter.lagerort) return false;
+
+  const tage = Number(filter.letztePruefungTage);
+  if (filter.letztePruefungTage && Number.isFinite(tage) && tage > 0) {
+    if (!geraet.letztePruefung) return false;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - tage);
+    if (new Date(geraet.letztePruefung) < cutoff) return false;
+  }
 
   const suchbegriff = filter.suche.trim().toLowerCase();
   if (!suchbegriff) return true;
