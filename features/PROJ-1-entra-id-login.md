@@ -1,6 +1,6 @@
 # PROJ-1: Entra-ID-Login mit Rollen (Bearbeiter/Freigeber)
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-09-25
 **Last Updated:** 2026-09-25
 
@@ -190,4 +190,13 @@ Keine.
 - **Recommendation:** Status auf "Approved" setzen und deployen.
 
 ## Deployment
-_To be added by /deploy_
+- **Production URL:** https://obsi-hofer-admin.vercel.app
+- **Deployed:** 2026-10-05 (erstes Deployment, Vercel-Projekt `robertbienz-cloudcabchs-projects/obsi-hofer-admin`)
+- **Erstes Deployment — Setup-Schritte:**
+  - Vercel-Projekt per `vercel link` angelegt
+  - **Blocker 1:** GitHub-Repo-Verknüpfung schlug zunächst fehl — die Vercel-GitHub-App war für die neue Organisation `cloudcab-gmbh` noch nicht installiert (separat vom bestehenden Kundenportal-Projekt, das unter einem persönlichen Account lief). Vom Nutzer unter github.com/apps/vercel nachgeholt
+  - **Blocker 2:** Vercel Hobby (kostenloser Plan) unterstützt keine privaten Repos unter einer Organisation. Mit dem Nutzer abgestimmt: Repo stattdessen öffentlich gemacht (Alternativen gewesen wären Vercel Pro oder rein manuelle Deploys) — Commit-Historie vorher auf versehentlich committete Secrets geprüft, keine gefunden
+  - Env-Variablen (`AUTH_SECRET`, `AUTH_MICROSOFT_ENTRA_ID_ID`/`_SECRET`/`_TENANT_ID`) per `vercel env add` für Production gesetzt; `AUTH_URL` erst nach dem ersten Deploy auf die tatsächlich zugewiesene Domain (`https://obsi-hofer-admin.vercel.app`) gesetzt, dann neu deployed
+  - Nutzer hat die Produktions-Redirect-URI (`https://obsi-hofer-admin.vercel.app/api/auth/callback/microsoft-entra-id`) zusätzlich zur lokalen in der Entra-App-Registrierung ergänzt
+- **Verifiziert:** `npm run build`/Lint lokal fehlerfrei vor dem Deploy; strukturell per Skript geprüft, dass der Login-Button in Produktion korrekt mit der richtigen `redirect_uri` zu Microsoft führt; **kompletter echter Login-Flow in Produktion vom Nutzer bestätigt** (landet korrekt auf `/start`)
+- **Tag:** `v1.0.0-PROJ-1`
