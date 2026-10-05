@@ -187,6 +187,8 @@ Betrifft Component-Structure/Data-Model/Tech-Decisions im Tech-Design-Abschnitt 
 
 **Nachtrag (2026-10-05, Nutzerwunsch):** Zusätzliche Spalte "Letzte Prüfung" in der Geräteliste, direkt hinter "Lagerort" — bisher nur im Detail-Formular read-only sichtbar, jetzt auch in der Liste auf einen Blick erkennbar. Dafür `formatDatum()` aus `geraet-form.tsx` in ein gemeinsames `src/lib/format.ts` extrahiert, um Duplikation zu vermeiden.
 
+**Layout-Nachtrag (2026-10-05, Nutzerwunsch):** Stammdaten-Formular kompakter angeordnet — Barcode und Seriennummer sowie Herstelljahr/Erstgebrauch/Ablegereife stehen jetzt jeweils nebeneinander in einer schmaleren Reihe (Grid, auf Mobile weiterhin untereinander gestapelt) statt als volle Breite untereinander.
+
 ## QA Test Results
 
 **Tested:** 2026-10-05

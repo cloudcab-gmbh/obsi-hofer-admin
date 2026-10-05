@@ -121,13 +121,15 @@ export function GeraetForm({
       </Card>
 
       <form onSubmit={onSubmit} className="space-y-4">
-        <div>
-          <Label htmlFor="barcode">Barcode</Label>
-          <Input id="barcode" {...register("barcode")} />
-        </div>
-        <div>
-          <Label htmlFor="serienummer">Seriennummer</Label>
-          <Input id="serienummer" {...register("serienummer")} />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="barcode">Barcode</Label>
+            <Input id="barcode" {...register("barcode")} />
+          </div>
+          <div>
+            <Label htmlFor="serienummer">Seriennummer</Label>
+            <Input id="serienummer" {...register("serienummer")} />
+          </div>
         </div>
         <div>
           <Label htmlFor="lagerort">Lagerort</Label>
@@ -137,17 +139,19 @@ export function GeraetForm({
           <Label htmlFor="zubehoer">Zubehör</Label>
           <Input id="zubehoer" {...register("zubehoer")} />
         </div>
-        <div>
-          <Label htmlFor="herstelljahr">Herstelljahr</Label>
-          <Input id="herstelljahr" type="date" {...register("herstelljahr")} />
-        </div>
-        <div>
-          <Label htmlFor="erstgebrauch">Erstgebrauch</Label>
-          <Input id="erstgebrauch" type="date" {...register("erstgebrauch")} />
-        </div>
-        <div>
-          <Label htmlFor="ablegereife">Ablegereife</Label>
-          <Input id="ablegereife" type="date" {...register("ablegereife")} />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <Label htmlFor="herstelljahr">Herstelljahr</Label>
+            <Input id="herstelljahr" type="date" {...register("herstelljahr")} />
+          </div>
+          <div>
+            <Label htmlFor="erstgebrauch">Erstgebrauch</Label>
+            <Input id="erstgebrauch" type="date" {...register("erstgebrauch")} />
+          </div>
+          <div>
+            <Label htmlFor="ablegereife">Ablegereife</Label>
+            <Input id="ablegereife" type="date" {...register("ablegereife")} />
+          </div>
         </div>
         <div>
           <Label htmlFor="bemerkungen">Bemerkungen</Label>
