@@ -23,23 +23,14 @@ async function loadGeraetDetail(id: string) {
   }
 }
 
-export default async function GeraetDetailPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ firmaId?: string }>;
-}) {
+export default async function GeraetDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { firmaId: firmaIdFromQuery } = await searchParams;
   const { geraet, standort, artikel, firma, error } = await loadGeraetDetail(id);
 
-  // Zurück-Link bevorzugt den Query-Parameter (falls von der Liste aus
-  // geöffnet), fällt sonst auf die über das Gerät aufgelöste Firma zurück
-  // (z.B. bei einem direkten Lesezeichen) — vermeidet eine erneute
-  // Firma-Auswahl, wo immer möglich.
-  const backFirmaId = firmaIdFromQuery ?? standort?.firmaId;
-  const backHref = backFirmaId ? `/geraete?firmaId=${backFirmaId}` : "/geraete";
+  // Die "aktuelle Firma" gilt jetzt global für die Session (siehe
+  // src/lib/firma-session.ts) — die Geräteliste zeigt immer deren Geräte,
+  // daher reicht hier ein fester Link zurück dorthin.
+  const backHref = "/geraete";
 
   if (error || !geraet) {
     return (

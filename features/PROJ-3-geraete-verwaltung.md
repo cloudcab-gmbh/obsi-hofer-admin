@@ -34,7 +34,8 @@
 
 **Format:** Angenommen [Vorbedingung] / Wenn [Aktion] / Dann [Ergebnis]
 
-- [ ] Angenommen ein Bearbeiter oder Freigeber öffnet PROJ-3, wenn die Seite lädt, dann wird zuerst eine Firma-Auswahl angezeigt, bevor irgendwelche Geräte geladen werden
+- [ ] Angenommen ein Bearbeiter oder Freigeber hat noch keine Firma ausgewählt, wenn er `/geraete` öffnet, dann sieht er einen Hinweis mit Link zur Firma-Auswahl auf `/start` statt einer Geräteliste
+- [ ] Angenommen ein Bearbeiter wählt auf `/start` eine Firma aus, wenn er danach `/geraete` öffnet (auch in einer späteren Sitzung, innerhalb von 30 Tagen), dann bleibt die Auswahl erhalten, ohne erneut gewählt werden zu müssen
 - [ ] Angenommen eine Firma wurde ausgewählt, wenn die Geräteliste lädt, dann werden ausschliesslich Geräte dieser Firma (über alle ihre Standorte hinweg) angezeigt
 - [ ] Angenommen eine ausgewählte Firma hat mehr als einen Standort, wenn die Geräteliste angezeigt wird, dann steht ein Standort-Filter zur Verfügung und der Standort wird pro Gerät in der Liste angezeigt
 - [ ] Angenommen eine ausgewählte Firma hat nur einen Standort, wenn die Geräteliste angezeigt wird, dann wird kein Standort-Filter angezeigt (nicht nötig)
@@ -169,6 +170,15 @@ Umgesetzt (UI + Server Actions in einem Schritt, kein separater `/backend`-Durch
 **Nachtrag (2026-10-05, Nutzerwunsch):** Zusätzlich zum Link oben auf der Seite gibt es jetzt auch einen "Zurück"-Button direkt neben "Speichern" am Ende des Formulars (derselbe Ziel-Link) — vermeidet Hochscrollen nach dem Ausfüllen des Formulars.
 
 **Bug gefunden beim ersten echten Test (2026-10-05):** Die Firma-Suche in der Combobox zeigte bei einer Eingabe wie "reha" weiterhin offensichtlich nicht passende Firmen an, der gesuchte Eintrag war erst nach Scrollen sichtbar. Ursache: `cmdk`s eingebaute Fuzzy-Suche vergibt bei vielen ähnlich langen Firmennamen auch unpassenden Treffern oft einen Score > 0 und blendet sie dadurch nicht aus. Behoben, indem `Command` auf `shouldFilter={false}` gesetzt und stattdessen selbst eine einfache, vorhersagbare Teilstring-Suche (case-insensitive `includes()`) über die Firmenliste gelegt wurde.
+
+**Architektur-Nachtrag (2026-10-05, Nutzerwunsch):** Die Firma-Auswahl wurde von `/geraete` auf `/start` verschoben und von einer pro-Seitenaufruf-Auswahl (`?firmaId=`-Query-Parameter) zu einer **global für die Session geltenden "aktuellen Firma"** umgebaut — gilt ab sofort auch als Grundlage für künftige Features wie PROJ-4 (Prüfberichte), ohne dass dort erneut ausgewählt werden muss:
+- Neu: `src/lib/firma-session.ts` — `getCurrentFirmaId()`/`setCurrentFirmaId()`, hinterlegt die Auswahl in einem httpOnly-Cookie (`aktuelle_firma_id`, 30 Tage gültig)
+- `/start` zeigt jetzt die Firma-Combobox (inkl. "Weiter zu Geräte"-Button, wenn bereits eine Firma gewählt ist)
+- `/geraete` liest die Firma nicht mehr aus der URL, sondern aus der Session; ohne gewählte Firma erscheint ein Hinweis mit Link zu `/start`
+- `AppHeader` zeigt die aktuell gewählte Firma als Link zu `/start` (zum Wechseln), damit der (unsichtbare) Session-Zustand für den Nutzer jederzeit erkennbar bleibt
+- Die Detailseiten-Navigation (`/geraete/[id]`, "Zurück zur Liste") braucht dadurch keinen `?firmaId=`-Parameter mehr — vereinfacht auf einen festen Link zu `/geraete`
+
+Betrifft Component-Structure/Data-Model/Tech-Decisions im Tech-Design-Abschnitt dieser Spec nur indirekt (dort weiterhin als "Firma-Auswahl" beschrieben, jetzt auf `/start` statt `/geraete` verortet) — keine separate Überarbeitung dieser Abschnitte, da die fachliche Absicht (Firma vor Geräte-Zugriff festlegen) unverändert bleibt.
 
 ## QA Test Results
 _To be added by /qa_

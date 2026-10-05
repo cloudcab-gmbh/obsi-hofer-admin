@@ -4,12 +4,16 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { auth } from "@/auth";
 import { signOutEverywhere } from "@/lib/auth/sign-out";
+import { getCurrentFirmaId } from "@/lib/firma-session";
+import { getFirma } from "@/lib/dataverse/geraete";
 
 // "Sync-Freigabe" ist nur für Freigeber sichtbar (Freigeber ist eine
 // Erweiterung von Bearbeiter, siehe PROJ-1 Product Decisions).
 export async function AppHeader() {
   const session = await auth();
   const istFreigeber = session?.user?.roles?.includes("freigeber") ?? false;
+  const currentFirmaId = await getCurrentFirmaId();
+  const currentFirma = currentFirmaId ? await getFirma(currentFirmaId).catch(() => null) : null;
 
   return (
     <header className="flex h-14 flex-wrap items-center justify-between gap-3 border-b bg-background px-4 sm:px-6">
@@ -31,6 +35,9 @@ export async function AppHeader() {
         )}
       </nav>
       <div className="flex items-center gap-3">
+        <Link href="/start" className="hidden text-sm text-muted-foreground hover:text-foreground sm:inline">
+          Firma: {currentFirma?.name ?? "keine ausgewählt"}
+        </Link>
         {session?.user?.name && (
           <span className="hidden text-sm text-muted-foreground sm:inline">{session.user.name}</span>
         )}

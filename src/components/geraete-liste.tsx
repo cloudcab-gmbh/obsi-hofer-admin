@@ -12,15 +12,7 @@ import type { Geraet, Standort } from "@/lib/dataverse/geraete";
 
 const ALLE = "__alle__";
 
-export function GeraeteListe({
-  geraete,
-  standorte,
-  firmaId,
-}: {
-  geraete: Geraet[];
-  standorte: Standort[];
-  firmaId: string;
-}) {
+export function GeraeteListe({ geraete, standorte }: { geraete: Geraet[]; standorte: Standort[] }) {
   const [suche, setSuche] = useState("");
   const [lagerort, setLagerort] = useState(ALLE);
   const [standortId, setStandortId] = useState(ALLE);
@@ -120,7 +112,7 @@ export function GeraeteListe({
                   <TableRow key={g.id}>
                     <TableCell>
                       <Link
-                        href={`/geraete/${g.id}?firmaId=${firmaId}`}
+                        href={`/geraete/${g.id}`}
                         className="font-medium text-primary underline-offset-2 hover:underline"
                       >
                         {g.name ?? "(ohne Name)"}

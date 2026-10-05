@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import { setCurrentFirmaId } from "@/lib/firma-session";
 
 export interface FirmaOption {
   id: string;
@@ -23,6 +24,7 @@ export function FirmaCombobox({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [suche, setSuche] = useState("");
+  const [isPending, startTransition] = useTransition();
   const selected = firmen.find((f) => f.id === selectedFirmaId);
 
   // cmdks eingebaute Fuzzy-Suche vergibt bei vielen, ähnlich langen
@@ -39,7 +41,13 @@ export function FirmaCombobox({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between">
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between"
+          disabled={isPending}
+        >
           {selected ? selected.name : "Firma auswählen..."}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -56,7 +64,11 @@ export function FirmaCombobox({
                   value={firma.id}
                   onSelect={() => {
                     setOpen(false);
-                    router.push(`/geraete?firmaId=${firma.id}`);
+                    startTransition(async () => {
+                      await setCurrentFirmaId(firma.id);
+                      router.push("/geraete");
+                      router.refresh();
+                    });
                   }}
                 >
                   <Check className={cn("mr-2 h-4 w-4", firma.id === selectedFirmaId ? "opacity-100" : "opacity-0")} />
