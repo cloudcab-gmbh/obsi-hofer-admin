@@ -155,7 +155,80 @@ Umgesetzt (UI + Server Actions + Domänenlogik in einem Schritt, wie bei PROJ-3 
 **Nicht möglich in dieser Umgebung:** Echter Login/echte Dataverse-Daten. Alle neuen/erweiterten Routen (`/pruefberichte`, `/pruefberichte/neu`, `/pruefberichte/[id]`, `/geraete/[id]`) wurden per Smoke-Test gegen den laufenden Dev-Server geprüft (korrekte Weiterleitung zu `/login` ohne Absturz) — die eigentliche Funktionalität muss der Nutzer im Browser mit echtem Login verifizieren.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-10-05
+**Tester:** QA Engineer (AI)
+**Hinweis zur Testmethode:** Der Nutzer hat angekündigt, das eigentliche Bearbeiten/Speichern/Stornieren erst am Schluss selbst im Browser mit echtem Login zu testen. Diese Runde deckt daher Code-Review, Security-Audit, automatisierte Unit-Tests (35 neue, 97 insgesamt) und Smoke-Tests der Routen gegen den laufenden Dev-Server ab — **die eigentliche End-to-End-Funktionalität des Schreibpfads (Anlegen/Bearbeiten/Stornieren gegen echte Dataverse-Daten) ist noch nicht verifiziert**, weder durch den Nutzer noch durch diese QA-Runde.
+
+### Acceptance Criteria Status
+Funktional/strukturell per Code-Review verifiziert; Schreibpfad (Anlegen/Bearbeiten/Stornieren gegen echte Daten) noch ausstehend, siehe Hinweis oben.
+
+- [x] Prüfbericht-Historie auf der Gerät-Detailseite, neueste zuerst, stornierte ausgeblendet (Code-Review: `PruefberichtHistorie` filtert standardmässig)
+- [x] Leer-Hinweis bei noch keinem Prüfbericht
+- [ ] Neuanlage + Kaskade auf Gerät-Status — **unit-getestet (Mock-Ebene)**, aber nicht live gegen echtes Dataverse geprüft; Risiko: unverifizierter `@odata.bind`-Navigationsname, siehe Implementation Notes
+- [x] Prüfdatum vorausgefüllt mit heute, Prüfer automatisch/read-only (Code-Review + Unit-Test für `computePrueferKuerzel`)
+- [x] Validierungsfehler bei leerem Prüfdatum/Ergebnis (Unit-Test: `actions.test.ts`)
+- [ ] Bearbeiten des aktuellsten Berichts aktualisiert Gerät-Status — unit-getestet, nicht live geprüft
+- [ ] Bearbeiten eines nicht-aktuellsten Berichts lässt Gerät-Status unverändert — unit-getestet (`getAktuellsterAktiverPruefbericht` liefert dann einen anderen Bericht), nicht live geprüft
+- [ ] Stornieren des aktuellsten Berichts setzt Gerät-Status auf nächstältesten zurück — unit-getestet, nicht live geprüft
+- [x] Stornieren eines nicht-aktuellsten Berichts lässt Gerät-Status unverändert (Code-Review: Kaskade ermittelt immer den aktuellsten unabhängig vom gerade stornierten)
+- [ ] **Storniert = komplett read-only** — UI verhindert es, serverseitig NICHT durchgesetzt → siehe BUG-1 (High)
+- [x] Hinweis + Link zu `/start` ohne Firma-Session (Code-Review, identisches Muster wie PROJ-3)
+- [x] Firmenweite Übersicht mit Suche + Ergebnis-Filter, sortiert nach Datum absteigend (Code-Review + Smoke-Test)
+- [x] Verständliche Fehlermeldung + Datenerhalt bei Speicherfehler (Code-Review: `register()` unkontrolliert, kein `reset()` im Fehlerfall, analog PROJ-3)
+
+### Edge Cases Status
+- [x] Gerät ohne Prüfbericht → Leer-Hinweis
+- [x] Alle Prüfberichte eines Geräts storniert → `getAktuellsterAktiverPruefbericht` liefert `null`, Gerät-Felder werden geleert (Unit-Test vorhanden)
+- [x] Zwei Berichte mit gleichem Prüfdatum → Tie-Breaking über `createdon desc` (Code-Review, OData-Syntax nicht live verifiziert)
+- [x] Last-Write-Wins bei gleichzeitiger Bearbeitung (Code-Review: kein Konfliktschutz, wie geplant)
+- [x] Name ohne Leerzeichen bei der Prüfer-Kürzel-Berechnung → Fallback getestet (`pruefer-kuerzel.test.ts`)
+
+### Security Audit Results (Red Team / Code Review)
+- [x] Zugriff nur für eingeloggte Bearbeiter/Freigeber (proxy.ts-Gate, gilt auch für Server Actions derselben Route)
+- [x] GUID-Validierung für `geraetId`/Prüfbericht-`id` verhindert OData-Injection (dieselbe Absicherung wie PROJ-3, jetzt zusätzlich unit-getestet)
+- [x] Keine XSS-Angriffsfläche (React-Auto-Escaping, kein `dangerouslySetInnerHTML`)
+- [x] Keine Secrets im Client-Bundle
+- [ ] BUG: siehe BUG-1 (High) — Stornieren-Schutz nur clientseitig
+- [ ] BUG: siehe BUG-2 (Medium) — Ergebnis-Wert serverseitig nicht auf die drei erlaubten Werte beschränkt
+- [ ] BUG: siehe BUG-3 (Medium) — `geraetId` bei Bearbeiten/Stornieren wird vom Aufrufer vertraut statt aus dem Datensatz selbst abgeleitet
+
+### Bugs Found
+
+#### BUG-1: Stornierter Prüfbericht ist serverseitig weiterhin bearbeitbar
+- **Severity:** High
+- **Steps to Reproduce:**
+  1. Ein Prüfbericht ist storniert (`bmvcc_isarchived = true`)
+  2. Die UI (`PruefberichtForm`) deaktiviert zwar alle Felder und blendet den Speichern-Button aus, sobald `pruefbericht.storniert` true ist
+  3. `updatePruefberichtAction`/`updatePruefbericht` prüfen den Storniert-Status des Ziel-Berichts aber an keiner Stelle, bevor sie die Änderung schreiben
+  4. Erwartet: Ein serverseitiger Versuch, einen stornierten Bericht zu bearbeiten, wird abgelehnt (die Spec verlangt "komplett read-only", nicht nur UI-seitig)
+  5. Tatsächlich: Ein direkter Aufruf der Server Action (z.B. nach Reaktivieren eines alten Browser-Tabs mit noch aktivem Formular, oder durch einen manuell nachgebauten Request) würde den stornierten Bericht trotzdem ändern
+- **Priority:** Fix before deployment
+
+#### BUG-2: Ergebnis-Wert wird serverseitig nicht auf die drei erlaubten Werte beschränkt
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. `pruefberichtSchema` in `actions.ts` prüft `ergebnis` nur auf "nicht leer", nicht auf Zugehörigkeit zu `ERGEBNIS_OPTIONEN` ("Freigabe"/"keine Freigabe"/"letzte Freigabe")
+  2. Erwartet: Nur die drei definierten Werte werden akzeptiert
+  3. Tatsächlich: Ein beliebiger nicht-leerer String würde die Validierung passieren und (falls das Dataverse-Feld kein strenges Choice/Options-Set ist, sondern Freitext) gespeichert — Anzeige würde dann als neutrale graue Badge erscheinen, ohne Fehlermeldung
+- **Priority:** Fix before deployment
+
+#### BUG-3: `geraetId` bei Bearbeiten/Stornieren wird vom Aufrufer übernommen statt aus dem Datensatz abgeleitet
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. `updatePruefbericht(id, geraetId, input)` und `stornierePruefbericht(id, geraetId)` aktualisieren den Prüfbericht über `id`, synchronisieren den Gerät-Status aber über den separat übergebenen `geraetId`-Parameter
+  2. Aktuell immer konsistent, da beide UI-Aufrufstellen `geraetId` korrekt aus dem bereits geladenen Prüfbericht ableiten
+  3. Erwartet: Die Kaskade sollte robust gegen einen falschen/inkonsistenten `geraetId`-Parameter sein, z.B. durch Ableitung aus `_bmvcc_gearaet_value` des Datensatzes selbst
+  4. Tatsächlich: Bei einem (aktuell nicht auftretenden, aber nicht ausgeschlossenen) Aufruf mit falschem `geraetId` würde das eigentlich betroffene Gerät NICHT neu synchronisiert, ein unbeteiligtes Gerät hingegen schon (dort allerdings folgenlos, da die Synchronisation immer den tatsächlichen Istzustand abfragt)
+- **Priority:** Nice to have (keine beobachtete reale Auswirkung, aber ein Robustheits-/Verteidigungslinie-Gewinn für wenig Aufwand)
+
+### Summary
+- **Acceptance Criteria:** 7/13 vollständig verifiziert (Code-Review + Unit-Test), 6/13 unit-getestet aber noch nicht live gegen echtes Dataverse geprüft (ausstehend laut Nutzeransage)
+- **Bugs Found:** 3 total (0 critical, 1 high, 2 medium, 0 low)
+- **Security:** 2 offene Findings (BUG-1 High, BUG-2 Medium), 1 Nice-to-have (BUG-3)
+- **Neue Unit-Tests:** 35 (`pruefer-kuerzel.test.ts`, `pruefberichte.test.ts`, `actions.test.ts`) — Testsuite insgesamt jetzt 97/97 grün
+- **Production Ready:** NO
+- **Recommendation:** BUG-1 und BUG-2 vor Deployment beheben (beide serverseitige Durchsetzung bereits dokumentierter Spec-Regeln). BUG-3 optional. Danach: Nutzer verifiziert den Schreibpfad (Anlegen/Bearbeiten/Stornieren) live im Browser — insbesondere den unverifizierten `@odata.bind`-Navigationsnamen (siehe Implementation Notes) —, bevor erneut auf `/deploy` gegangen wird.
 
 ## Deployment
 _To be added by /deploy_
