@@ -9,88 +9,97 @@
 - Requires: PROJ-2 (Dataverse-Web-API-Anbindung) — Datenquelle für Geräte/Prüfberichte
 - Requires: PROJ-3 (Geräte-Verwaltung) — liefert die Geräteliste inkl. Filter, von der aus exportiert wird
 - Requires: PROJ-4 (Prüfberichte-Verwaltung) — liefert den "aktuellsten aktiven Prüfbericht" pro Gerät
-- **Neue externe Abhängigkeit:** Microsoft Graph API / SharePoint-Zugriff — die bestehende Entra-ID-App-Registrierung (PROJ-1) muss um zusätzliche Graph-Berechtigungen erweitert werden (Zugriff auf die Vorlagen- und Archiv-Bibliothek). Erfordert Admin-Consent in Azure AD, siehe Open Questions.
+- **Neue externe Abhängigkeit:** Microsoft Graph API / SharePoint-Zugriff auf die bestehende Dokumentbibliothek "Kunden" (`https://obsihofer.sharepoint.com/Kunden`) — die bestehende Entra-ID-App-Registrierung (PROJ-1) muss um eine zusätzliche, auf diese Site beschränkte Graph-Berechtigung erweitert werden. Erfordert Admin-Consent in Azure AD, siehe Open Questions.
 
 ## User Stories
-- Als Bearbeiter möchte ich aus der Geräteliste heraus ein PDF mit allen (gefilterten) Geräten einer Firma inkl. ihres aktuellsten Prüfberichts generieren, damit ich dieses dem Kunden wie bisher zukommen lassen kann — ohne die Daten manuell in Excel/Word zusammenzutragen.
-- Als OBSI Hofer (Admin) möchte ich pro Firma eine eigene Word-Vorlage in SharePoint hinterlegen können, damit jeder Kunde sein gewohntes, individuelles Berichtsformat erhält.
-- Als OBSI Hofer (Admin) möchte ich eine Vorlage einfach durch Hochladen in SharePoint und Setzen einer Metadaten-Spalte einer Firma zuweisen können, ohne dafür eine eigene Oberfläche im Admin-Tool zu brauchen.
-- Als Bearbeiter möchte ich, falls für eine Firma noch keine eigene Vorlage existiert, trotzdem ein PDF im gewohnten Standardformat generieren können, damit der Export nie hart blockiert.
+- Als Bearbeiter möchte ich aus der Geräteliste heraus ein PDF mit allen (gefilterten) Geräten einer Firma inkl. ihres aktuellsten Prüfberichts generieren, damit ich dieses dem Kunden wie bisher zukommen lassen kann — ohne die Daten manuell zusammenzutragen.
+- Als OBSI Hofer (Bearbeiter) möchte ich, dass der Export automatisch das bereits für diese Firma bestehende Excel-Layout (Spalten, Branding, Farbcodierung) übernimmt, damit der Kunde weiterhin sein gewohntes Format erhält, ohne dass ich dafür etwas Neues einrichten muss.
+- Als Bearbeiter möchte ich, dass das generierte PDF automatisch am gleichen Ort landet, wo ich es bisher manuell abgelegt habe (`Kunden/{Firma}/Prüfberichte/{Jahr}/`), damit sich am bestehenden Ablage-Ort/der Namenskonvention nichts ändert.
+- Als Bearbeiter möchte ich, falls für eine Firma noch keine Vorlage im aktuellen Jahresordner existiert, trotzdem ein PDF im gewohnten Standardformat generieren können, damit der Export nie hart blockiert.
 
 ## Out of Scope
 - Versand des PDFs an den Kunden (z.B. per E-Mail) — bleibt wie bisher manuell durch den Bearbeiter, kein Non-Goal-Bruch gegenüber dem Kundenportal-PRD ("keine automatischen Benachrichtigungen")
-- Editor/Oberfläche im Admin-Tool zum Erstellen oder Bearbeiten der Word-Vorlage — die Vorlage wird ausschliesslich direkt in Word/SharePoint erstellt und gepflegt
-- Oberfläche im Admin-Tool zur Pflege der Firma-Zuordnung — erfolgt ausschliesslich über die Metadaten-Spalte direkt in SharePoint
+- Editor/Oberfläche im Admin-Tool zum Erstellen oder Bearbeiten der Excel-Vorlage — die Vorlage wird ausschliesslich direkt in Excel/SharePoint erstellt und gepflegt, exakt wie bisher
+- Schreibender Zugriff auf die reale, vom Bearbeiter manuell gepflegte Jahres-Excel-Datei — das System liest sie ausschliesslich als Vorlage (Spalten/Formatierung), ändert sie aber nie (siehe Product Decisions)
+- Oberfläche im Admin-Tool zur Pflege einer Firma-Zuordnung — entfällt komplett, da die Zuordnung implizit über die bestehende Ordnerstruktur (`Kunden/{Firma}/Prüfberichte/{aktuelles Jahr}/`) erfolgt
 - Checkbox-Auswahl einzelner Geräte — der Export verwendet immer die aktuell gefilterte Geräteliste (siehe Product Decisions)
 - Mehrere Prüfberichte/Historie pro Gerät im selben PDF — nur der aktuellste aktive Prüfbericht pro Gerät erscheint (siehe Product Decisions)
-- Vorschau des PDFs im Admin-Tool vor dem Download — Datei wird direkt heruntergeladen bzw. im SharePoint-Archiv abgelegt, keine In-App-Vorschau
-- Versionierung/Verlauf mehrerer gleichzeitig aktiver Vorlagen pro Firma — pro Firma gilt zu jedem Zeitpunkt genau eine zugewiesene Vorlage (siehe Edge Cases)
+- Vorschau des PDFs im Admin-Tool vor dem Download — Datei wird direkt heruntergeladen bzw. im bestehenden Jahresordner abgelegt, keine In-App-Vorschau
 - Eigene Firma-übergreifende Artikel-Stammdatenpflege — unverändert gegenüber dem restlichen Tool (Non-Goal laut PRD)
 
 ## Acceptance Criteria
 
 **Format:** Angenommen [Vorbedingung] / Wenn [Aktion] / Dann [Ergebnis]
 
-- [ ] Angenommen eine Firma ist ausgewählt und hat eine eigene, in SharePoint zugewiesene Vorlage, wenn der Bearbeiter auf der Geräteliste "PDF generieren" klickt, dann wird ein PDF erzeugt, das auf dieser firmenspezifischen Vorlage basiert und alle aktuell gefilterten Geräte enthält
-- [ ] Angenommen eine Firma hat keine eigene zugewiesene Vorlage, wenn "PDF generieren" geklickt wird, dann wird stattdessen die Standard-Vorlage verwendet (kein Fehler, kein blockierter Export)
+- [ ] Angenommen im Ordner `Kunden/{Firma}/Prüfberichte/{aktuelles Jahr}/` der ausgewählten Firma liegt eine Excel-Datei, wenn der Bearbeiter auf der Geräteliste "PDF generieren" klickt, dann wird ein PDF erzeugt, das deren Spalten/Formatierung/Branding übernimmt und alle aktuell gefilterten Geräte enthält
+- [ ] Angenommen im Jahresordner der Firma liegt keine Excel-Datei, wenn "PDF generieren" geklickt wird, dann wird stattdessen eine zentrale Standard-Vorlage verwendet (kein Fehler, kein blockierter Export)
 - [ ] Angenommen ein Gerät in der gefilterten Liste hat einen aktuellen aktiven Prüfbericht, wenn das PDF generiert wird, dann erscheinen Prüfdatum, Prüfer, Prüfergebnis und Bemerkung dieses Prüfberichts in der entsprechenden Zeile
 - [ ] Angenommen ein Gerät in der gefilterten Liste hat noch nie einen aktiven Prüfbericht erhalten, wenn das PDF generiert wird, dann erscheint dieses Gerät nicht im PDF
 - [ ] Angenommen der aktuellste aktive Prüfbericht eines Geräts hat das Ergebnis "Freigabe", wenn das PDF generiert wird, dann ist diese Zeile/Zelle grün hervorgehoben
 - [ ] Angenommen der aktuellste aktive Prüfbericht eines Geräts hat das Ergebnis "keine Freigabe", wenn das PDF generiert wird, dann ist diese Zeile/Zelle rot hervorgehoben
 - [ ] Angenommen der aktuellste aktive Prüfbericht eines Geräts hat das Ergebnis "letzte Freigabe", wenn das PDF generiert wird, dann ist diese Zeile/Zelle ohne farbliche Hervorhebung (neutral), wie im bisherigen, manuell erstellten Referenzformat
 - [ ] Angenommen die aktuell gefilterte Geräteliste ist leer, wenn "PDF generieren" geklickt wird, dann erscheint eine Fehlermeldung ("Keine Geräte für diesen Export gefunden") statt eines leeren PDFs
-- [ ] Angenommen ein PDF wurde erfolgreich generiert, wenn der Vorgang abgeschlossen ist, dann wird es sowohl zum Download angeboten als auch automatisch im SharePoint-Archiv im Ordner der jeweiligen Firma abgelegt
-- [ ] Angenommen eine Firma hat eine zugewiesene Vorlage, deren Datei in SharePoint zwischenzeitlich gelöscht oder verschoben wurde, wenn "PDF generieren" geklickt wird, dann erscheint eine klare Fehlermeldung ("zugewiesene Vorlage nicht gefunden") statt eines stillen Rückfalls auf die Standard-Vorlage
+- [ ] Angenommen ein PDF wurde erfolgreich generiert, wenn der Vorgang abgeschlossen ist, dann wird es sowohl zum Download angeboten als auch automatisch in `Kunden/{Firma}/Prüfberichte/{aktuelles Jahr}/` abgelegt, mit einem Dateinamen nach dem bestehenden Muster `{Datum} Prüfbericht Absturzsicherungen - {Firma}{ - Lagerort, falls gefiltert}.pdf`
+- [ ] Angenommen der Lagerort-Filter in der Geräteliste ist beim Export gesetzt (z.B. "Trakt 4"), wenn das PDF generiert wird, dann enthält der Dateiname den Zusatz " - Trakt 4"; ist kein Lagerort-Filter gesetzt, entfällt dieser Zusatz
+- [ ] Angenommen für eine Firma existiert im aktuellen Jahresordner eine Excel-Datei, wenn das PDF generiert wird, dann bleibt diese reale Datei danach unverändert (das System liest sie nur, schreibt nie in sie hinein)
 
 ## Edge Cases
-- Firma ganz ohne SharePoint-Zuordnung → Standard-Vorlage (siehe AC), kein Fehler
-- Firma mit defekter/gelöschter Zuordnung (Metadaten zeigen auf nicht mehr existierende Datei) → expliziter Fehler, **kein** stiller Fallback auf die Standard-Vorlage (um nicht versehentlich mit der falschen/generischen Vorlage ein offiziell wirkendes Kundendokument zu erzeugen)
-- Firma mit versehentlich mehreren Dateien, die alle als ihre Vorlage markiert sind → die zuletzt geänderte Datei gilt als aktive Vorlage (deterministisch, keine Fehlermeldung — siehe Product Decisions)
+- Firma-Ordner in SharePoint ganz ohne Jahresordner für das laufende Jahr (z.B. zu Jahresbeginn, bevor die erste Kopie angelegt wurde) → Standard-Vorlage (siehe AC), kein Fehler; der generierte Export wird trotzdem in einem neu angelegten Jahresordner abgelegt
+- Jahresordner enthält mehrere Excel-Dateien (z.B. eine Kopie mit Zusatz wie "- Kopie") → die zuletzt geänderte Datei gilt als Vorlage (deterministisch, keine Fehlermeldung)
+- Der SharePoint-Ordnername einer Firma weicht vom exakten Dataverse-Firmennamen ab (in der Praxis beobachtet, z.B. abweichende Schreibweise oder zusätzliche Standort-Unterordner) → wird als "Vorlage nicht gefunden" behandelt, fällt auf die Standard-Vorlage zurück (gleiche Behandlung wie "kein Jahresordner vorhanden" — eine exakte Namensabweichung ist aus Systemsicht nicht von "keine Vorlage vorhanden" unterscheidbar, siehe Open Questions zur endgültigen Zuordnungslogik)
 - Sehr grosse Firma (mehrere hundert Geräte) → Generierung kann einige Sekunden dauern; UI muss einen Ladezustand anzeigen statt wie eine hängende Seite zu wirken
-- Zwei Bearbeiter generieren zeitgleich für dieselbe Firma → unkritisch, da rein lesender Datenzugriff und jeweils eine eigene neue Datei im Archiv (kein Überschreiben)
+- Zwei Bearbeiter generieren zeitgleich für dieselbe Firma → unkritisch, da die reale Jahres-Datei nur lesend verwendet wird und jeder Export eine eigene neue PDF-Datei erzeugt (kein gemeinsames Schreiben, kein Konfliktrisiko)
 - Microsoft Graph/SharePoint temporär nicht erreichbar → Fehlermeldung analog zu bestehenden Dataverse-Fehlerzuständen im Tool, kein Absturz der Seite
-- Firma-Name oder Gerätedaten enthalten Zeichen, die in Datei-/Ordnernamen problematisch sind (z.B. `/`) → werden beim Ablegen im SharePoint-Archiv bereinigt/escaped, damit das Hochladen nicht fehlschlägt
+- Firma-Name oder Lagerort-Filterwert enthalten Zeichen, die in Dateinamen problematisch sind (z.B. `/`) → werden beim Ablegen bereinigt/escaped, damit das Hochladen nicht fehlschlägt
+- Die reale Jahres-Datei enthält bereits von Hand ausgefüllte Prüfdaten für andere Geräte/Bereiche als die aktuell exportierten → unkritisch, da das System diese Datei nie beschreibt, sondern nur ihre Spalten/Formatierung für eine neue, separate Arbeitskopie liest
 
 ## Technical Requirements (optional)
 - Security: Nur eingeloggte Bearbeiter/Freigeber (beide Rollen — reine Leseaktion auf bereits für sie sichtbare Daten, keine neue Rechteausweitung) können den Export auslösen
-- Performance: Export einer durchschnittlichen Firma (geschätzt < 50 Geräte) sollte innerhalb weniger Sekunden abgeschlossen sein; harte Grenze für sehr grosse Firmen ist Teil der Architektur-Abklärung
-- Die neuen Microsoft-Graph-Berechtigungen (Zugriff auf die Vorlagen-/Archiv-Bibliothek) müssen als Application Permission in der bestehenden Azure-AD-App-Registrierung ergänzt und von einem Admin freigegeben (Consent) werden
+- Performance: Export einer durchschnittlichen Firma (geschätzt < 50 Geräte) sollte innerhalb weniger Sekunden abgeschlossen sein
+- Die neue Microsoft-Graph-Berechtigung (lesender und schreibender Zugriff auf die Bibliothek "Kunden", nicht tenant-weit) muss als Application Permission in der bestehenden Azure-AD-App-Registrierung ergänzt und von einem Admin freigegeben (Consent) werden
+- Die reale, vom Bearbeiter gepflegte Jahres-Excel-Datei darf vom System unter keinen Umständen verändert oder überschrieben werden — nur lesender Zugriff auf sie
 
 ## Open Questions
-- [ ] Welche konkrete SharePoint-Site soll die beiden neuen Dokumentbibliotheken ("Prüfbericht-Vorlagen" und "Generierte Prüfberichte") enthalten — eine bestehende Site oder eine neu anzulegende? Muss der Nutzer festlegen/einrichten, bevor `/backend` die Graph-Anbindung konfigurieren kann.
-- [x] Wie wird die Standard-Vorlage technisch bereitgestellt — **entschieden in `/architecture`:** als normale Datei mit reserviertem Namen in derselben Vorlagen-Bibliothek, nicht im Code/Repo (siehe Tech Design)
-- [x] Technischer Ansatz für die Word→PDF-Umwandlung inkl. der farblichen Hervorhebung — **entschieden in `/architecture`:** Microsoft Graph übernimmt die eigentliche PDF-Konvertierung, die Farbhervorhebung wird über ein vorbereitetes Platzhalterfeld in der Zellformatierung gelöst, das der Admin aus einer Musterzeile kopiert (siehe Tech Design)
-- [x] Platzhalter-Syntax — **entschieden in `/architecture`:** siehe Tech Design, finale Feldliste/Anleitung folgt als Teil von `/backend`
-- [x] Azure-AD-App-Registrierung — **entschieden in `/architecture`:** bestehende Registrierung aus PROJ-1/2 wird um eine zusätzliche, auf die konkrete Site beschränkte Graph-Berechtigung erweitert (siehe Tech Design), keine separate Registrierung nötig
-- [ ] Exakter Name der Metadaten-Spalte für die Firma-Zuordnung in der Vorlagen-Bibliothek sowie der reservierte Dateiname der Standard-Vorlage — kleinschrittig in `/backend` zusammen mit dem Nutzer final benannt, sobald die Site steht
+- [x] Welche SharePoint-Site/-Bibliothek — **geklärt:** bestehende Bibliothek "Kunden" auf `https://obsihofer.sharepoint.com`, bereits mit einem Ordner pro Firma und darin einem "Prüfberichte"-Unterordner mit Jahres-Unterordnern
+- [x] Wie wird die Vorlage einer Firma zugeordnet — **geklärt:** implizit über die bestehende Ordnerstruktur `Kunden/{Firma}/Prüfberichte/{aktuelles Jahr}/`, keine Metadaten-Spalte nötig
+- [x] Vorlagenformat — **geklärt:** Excel (.xlsx), nicht Word — entspricht dem bereits etablierten Prozess
+- [x] Technischer Ansatz für die Umwandlung inkl. der farblichen Hervorhebung — **entschieden in `/architecture`:** Microsoft Graph übernimmt die PDF-Konvertierung; die Farbcodierung kommt automatisch aus der bereits in der Excel-Vorlage vorhandenen bedingten Formatierung (keine Custom-Lösung nötig), siehe Tech Design
+- [x] Feld-Zuordnung — **entschieden in `/architecture`:** über die Spaltenüberschriften der Vorlage (Header-Zuordnung), keine Platzhalter-Syntax nötig, siehe Tech Design
+- [x] Azure-AD-App-Registrierung — **entschieden in `/architecture`:** bestehende Registrierung aus PROJ-1/2 wird um eine zusätzliche, auf die Bibliothek "Kunden" beschränkte Graph-Berechtigung erweitert
+- [ ] Exakte Erkennung, welcher SharePoint-Ordner zu welcher Dataverse-Firma gehört, wenn Namen nicht exakt übereinstimmen (siehe Edge Cases) — muss in `/backend` anhand einer Stichprobe der echten Ordnerstruktur final geklärt werden (z.B. Mapping-Tabelle für die bekannten Abweichungen, oder unscharfer Namensvergleich)
+- [ ] Exakte Spaltenüberschriften, die das System in der Vorlage erkennt (Arbeitsgrundlage: die im Beispiel-PDF sichtbaren Header wie "Einbau-/Lagerort", "Inv.Nr.", "Artikel", "Typ", "Dim.", "Serien-Nr.", "Scancode", "Hersteller", "Herstelljahr", "Erstgebrauch", "Ablegereife", "Zubehör", "Geprüft", "Prüfer", "Prüfergebnis", "Bemerkungen") — final zu verifizieren anhand der echten Vorlagen-Dateien in `/backend`
+- [ ] Name/Ort der zentralen Standard-Vorlage (für Firmen ohne eigenen Jahresordner-Eintrag) — vom Nutzer festzulegen, sobald `/backend` beginnt
 
 ## Decision Log
 
 ### Product Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
-| Vorlagen sind Word-Dokumente, verwaltet in einer SharePoint-Dokumentbibliothek, nicht im Admin-Tool selbst editierbar | Admin kennt Word bereits aus dem bisherigen manuellen Prozess; kein Aufwand für einen eigenen Vorlagen-Editor im Tool | 2026-10-05 |
-| Zuordnung Vorlage↔Firma über eine Metadaten-Spalte direkt in SharePoint, keine eigene Oberfläche im Admin-Tool | Admin-Tool hat laut PRD bewusst keine eigene Datenbank; vermeidet eine neue Speicherung nur für diese Zuordnung | 2026-10-05 |
 | Export verwendet immer die komplette aktuell gefilterte Geräteliste (Firma + Lagerort + Standort + Letzte-Prüfung-Filter), keine Checkbox-Einzelauswahl | Konsistent mit den bestehenden CSV-Exports im Kundenportal-Repo (PROJ-8/PROJ-10); vermeidet zusätzlichen UI-Aufwand für eine Mehrfachauswahl | 2026-10-05 |
 | Pro Gerät erscheint nur der aktuellste aktive Prüfbericht, nicht die ganze Historie | Entspricht exakt dem bisherigen, manuell erstellten Referenzformat (ein Prüftermin pro Zeile); gleiches Konzept wie die bestehende PB_Bemerkung-Logik (PROJ-3/4) | 2026-10-05 |
 | Geräte ganz ohne aktiven Prüfbericht werden aus dem PDF ausgeschlossen statt mit leeren Prüf-Feldern angezeigt | Das PDF soll ausschliesslich ein Nachweisdokument bereits erfolgter Prüfungen sein; ein frisch angelegtes, nie geprüftes Gerät gehört fachlich nicht in diesen Bericht | 2026-10-05 |
-| Fehlt eine firmenspezifische Vorlage ganz, wird eine Standard-Vorlage verwendet; ist eine zugewiesene Vorlage hingegen defekt/nicht auffindbar, erscheint stattdessen ein Fehler | Unterscheidet bewusst zwischen "noch nicht eingerichtet" (unkritisch, Fallback sinnvoll) und "war eingerichtet, jetzt kaputt" (potenziell falsches/generisches Dokument für einen Kunden, der eigentlich sein individuelles Format erwartet — lieber ein klarer Fehler als ein stiller, möglicherweise unpassender Fallback) | 2026-10-05 |
-| Prüfergebnis-Farbcodierung: "Freigabe" = grün, "keine Freigabe" = rot, "letzte Freigabe" = neutral/ohne Farbe | Entspricht exakt dem Beispiel-PDF des Nutzers (dort sind nur Freigabe/keine Freigabe farblich hervorgehoben, letzte Freigabe erscheint neutral) | 2026-10-05 |
-| Generiertes PDF wird sowohl zum Download angeboten als auch automatisch in einer eigenen SharePoint-Archiv-Bibliothek (ein Ordner pro Firma) abgelegt | Nutzerwunsch: durchsuchbares Archiv aller je generierten Berichte, zusätzlich zum sofortigen Download für den direkten Versand | 2026-10-05 |
-| Bei mehreren fälschlich gleichzeitig zugewiesenen Vorlagen für eine Firma gilt die zuletzt geänderte Datei als aktiv | Deterministisches, einfach nachvollziehbares Verhalten ohne zusätzliche Fehlerbehandlung für einen seltenen Pflegefehler | 2026-10-05 |
+| Vorlagenformat ist Excel (.xlsx), nicht Word | Entspricht dem bereits real etablierten, bewährten Prozess bei OBSI Hofer (eigene Excel-Datei pro Firma/Jahr in SharePoint, siehe Implementation Notes); löst die Farbcodierung nativ über Excels bedingte Formatierung | 2026-10-05 |
+| Die Vorlage wird implizit über die bestehende Ordnerstruktur ermittelt (`Kunden/{Firma}/Prüfberichte/{aktuelles Jahr}/`), keine separate Zuordnungs-Konfiguration | Diese Struktur existiert bereits für jede Firma; eine zusätzliche Zuordnung wäre doppelt gepflegte Information | 2026-10-05 |
+| Das System liest die reale, vom Bearbeiter manuell gepflegte Jahres-Excel-Datei ausschliesslich als Vorlage (Spalten/Formatierung/Branding) und schreibt niemals in sie hinein — jeder Export arbeitet auf einer eigenen, neuen Kopie | Die reale Datei wird vom Bearbeiter während des Jahres weiter von Hand gepflegt (z.B. für Bereiche, die das Tool nicht erfasst) — ein automatischer Schreibzugriff könnte bestehende manuelle Einträge überschreiben oder mit Formeln kollidieren; ein rein lesender Zugriff ist risikofrei | 2026-10-05 |
+| Fehlt im aktuellen Jahresordner eine Excel-Datei, wird eine zentrale Standard-Vorlage verwendet (kein Fehler) | Hält den Export auch zu Jahresbeginn oder für neue Firmen ohne bisherige Dokumentation funktionsfähig | 2026-10-05 |
+| Prüfergebnis-Farbcodierung: "Freigabe" = grün, "keine Freigabe" = rot, "letzte Freigabe" = neutral/ohne Farbe | Entspricht exakt dem Beispiel-PDF des Nutzers (dort sind nur Freigabe/keine Freigabe farblich hervorgehoben, letzte Freigabe erscheint neutral); wird durch die bereits in der Vorlage vorhandene bedingte Formatierung automatisch erreicht | 2026-10-05 |
+| Generiertes PDF wird sowohl zum Download angeboten als auch automatisch in genau demselben Ordner abgelegt, in dem bisher manuell erstellte PDFs dieser Firma liegen (`Kunden/{Firma}/Prüfberichte/{aktuelles Jahr}/`) | Kein neues Archiv nötig — die bestehende Ordnerstruktur ist bereits das Archiv; Bearbeiter finden neue und alte Berichte weiterhin am gewohnten Ort | 2026-10-05 |
+| Dateiname folgt der bestehenden Konvention `{Datum} Prüfbericht Absturzsicherungen - {Firma}{ - Lagerort}.pdf`, wobei der Lagerort-Zusatz automatisch aus dem aktiven Lagerort-Filter der Geräteliste übernommen wird (leer, falls kein Filter gesetzt) | Reiht sich nahtlos in die historisch bereits vorhandenen Dateien ein, ohne dass der Bearbeiter den Namen manuell anpassen muss | 2026-10-05 |
+| Bei mehreren Excel-Dateien im selben Jahresordner gilt die zuletzt geänderte als Vorlage | Deterministisches, einfach nachvollziehbares Verhalten ohne zusätzliche Fehlerbehandlung für einen seltenen Pflegefehler | 2026-10-05 |
 | Sowohl Bearbeiter als auch Freigeber dürfen den Export auslösen | Reine Leseaktion auf Daten, die beide Rollen ohnehin bereits vollständig einsehen können — keine neue Rechteausweitung nötig | 2026-10-05 |
 
 ### Technical Decisions
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
-| Microsoft Graph API statt direkter SharePoint-REST-API | Ein Protokoll/Auth-Muster für Dateizugriff, Metadaten UND die PDF-Konvertierung; von Microsoft aktiv weiterentwickelt | 2026-10-05 |
-| PDF-Konvertierung über die in Microsoft 365 eingebaute Graph-Funktion ("als PDF herunterladen"), keine selbst betriebene Konvertierungs-Software | Vermeidet Betrieb/Wartung einer zusätzlichen Komponente (z.B. LibreOffice) in der schlanken Vercel-Serverless-Umgebung; nutzt die ohnehin vorhandene Microsoft-365-Lizenz; rendert mit demselben Office-Layout-Engine wie Word selbst, dadurch hohe visuelle Treue | 2026-10-05 |
-| Platzhalter-Ersetzung inkl. Tabellen-Wiederholung über eine dedizierte Word-Templating-Bibliothek (docxtemplater), nicht über eine eigene HTML/PDF-Vorlagensprache | Vorlagen bleiben waschechte, in Word frei gestaltbare Dokumente (Logo, Layout, Schriftart) — der Admin braucht kein neues Werkzeug zu lernen, nur eine Platzhalter-Syntax | 2026-10-05 |
-| Farbliche Zellhervorhebung über ein vorbereitetes Platzhalterfeld in der Zellformatierung, das der Admin 1:1 aus einer mitgelieferten Musterzeile kopiert, statt einer generischen "Bedingte Formatierung"-Funktion | Datengetriebene Zellfarben lassen sich mit reinem Text-Merge nicht lösen; ein vorgefertigtes Kopiervorlagen-Element hält die Vorlagenerstellung für den Admin trotzdem praktikabel, ohne dass er die Word-Dateistruktur verstehen muss | 2026-10-05 |
-| Standard-Vorlage ist eine normale Datei mit reserviertem, festem Namen in derselben Vorlagen-Bibliothek (nicht im Code/Repo hinterlegt) | Konsistent mit dem Grundprinzip "Admin pflegt alles direkt in SharePoint, ohne Code-Deploy" — auch die Standard-Vorlage bleibt damit vom Admin frei anpassbar | 2026-10-05 |
-| Erweiterung der bestehenden Azure-AD-App-Registrierung (PROJ-1/2) um eine zusätzliche Graph-Berechtigung, beschränkt auf die konkrete SharePoint-Site (statt tenant-weitem SharePoint-Zugriff) | Eine App-Registrierung statt zwei hält die Nutzerverwaltung einfach; auf die Site beschränkter Zugriff folgt dem Prinzip "kleinstmögliche Rechteausweitung", analog zur RLS-Denkweise im Kundenportal-Repo | 2026-10-05 |
-| Zwei getrennte Dokumentbibliotheken (Vorlagen vs. generiertes Archiv), nicht eine gemeinsame | Vermeidet Verwechslungsgefahr zwischen "editierbarer Vorlage" und "fertigem Ergebnisdokument"; eigene Ordnerstruktur (ein Ordner pro Firma) ist nur im Archiv sinnvoll, nicht bei den Vorlagen | 2026-10-05 |
+| Microsoft Graph API statt direkter SharePoint-REST-API | Ein Protokoll/Auth-Muster für Dateizugriff UND die PDF-Konvertierung; von Microsoft aktiv weiterentwickelt | 2026-10-05 |
+| PDF-Konvertierung über die in Microsoft 365 eingebaute Graph-Funktion ("als PDF herunterladen"), keine selbst betriebene Konvertierungs-Software | Vermeidet Betrieb/Wartung einer zusätzlichen Komponente (z.B. LibreOffice) in der schlanken Vercel-Serverless-Umgebung; nutzt die ohnehin vorhandene Microsoft-365-Lizenz; rendert mit derselben Office-Engine wie Excel selbst, dadurch hohe visuelle Treue inkl. bedingter Formatierung | 2026-10-05 |
+| Feld-Zuordnung über die Spaltenüberschriften der Vorlage (Header-Matching), keine Platzhalter-Syntax | Die Vorlage ist bereits eine fertig formatierte Excel-Tabelle mit sprechenden Spaltenköpfen (siehe Beispiel-PDF) — das System muss nur erkennen, welche Spalte zu welchem Datenfeld gehört, und darunter Zeilen einfügen; kein neues Konzept, das der Admin erst lernen müsste | 2026-10-05 |
+| Farbliche Zellhervorhebung kommt automatisch aus der in der Vorlage bereits vorhandenen bedingten Formatierung (Excel-Standardfunktion), keine selbst geschriebene Logik für Zellfarben | Die reale Vorlage hat laut Fund bereits genau diese Funktion im Einsatz; neue Datenzeilen innerhalb des von der Regel abgedeckten Bereichs übernehmen die Formatierung automatisch — deutlich robuster und für den Admin leichter wartbar als ein Code-Workaround | 2026-10-05 |
+| Die reale Jahres-Datei wird nur gelesen (Spaltenstruktur, Formatierung, bedingte Formatierungsregeln werden übernommen); der eigentliche Export arbeitet auf einer im Arbeitsspeicher erzeugten Kopie, die direkt in ein PDF umgewandelt und hochgeladen wird | Setzt die Product Decision "nie in die reale Datei schreiben" technisch um — kein Zwischenspeichern einer bearbeiteten Kopie in SharePoint nötig | 2026-10-05 |
+| Standard-Vorlage ist eine einzelne, zentral abgelegte Excel-Datei (Ort mit dem Nutzer in `/backend` final festzulegen), nicht im Code/Repo hinterlegt | Bleibt dadurch vom Nutzer frei anpassbar, ohne Code-Deploy, konsistent mit dem Grundprinzip dieses Features | 2026-10-05 |
+| Erweiterung der bestehenden Azure-AD-App-Registrierung (PROJ-1/2) um eine zusätzliche Graph-Berechtigung, beschränkt auf die Bibliothek "Kunden" (statt tenant-weitem SharePoint-Zugriff) | Eine App-Registrierung statt zwei hält die Nutzerverwaltung einfach; auf die konkrete Bibliothek beschränkter Zugriff folgt dem Prinzip "kleinstmögliche Rechteausweitung" | 2026-10-05 |
+| Kein separates Archiv — Ausgabe landet direkt im bestehenden Jahresordner der Firma | Diese Struktur ist bereits das gelebte Archiv; eine zweite, parallele Ablage würde nur Verwirrung stiften | 2026-10-05 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
@@ -105,29 +114,30 @@ Geräteliste-Seite (/geraete, bestehend aus PROJ-3)
 ├── NEU: "PDF generieren"-Button (neben der Liste)
 └── NEU: Lade-/Fehleranzeige während der Generierung
     ├── Erfolg → Browser lädt das PDF direkt herunter
-    └── Fehler → verständliche Fehlermeldung (z.B. "Keine Geräte gefunden", "Vorlage nicht gefunden")
+    └── Fehler → verständliche Fehlermeldung (z.B. "Keine Geräte gefunden")
 
 Neuer Export-Vorgang ("PDF generieren", server-seitig)
 ├── 1. Liest die aktuell gefilterte Geräteliste inkl. aktuellstem aktivem Prüfbericht je Gerät (bestehende PROJ-3/4-Logik, unverändert)
-├── 2. Ermittelt die für die aktuelle Firma zuständige Vorlage in SharePoint (Metadaten-Abfrage über Microsoft Graph) — fällt auf die Standard-Vorlage zurück, falls keine gefunden; meldet einen Fehler, falls eine Zuordnung existiert, die zugehörige Datei aber nicht mehr auffindbar ist
-├── 3. Befüllt die Vorlage mit Firma-, Geräte- und Prüfbericht-Daten, inkl. der farblichen Hervorhebung je Prüfergebnis
-├── 4. Wandelt das befüllte Dokument serverseitig über Microsoft Graph in ein PDF um
-├── 5. Legt das PDF automatisch im Archiv ab (Bibliothek "Generierte Prüfberichte", Unterordner der jeweiligen Firma, wird bei Bedarf automatisch angelegt)
+├── 2. Sucht in SharePoint den Ordner `Kunden/{Firma}/Prüfberichte/{aktuelles Jahr}/` und darin die zuletzt geänderte Excel-Datei — gefunden: dient als Vorlage; nicht gefunden: Standard-Vorlage
+├── 3. Liest aus der Vorlage die Spaltenüberschriften, Formatierung und bedingten Formatierungsregeln; erzeugt daraus im Arbeitsspeicher eine neue Arbeitskopie und trägt darunter pro Gerät eine Zeile mit den zugeordneten Daten ein (die vorhandene bedingte Formatierung übernimmt automatisch die Farbcodierung für neue Zeilen im abgedeckten Bereich)
+├── 4. Wandelt diese Arbeitskopie serverseitig über Microsoft Graph in ein PDF um
+├── 5. Legt das PDF im selben Ordner ab (`Kunden/{Firma}/Prüfberichte/{aktuelles Jahr}/`), Dateiname nach bestehendem Muster inkl. optionalem Lagerort-Zusatz
 └── 6. Liefert dasselbe PDF gleichzeitig als Download an den Bearbeiter zurück
+
+Die reale, vom Bearbeiter gepflegte Jahres-Excel-Datei selbst wird dabei zu keinem Zeitpunkt verändert (nur Schritt 2/3 lesend).
 ```
 
 ### Datenmodell (in Textform)
 
-- **Vorlagen-Ablage:** Eine SharePoint-Dokumentbibliothek "Prüfbericht-Vorlagen". Jede Datei darin ist eine Word-Vorlage mit einer Metadaten-Spalte "Firma" (Freitext, exakter Firmenname wie in Dataverse) — maximal eine aktive Vorlage pro Firma (bei einem Pflegefehler mit mehreren Treffern gilt die zuletzt geänderte Datei, siehe Product Decisions). Eine einzelne, besonders benannte Datei ohne Firma-Zuordnung dient als Standard-Vorlage für Firmen ohne eigene Zuordnung.
-- **Archiv-Ablage:** Eine zweite, getrennte Dokumentbibliothek "Generierte Prüfberichte". Darin wird pro Firma automatisch ein Unterordner angelegt (beim ersten Export dieser Firma), in dem alle bisher für diese Firma generierten PDFs chronologisch benannt (Firma + Zeitstempel) gesammelt werden.
-- **Platzhalter-Feldpool in der Vorlage:** Einmalig der Firmenname, sowie innerhalb einer sich automatisch wiederholenden Tabellenzeile pro Gerät: alle Gerätestammdaten (Gerätename, Kunden-ID, Barcode, Seriennummer, Lagerort, Standort, Herstelljahr, Erstgebrauch, Ablegereife, Zubehör, Bemerkungen), die zugehörigen Artikel-Stammdaten (Typ, Dimension, Hersteller) sowie die Daten des aktuellsten aktiven Prüfberichts (Datum, Prüfer, Ergebnis, Bemerkung) inklusive eines speziellen, vorbereiteten Feldes für die ergebnisabhängige Zellfarbe.
-- **Keine neue Datenbank/Tabelle:** Sowohl die Vorlagen-Zuordnung als auch das Archiv leben vollständig in SharePoint; das Admin-Tool selbst bleibt wie in der PRD festgelegt ohne eigene Datenbank.
+- **Vorlagen-/Archiv-Ort:** Kein neues System — beides nutzt die bereits bestehende SharePoint-Bibliothek "Kunden" und deren vorhandene Ordnerstruktur `{Firma}/Prüfberichte/{Jahr}/`. Für die "Vorlage" gilt: die zuletzt geänderte Excel-Datei im Jahresordner des laufenden Jahres; existiert keine, kommt eine zentrale Standard-Vorlage zum Einsatz.
+- **Feld-Zuordnung:** Statt eines Platzhalter-Pools wird die Vorlage anhand ihrer vorhandenen Spaltenüberschriften gelesen (z.B. "Einbau-/Lagerort", "Artikel", "Typ", "Serien-Nr.", "Scancode", "Hersteller", "Herstelljahr", "Erstgebrauch", "Ablegereife", "Zubehör", "Geprüft", "Prüfer", "Prüfergebnis", "Bemerkungen" — exakte Liste wird in `/backend` anhand der echten Dateien verifiziert). Jede erkannte Spalte wird mit dem passenden Gerät-/Artikel-/Prüfbericht-Feld befüllt; nicht erkannte Spalten bleiben unverändert (z.B. reine Beschriftungen, die die Vorlage sonst noch enthält).
+- **Keine neue Datenbank/Tabelle:** Weder eine Vorlagen-Zuordnung noch ein Archiv erfordern neue Speicherung — beides ergibt sich vollständig aus der bereits bestehenden SharePoint-Struktur; das Admin-Tool selbst bleibt wie in der PRD festgelegt ohne eigene Datenbank.
 
 ### Technische Entscheidungen (Begründung)
 Siehe Decision Log → Technical Decisions oben.
 
 ### Abhängigkeiten (Packages)
-- Eine Word-Templating-Bibliothek für die Platzhalter-Ersetzung inkl. Tabellen-Wiederholung (docxtemplater) — einzige neue Abhängigkeit
+- Eine Excel-Bibliothek, die bestehende Formatierung/bedingte Formatierung beim Einfügen neuer Zeilen erhält (z.B. exceljs) — einzige neue Abhängigkeit
 - Keine neuen Pakete für die PDF-Konvertierung selbst — läuft über die bestehende Microsoft-Graph-Anbindung, die für diese Funktion um einen zusätzlichen Berechtigungs-Scope erweitert wird (gleiches Authentifizierungsmuster wie die bestehende Dataverse-Anbindung aus PROJ-2, nur mit anderem Scope)
 
 ## QA Test Results
