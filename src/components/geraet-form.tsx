@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -45,10 +46,12 @@ export function GeraetForm({
   standort,
   firma,
   artikel,
+  backHref,
 }: {
   geraet: Geraet;
   standort: Standort | null;
   firma: Firma | null;
+  backHref: string;
   artikel: ArtikelInfo | null;
 }) {
   const [isPending, startTransition] = useTransition();
@@ -163,9 +166,14 @@ export function GeraetForm({
         {serverError && <p className="text-sm text-destructive">{serverError}</p>}
         {saved && <p className="text-sm text-status-success">Gespeichert.</p>}
 
-        <Button type="submit" disabled={isPending}>
-          {isPending ? "Speichern..." : "Speichern"}
-        </Button>
+        <div className="flex gap-2">
+          <Button type="submit" disabled={isPending}>
+            {isPending ? "Speichern..." : "Speichern"}
+          </Button>
+          <Button type="button" variant="outline" asChild>
+            <Link href={backHref}>Zurück</Link>
+          </Button>
+        </div>
       </form>
     </div>
   );

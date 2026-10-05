@@ -62,7 +62,7 @@ export default async function GeraetDetailPage({
         Zurück zur Liste
       </Link>
       <h1 className="mb-6 text-xl font-semibold">{geraet.name ?? "Gerät"}</h1>
-      <GeraetForm geraet={geraet} standort={standort} firma={firma} artikel={artikel} />
+      <GeraetForm geraet={geraet} standort={standort} firma={firma} artikel={artikel} backHref={backHref} />
     </main>
   );
 }

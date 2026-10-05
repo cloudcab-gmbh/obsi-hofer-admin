@@ -165,6 +165,8 @@ Umgesetzt (UI + Server Actions in einem Schritt, kein separater `/backend`-Durch
 
 **UX-Lücke gefunden beim ersten echten Test (2026-10-05):** Die Detailseite hatte keinen Weg zurück zur Geräteliste — der Nutzer musste die Firma jedes Mal neu auswählen. Behoben: Der Link von der Liste zur Detailseite trägt jetzt `?firmaId=` mit, und die Detailseite zeigt oben einen "Zurück zur Liste"-Link, der dorthin zurückführt. Bei einem direkten Aufruf der Detailseite ohne diesen Query-Parameter (z.B. über ein Lesezeichen) wird ersatzweise die über das Gerät aufgelöste Firma verwendet — nur wenn gar keine Firma ermittelbar ist, führt der Link zur leeren Firma-Auswahl.
 
+**Nachtrag (2026-10-05, Nutzerwunsch):** Zusätzlich zum Link oben auf der Seite gibt es jetzt auch einen "Zurück"-Button direkt neben "Speichern" am Ende des Formulars (derselbe Ziel-Link) — vermeidet Hochscrollen nach dem Ausfüllen des Formulars.
+
 ## QA Test Results
 _To be added by /qa_
 
