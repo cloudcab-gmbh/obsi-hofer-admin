@@ -152,7 +152,7 @@ export function GeraeteListe({
                   <TableHead>Lagerort</TableHead>
                   <TableHead>Letzte Prüfung</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Bemerkung</TableHead>
+                  <TableHead>PB_Bemerkung</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
