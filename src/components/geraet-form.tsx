@@ -32,6 +32,14 @@ function formatDatum(iso: string | null): string {
   return new Date(iso).toLocaleDateString("de-CH");
 }
 
+// Manche Dataverse-Datumsfelder liefern einen vollen ISO-Zeitstempel
+// (z.B. "2020-03-14T23:00:00Z") statt eines reinen Datums — <input
+// type="date"> akzeptiert nur exakt "YYYY-MM-DD" und zeigt sonst nichts an.
+function toDateInputValue(iso: string | null): string {
+  if (!iso) return "";
+  return iso.slice(0, 10);
+}
+
 export function GeraetForm({
   geraet,
   standort,
@@ -60,9 +68,9 @@ export function GeraetForm({
       lagerort: geraet.lagerort ?? "",
       bemerkungen: geraet.bemerkungen ?? "",
       zubehoer: geraet.zubehoer ?? "",
-      herstelljahr: geraet.herstelljahr ?? "",
-      erstgebrauch: geraet.erstgebrauch ?? "",
-      ablegereife: geraet.ablegereife ?? "",
+      herstelljahr: toDateInputValue(geraet.herstelljahr),
+      erstgebrauch: toDateInputValue(geraet.erstgebrauch),
+      ablegereife: toDateInputValue(geraet.ablegereife),
     },
   });
 
