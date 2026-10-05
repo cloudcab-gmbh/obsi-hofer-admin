@@ -1,0 +1,627 @@
+# Referenz: bestehende Power-Apps-Canvas-App (Legacy), Screen "scrPruefen"
+# Eingefügt vom Nutzer am 2026-10-05, als Referenz für /write-spec PROJ-3 und PROJ-4.
+# ACHTUNG: Dieser Export wurde beim Einfügen bei 50'000 Zeichen abgeschnitten (endet mitten in txtTitel_11).
+# Siehe README.md in diesem Ordner für eine Zusammenfassung der erkennbaren Fachlogik.
+
+Screens:
+  scrPruefen:
+    Properties:
+      OnVisible: |+
+        =Set(varAppCurrentTime,
+         Now());
+        Reset(TagFilter_6);
+        ClearCollect(
+            colLagerorte,
+            Distinct(
+                colGerate,
+                bmvcc_lagerort
+            )
+        );
+
+
+        // Screen.OnVisible
+        Set(varGeraetRecord, Blank());
+        Set(varShowBarcodeReader, true);
+        Set(varShowBarcodeModal, false);
+        Set(varBarcode, false);
+        Set(varSelectetGeraet, Blank());
+        Set(varBarcodeWarnung, false);
+        Set(varBcount, 0);
+        Reset(txtSearchGeraet);
+        Reset(cbLagerort);
+
+        // Timer starten
+        Select(btnInitGeraet);
+
+
+    Children:
+      - conPrufen:
+          Control: GroupContainer@1.5.0
+          Variant: AutoLayout
+          Properties:
+            DropShadow: =DropShadow.None
+            Height: =Parent.Height
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutDirection: =LayoutDirection.Vertical
+            Width: =Parent.Width
+          Children:
+            - conPruefenHeader:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  Fill: =RGBA(255, 255, 255, 1)
+                  FillPortions: =0
+                  Height: =68
+                  LayoutAlignItems: =LayoutAlignItems.Center
+                  LayoutDirection: =LayoutDirection.Horizontal
+                  LayoutGap: =5
+                  PaddingRight: =6
+                  Visible: =!varGeraetAendern
+                  Width: =Parent.Width
+                Children:
+                  - comAppHeader_1:
+                      Control: CanvasComponent
+                      ComponentName: comAppHeader
+                      Properties:
+                        CurrentTime: =varAppCurrentTime
+                        HeaderHeight: =64
+                        HeaderTitel: =varStandort.Name
+                        Height: =comAppHeader_1.HeaderHeight
+                        Width: =Parent.Width
+            - conPruefenSearch:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  DropShadow: =DropShadow.None
+                  FillPortions: =0
+                  Height: =60
+                  LayoutAlignItems: =LayoutAlignItems.Center
+                  LayoutDirection: =LayoutDirection.Horizontal
+                  LayoutGap: =If(App.Width < 600, 2     , 10)
+                  LayoutMinHeight: =16
+                  LayoutMinWidth: =16
+                  LayoutWrap: =
+                  PaddingBottom: =8
+                  PaddingLeft: =8
+                  PaddingRight: =8
+                  PaddingTop: =8
+                  Visible: =!varGeraetAendern && !varBarcodeWarnung
+                Children:
+                  - txtSearchGeraet:
+                      Control: Classic/TextInput@2.3.2
+                      Properties:
+                        Default: =
+                        DelayOutput: =true
+                        Font: =AppTheme.FontFamily
+                        HintText: ="Suchen"
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        OnChange: |+
+                          =Set(varGeraetRecord, Blank());
+                          Set(varGeraetRecordID,Blank());
+                          Select(btnInitGeraet)
+                        OnSelect: =
+                        Size: =AppTheme.FontSizeBase
+                        Width: |+
+                          =If(App.Width < 600, 130, 200)
+                  - cbLagerort:
+                      Control: ModernCombobox@1.1.2
+                      Properties:
+                        Font: =AppTheme.FontFamily
+                        InputTextPlaceholder: ="Lagerort"
+                        ItemDisplayText: =ThisItem.Value
+                        Items: =colLagerorte
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        OnChange: =Select(btnInitGeraet);
+                        SelectMultiple: =false
+                        Size: =AppTheme.FontSizeBase
+                        Width: =If(App.Width < 600, 130, 200)
+                  - conbarcode:
+                      Control: GroupContainer@1.5.0
+                      Variant: ManualLayout
+                      Properties:
+                        DropShadow: =DropShadow.None
+                        FillPortions: =0
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        Width: =If(App.Width < 600, 40  , 60)
+                      Children:
+                        - imgbarcode:
+                            Control: Image@2.2.3
+                            Properties:
+                              DisplayMode: =DisplayMode.View
+                              Height: =44
+                              Image: =MyIcons.Barcodescanner
+                              Width: =Parent.Width
+                        - barcodereader:
+                            Control: BarcodeReader@1.0.25
+                            Properties:
+                              BorderThickness: =0
+                              FillColor: =RGBA(0, 0, 0, 0)
+                              Height: =Parent.Height
+                              HoverFillColor: =
+                              OnScan: |-
+                                =Set(
+                                    varScannedValue,
+                                    First(barcodereader.Barcodes).Value
+                                );
+
+                                Set(
+                                    varBarcode,
+                                    true
+                                );
+                                Set(
+                                    varSelectetGeraet,
+                                    First(barcodereader.Barcodes).Value
+                                );
+                                Set(
+                                    varBcount,
+                                    CountRows(
+                                        Filter(
+                                            colGerate,
+                                            bmvcc_barcode = Text(varScannedValue)
+                                        )
+                                    )
+                                );
+                                If(
+                                    varBcount < 1,
+                                    Set(
+                                        varBarcodeWarnung,
+                                        true
+                                    ),
+                                    // Geraetrecord setzen
+                                    Set(
+                                    varGeraetRecord,
+                                    LookUp(
+                                        colGerate,
+                                        bmvcc_barcode = Text(varScannedValue)
+                                    )
+                                ),
+
+                                    // Galerie zurücksetzen
+                                    Reset(galPruefen),
+                                    Reset(galPruefberichte_2)
+                                )
+                              PaddingBottom: =0
+                              PaddingLeft: =0
+                              PaddingRight: =0
+                              PaddingTop: =0
+                              ScanningMode: ='BarcodeReader.ScanningMode'.AutomaticallyScan
+                              Text: =
+                              Visible: =varShowBarcodeReader
+                              Width: =Parent.Width
+                  - resetconFilterPruefenGeraete:
+                      Control: Classic/Icon@2.5.0
+                      Properties:
+                        AlignInContainer: =AlignInContainer.Center
+                        Height: =Parent.Height
+                        Icon: =Icon.Reset
+                        LayoutMinHeight: =16
+                        LayoutMinWidth: =16
+                        OnSelect: |+
+                          =Reset(txtSearchGeraet);
+                          Set(varBarcode, false);
+                          Set(varSelectetGeraet, Blank());
+                          Set(varBarcodeWarnung, false);
+                          Set(varBcount, 0);
+                          Set(varShowBarcodeReader, false);
+                          Set(varShowBarcodeReader, true);
+                          Set(varLoadingPruefberichte, true);
+
+                          Select(btnInitGeraet);
+                          Reset(cbLagerort);
+                          // Galerie zurücksetzen
+                          Reset(galPruefen)
+
+                        PaddingBottom: =10
+                        PaddingLeft: =10
+                        PaddingRight: =5.62
+                        PaddingTop: =5.62
+                        Width: =If(App.Width < 600, 40  , 60)
+                        X: =0.00
+            - coPruefenMain:
+                Control: GroupContainer@1.5.0
+                Variant: AutoLayout
+                Properties:
+                  Height: =Parent.Height
+                  LayoutAlignItems: =LayoutAlignItems.Stretch
+                  LayoutDirection: =LayoutDirection.Vertical
+                  LayoutGap: =2
+                  LayoutMinHeight: =16
+                  LayoutMinWidth: =16
+                  PaddingBottom: =8
+                  PaddingLeft: =8
+                  PaddingRight: =8
+                  PaddingTop: =8
+                  Visible: =!varGeraetAendern
+                  Width: =Parent.Width
+                Children:
+                  - conFilterPruefenGeraete:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        AlignInContainer: =AlignInContainer.SetByContainer
+                        DropShadow: =DropShadow.None
+                        Fill: =RGBA(255, 255, 255, 1)
+                        FillPortions: =0
+                        Height: =40
+                        LayoutAlignItems: =LayoutAlignItems.Center
+                        LayoutDirection: =LayoutDirection.Horizontal
+                        RadiusBottomLeft: =8
+                        RadiusBottomRight: =8
+                        RadiusTopLeft: =8
+                        RadiusTopRight: =8
+                        Visible: =!varGeraetAendern && !varBarcodeWarnung
+                        Width: =Parent.Width
+                        Y: '=0   '
+                      Children:
+                        - TagFilter_6:
+                            Control: CanvasComponent
+                            ComponentName: TagFilter_2
+                            Properties:
+                              AllowEmptySelection: =false
+                              AllowMultipleSelections: =false
+                              DefaultSelectedItems: =["alle"]
+                              Height: = Self.TagHeight
+                              Items: "=Table(\n    {\n        Text: \"Alle\",\n        Value: \"alle\",\n        Icon: \"DocumentBulletList\"\n    },\n    \n    {\n        Text: \"Prüfen\",\n        Value: \"pruefen\",\n        Icon:\"ServiceBell\"\n    }, \n    {\n        Text: \"Geprüft\",\n        Value: \"geprueft\",\n        Icon: \"CheckmarkCircle\"\n    }, \n    {\n        Text: \"Veraltet\",\n        Value: \"veraltet\",\n        Icon:\"Warning\"\n    }\n\n)"
+                              TagFill: =App.Theme.Colors.Primary
+                              TagHeight: =40
+                              Width: =Parent.Width
+                  - contkeineoffenenpruefungen_2:
+                      Control: GroupContainer@1.5.0
+                      Variant: ManualLayout
+                      Properties:
+                        AlignInContainer: =AlignInContainer.SetByContainer
+                        DropShadow: =DropShadow.None
+                        Fill: =RGBA(0, 0, 0, 0.5)
+                        Height: =Parent.Height
+                        LayoutMinHeight: =400
+                        PaddingBottom: =20
+                        PaddingLeft: =20
+                        PaddingRight: =20
+                        PaddingTop: =20
+                        Visible: |-
+                          =(CountRows(
+                              Filter(
+                                  colGerate,
+                                  bmvcc_letztepruefung < DateAdd(
+                                      Today(),
+                                      -360,
+                                      TimeUnit.Days
+                                  ) && Not((bmvcc_ablegereife < Today() && !IsBlank(bmvcc_ablegereife) && Lower(bmvcc_betriebsmittelstatus) = "keine freigabe"))
+                              )
+                          ) = 0 && TagFilter_6.Selected = "pruefen") || (CountRows(
+                              Filter(
+                                  colGerate,
+                                  bmvcc_letztepruefung > DateAdd(
+                                      Today(),
+                                      -3,
+                                      TimeUnit.Days
+                                  )
+                              )
+                          ) = 0 && TagFilter_6.Selected = "geprueft") || (CountRows(
+                              Filter(
+                                  colGerate,
+                                  bmvcc_ablegereife < Today() && !IsBlank(bmvcc_ablegereife)
+                              )
+                          ) = 0) && TagFilter_6.Selected = "veraltet"
+                        Width: =Parent.Width
+                        X: =20
+                        Y: '=30  '
+                      Children:
+                        - txtAnzahlGeraete:
+                            Control: ModernTextInput@1.1.2
+                            Properties:
+                              Default: |-
+                                =$"Geräte:  {galPruefen.AllItemsCount}"
+                              Placeholder: ="Enter text"
+                              Width: =280
+                              X: =40
+                              Y: =40
+                        - TextInput4_2:
+                            Control: ModernTextInput@1.1.2
+                            Properties:
+                              Default: =TagFilter_6.Selected
+                              Placeholder: ="Enter text"
+                              Width: '=280 '
+                              X: =40
+                              Y: =84
+                        - Label4_11:
+                            Control: Label@2.5.1
+                            Properties:
+                              Align: =Align.Center
+                              Font: =AppTheme.FontFamily
+                              Height: =206
+                              Size: =AppTheme.FontSizeTitle
+                              Text: |-
+                                =Switch(
+                                    TagFilter_6.Selected,
+                                    "geprueft",
+                                    "Aktuell sind keine Geräte
+                                 " & TagFilter_6.Selected,
+                                 "pruefen",
+                                    "Aktuell sind keine Geräte zu
+                                 " & TagFilter_6.Selected,
+                                 "veraltet",
+                                    "Aktuell sind keine Geräte
+                                 " & TagFilter_6.Selected
+                                )
+                              Width: =Parent.Width
+                              Y: =159
+                  - conPruefenGeraete:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        AlignInContainer: =AlignInContainer.SetByContainer
+                        DropShadow: =DropShadow.None
+                        Fill: =RGBA(255, 255, 255, 1)
+                        Height: =220
+                        LayoutDirection: =LayoutDirection.Vertical
+                        LayoutMinHeight: =224
+                        Visible: =galPruefen.AllItemsCount >0 &&!varGeraetAendern && !varBarcodeWarnung
+                        X: =40
+                        Y: =40
+                      Children:
+                        - galPruefen:
+                            Control: Gallery@2.15.0
+                            Variant: Horizontal
+                            Properties:
+                              BorderThickness: =1
+                              Default: =//First(Filter(colGerate; bmvcc_letztepruefung < DateAdd(Today(); -360; TimeUnit.Days)))
+                              Height: =Parent.Height
+                              Items: "(gekürzt — komplexe Sort/Filter/Search-Formel über colGerate mit Tag-Filter [alle/pruefen/geprueft/veraltet], Freitextsuche über bmvcc_geraetename/bmvcc_bemerkungen/bmvcc_barcode/bmvcc_serienummer/ArtikelTyp/ArtikelDimension/ArtikelENNorm/HerstellerArtikelNr/HerstellerName/StandortName/Modellartikel, Lagerort-Filter und Barcode-Filter; sortiert nach bmvcc_geraetename, aktuell ausgewähltes Gerät wird nach oben sortiert — volle Formel siehe Originalexport bei Bedarf erneut einholen)"
+                              LayoutMinHeight: =0
+                              LayoutMinWidth: =0
+                              TabIndex: =-3
+                              TemplateSize: =360
+                              Width: =Parent.Width
+                              Y: =40
+                            Children:
+                              - Rectangle3:
+                                  Control: Rectangle@2.3.0
+                                  Properties:
+                                    BorderThickness: =1
+                                    Fill: =RGBA(255, 255, 255, 0)
+                                    Height: =298
+                                    OnSelect: =Select(Parent)
+                                    Width: =355
+                              - HtmlDaten:
+                                  Control: HtmlViewer@2.1.0
+                                  Properties:
+                                    DisplayMode: =DisplayMode.View
+                                    Fill: |-
+                                      =If(
+                                          ThisItem.bmvcc_equipmentrecordid = varGeraetRecord.bmvcc_equipmentrecordid,
+                                          RGBA(0, 120, 212, 0.1),
+                                          If(
+                                              ThisItem.bmvcc_letztepruefung >= Today() - 120,
+                                              Color.LightGreen,
+                                              RGBA(255, 255, 255, 1)
+                                          )
+                                      )
+                                    Height: =25
+                                    HtmlText: |-
+                                      ="<div>" & With(
+                                          {
+                                              HS: If(!IsBlank(ThisItem.bmvcc_herstelljahr), "<b>HS:</b> " & Text(ThisItem.bmvcc_herstelljahr, "dd.mm.yyyy")),
+                                              EB: If(!IsBlank(ThisItem.bmvcc_erstgebrauch), "<b>EB:</b> " & Text(ThisItem.bmvcc_erstgebrauch, "dd.mm.yyyy")),
+                                              AL: If(!IsBlank(ThisItem.bmvcc_ablegereife), "<b>AL:</b> " & Text(ThisItem.bmvcc_ablegereife, "dd.mm.yyyy"))
+                                          },
+                                          Concat(Filter([HS, EB, AL], !IsBlank(Value)), Value, " • ")
+                                      ) & "</div>"
+                                    OnSelect: |+
+                                      =Set(varGeraetRecord, ThisItem);
+                                      Set(varGeraetRecordID, ThisItem.bmvcc_equipmentrecordid);
+                                      Select(Parent);
+                                      Reset(galPruefen);
+                                    Width: =Parent.TemplateWidth -10
+                                    X: =5
+                                    Y: =txtStatus_3.Y +txtStatus_3.Height
+                              - HtmlSerienrCode:
+                                  Control: HtmlViewer@2.1.0
+                                  Properties:
+                                    DisplayMode: =DisplayMode.View
+                                    Height: =25
+                                    HtmlText: "(Snr/Bc-Anzeige, analog HtmlDaten)"
+                                    OnSelect: |+
+                                      =Set(varGeraetRecord, ThisItem);
+                                      Set(varGeraetRecordID, ThisItem.bmvcc_equipmentrecordid);
+                                      Select(Parent);
+                                      Reset(galPruefen);
+                                    Width: =Parent.TemplateWidth -10
+                                    X: =5
+                              - txtBemerkungen_3:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Height: =45
+                                    OnSelect: |+
+                                      =Set(varGeraetRecord, ThisItem);
+                                      Set(varGeraetRecordID, ThisItem.bmvcc_equipmentrecordid);
+                                      Select(Parent);
+                                      Reset(galPruefen);
+                                    Text: =ThisItem.bmvcc_bemerkungen
+                                    Width: '=Parent.TemplateWidth -10 '
+                                    X: =5
+                                    Y: =txtZubehoer.Y +txtZubehoer.Height
+                              - txtZubehoer:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Height: =45
+                                    OnSelect: |+
+                                      =Set(varGeraetRecord, ThisItem);
+                                      Set(varGeraetRecordID, ThisItem.bmvcc_equipmentrecordid);
+                                      Select(Parent);
+                                      Reset(galPruefen);
+                                    Text: =ThisItem.bmvcc_zubehoer
+                                    Width: '=Parent.TemplateWidth -10 '
+                                    X: =5
+                                    Y: =HtmlDaten.Y +HtmlDaten.Height
+                              - txtStatus_3:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    OnSelect: |+
+                                      =Set(varGeraetRecord, ThisItem);
+                                      Set(varGeraetRecordID, ThisItem.bmvcc_equipmentrecordid);
+                                      Select(Parent);
+                                      Reset(galPruefen);
+                                    Text: |-
+                                      =Switch(
+                                          ThisItem.bmvcc_betriebsmittelstatus,
+                                          "Freigabe", "✅ "&Text(ThisItem.bmvcc_letztepruefung,"dd.mmm.yyyy")&" "&ThisItem.bmvcc_pruefer ,
+                                          "keine Freigabe", "❌ "&Text(ThisItem.bmvcc_letztepruefung,"dd.mmm.yyyy")&" "&ThisItem.bmvcc_pruefer ,
+                                          "letzte Freigabe", "⚠️ "&Text(ThisItem.bmvcc_letztepruefung,"dd.mmm.yyyy")&" "&ThisItem.bmvcc_pruefer ,
+                                          "❓"
+                                      )
+                                    Width: '=Parent.TemplateWidth -10 '
+                                    X: =5
+                                    Y: =txtArtikel.Y + txtArtikel.Height
+                              - txtArtikel:
+                                  Control: ModernText@1.0.0
+                                  Properties:
+                                    Height: =45
+                                    OnSelect: |+
+                                      =Set(varGeraetRecord, ThisItem);
+                                      Set(varGeraetRecordID, ThisItem.bmvcc_equipmentrecordid);
+                                      Select(Parent);
+                                      Reset(galPruefen);
+                                    Text: =ThisItem.Modellartikel & " " & ThisItem.ArtikelENNorm&" " & ThisItem.ArtikelTyp&" "&ThisItem.ArtikelDimension&" "&ThisItem.HerstellerName
+                                    Width: '=Parent.TemplateWidth -10 '
+                                    X: =5
+                                    Y: =25
+                  - conMainPruefenBerichte:
+                      Control: GroupContainer@1.5.0
+                      Variant: AutoLayout
+                      Properties:
+                        AlignInContainer: =AlignInContainer.SetByContainer
+                        DropShadow: =DropShadow.None
+                        Fill: =RGBA(255, 255, 255, 1)
+                        FillPortions: =0
+                        LayoutDirection: =LayoutDirection.Vertical
+                        LayoutGap: =5
+                        LayoutMinHeight: =200
+                        Visible: =!varGeraetAendern && !varBarcodeWarnung
+                        Width: =Parent.Width
+                        X: =2
+                      Children:
+                        - PopupContainer_2:
+                            Control: GroupContainer@1.5.0
+                            Variant: ManualLayout
+                            Properties:
+                              BorderThickness: '=2   '
+                              Fill: =RGBA(0, 0, 0, 0.5)
+                              Visible: '=varShowPopup '
+                            Children:
+                              - txtTitel_8:
+                                  Control: Label@2.5.1
+                                  Properties:
+                                    Align: =Align.Center
+                                    Height: =29
+                                    Text: =If(varEditMode, "Prüfbericht bearbeiten", "Vorhandener Prüfbericht")
+                                    Width: =Parent.Width
+                                    Y: '=20  '
+                              - dpPruefdatum_2:
+                                  Control: Classic/DatePicker@2.6.0
+                                  Properties:
+                                    DefaultDate: =varSelectedReport.Geprueft
+                                    DisplayMode: =If(varEditMode, DisplayMode.Edit, DisplayMode.View)
+                                    Height: '=40  '
+                                    Width: =178
+                                    X: =152
+                                    Y: '=60  '
+                              - txtTitel_9:
+                                  Control: Label@2.5.1
+                                  Properties:
+                                    Height: '=40  '
+                                    Text: ="Prüfdatum:"
+                                    Width: =113
+                                    X: =20
+                                    Y: '=60  '
+                              - cbErgebnis_2:
+                                  Control: ModernCombobox@1.1.2
+                                  Properties:
+                                    DefaultSelectedItems: =[varSelectedReport.Ergebnis]
+                                    DisplayMode: =If(varEditMode, DisplayMode.Edit, DisplayMode.View)
+                                    Height: '=40  '
+                                    InputTextPlaceholder: ="Resultat"
+                                    ItemDisplayText: =ThisItem.Value
+                                    Items: =["Freigabe", "keine Freigabe", "Letzte Freigabe"]
+                                    SelectMultiple: =false
+                                    Width: =178
+                                    X: =482
+                                    Y: '=60  '
+                              - txtTitel_10:
+                                  Control: Label@2.5.1
+                                  Properties:
+                                    Height: '=40  '
+                                    Text: ="Ergebnis:"
+                                    Width: =105
+                                    X: =355
+                                    Y: '=60  '
+                              - ButtonCanvas2_4:
+                                  Control: ModernButton@1.0.0
+                                  Properties:
+                                    Align: =Align.Center
+                                    Height: '=40  '
+                                    OnSelect: =Set(varShowPopup, false)
+                                    Text: ="Schliessen"
+                                    X: =20
+                                    Y: =170
+                              - ButtonCanvas2_5:
+                                  Control: ModernButton@1.0.0
+                                  Properties:
+                                    Align: =Align.Center
+                                    Height: '=40  '
+                                    OnSelect: |
+                                      =If(
+                                          varEditMode,
+                                          // Speichern
+                                          Patch(
+                                              Pruefberichts,
+                                              varSelectedReport,
+                                              {
+                                                  Geprueft: dpPruefdatum_2.SelectedDate,
+                                                  Bemerkungen: txtPBBem_2.Text,
+                                                  Ergebnis: cbErgebnis_2.Selected.Value
+                                              }
+                                          );
+                                          // Zugehörigen Geräte-Datensatz in Dataverse aktualisieren
+                                          Patch(
+                                              Geraetes,
+                                              LookUp(
+                                                  Geraetes,
+                                                  GeraeteID = varGeraetRecord.bmvcc_equipmentrecordid
+                                              ),
+                                              {
+                                                  Letztepruefung: dpPruefdatum_2.SelectedDate,
+                                                  Betriebsmittelstatus: cbErgebnis_2.Selected.Value,
+                                                  Pruefer: varPruefer
+                                              }
+                                          );
+                                          // Lokale Collection (Anzeige-Cache) aktualisieren
+                                          Patch(
+                                              colGerate,
+                                              LookUp(
+                                                  colGerate,
+                                                  bmvcc_equipmentrecordid = varGeraetRecord.bmvcc_equipmentrecordid
+                                              ),
+                                              {
+                                                  bmvcc_letztepruefung: dpPruefdatum_2.SelectedDate,
+                                                  bmvcc_betriebsmittelstatus: cbErgebnis_2.Selected.Value
+                                              }
+                                          );
+                                          Set(varShowPopup, false);
+                                          Reset(cbErgebnis_2);
+                                          Reset(dpPruefdatum_2);
+                                          Reset(txtPBBem_2);
+                                          Notify("Prüfbericht aktualisiert", NotificationType.Success),
+                                          // Bearbeiten-Modus aktivieren
+                                          Set(varEditMode, true)
+                                      )
+                                    Text: =If(varEditMode, "Speichern", "Bearbeiten")
+                                    X: =155
+                                    Y: =170
+                              - txtTitel_11:
+                                  Control: Label@2.5.1
+                                  Properties:
+                                    # --- Originalexport wurde an dieser Stelle bei 50'000 Zeichen abgeschnitten ---
