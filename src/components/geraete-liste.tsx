@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -9,14 +9,37 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getStatusBadgeVariant } from "@/lib/status-badge";
 import { formatDatum } from "@/lib/format";
-import type { Geraet, Standort } from "@/lib/dataverse/geraete";
+import { matchesGeraeteFilter, type Geraet, type Standort } from "@/lib/dataverse/geraete";
+import { setGeraeteFilterState, type GeraeteFilterState } from "@/lib/geraete-filter-session";
 
 const ALLE = "__alle__";
 
-export function GeraeteListe({ geraete, standorte }: { geraete: Geraet[]; standorte: Standort[] }) {
-  const [suche, setSuche] = useState("");
-  const [lagerort, setLagerort] = useState(ALLE);
-  const [standortId, setStandortId] = useState(ALLE);
+export function GeraeteListe({
+  geraete,
+  standorte,
+  initialFilter,
+}: {
+  geraete: Geraet[];
+  standorte: Standort[];
+  initialFilter: GeraeteFilterState;
+}) {
+  const [suche, setSuche] = useState(initialFilter.suche);
+  const [lagerort, setLagerort] = useState(initialFilter.lagerort || ALLE);
+  const [standortId, setStandortId] = useState(initialFilter.standortId || ALLE);
+
+  // Der Filter gilt session-weit (siehe geraete-filter-session.ts), damit er
+  // beim Wechsel zu /pruefberichte erhalten bleibt — verzögert geschrieben,
+  // damit nicht bei jedem Tastendruck in der Suche eine eigene Anfrage läuft.
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      void setGeraeteFilterState({
+        suche,
+        lagerort: lagerort === ALLE ? "" : lagerort,
+        standortId: standortId === ALLE ? "" : standortId,
+      });
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [suche, lagerort, standortId]);
 
   const standortName = useMemo(() => {
     const map = new Map(standorte.map((s) => [s.id, s.name]));
@@ -29,13 +52,13 @@ export function GeraeteListe({ geraete, standorte }: { geraete: Geraet[]; stando
   }, [geraete]);
 
   const gefiltert = useMemo(() => {
-    const suchbegriff = suche.trim().toLowerCase();
-    return geraete.filter((g) => {
-      if (standortId !== ALLE && g.standortId !== standortId) return false;
-      if (lagerort !== ALLE && g.lagerort !== lagerort) return false;
-      if (!suchbegriff) return true;
-      return [g.name, g.barcode, g.serienummer, g.kundenId].some((v) => v?.toLowerCase().includes(suchbegriff));
-    });
+    return geraete.filter((g) =>
+      matchesGeraeteFilter(g, {
+        suche,
+        lagerort: lagerort === ALLE ? "" : lagerort,
+        standortId: standortId === ALLE ? "" : standortId,
+      })
+    );
   }, [geraete, suche, lagerort, standortId]);
 
   if (geraete.length === 0) {

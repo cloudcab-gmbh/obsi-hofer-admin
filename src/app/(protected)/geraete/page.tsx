@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { listStandorteForFirma, listGeraeteForStandorte, type Geraet, type Standort } from "@/lib/dataverse/geraete";
 import { getCurrentFirmaId } from "@/lib/firma-session";
+import { getGeraeteFilterState } from "@/lib/geraete-filter-session";
 import { GeraeteListe } from "@/components/geraete-liste";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default async function GeraetePage() {
-  const firmaId = await getCurrentFirmaId();
+  const [firmaId, initialFilter] = await Promise.all([getCurrentFirmaId(), getGeraeteFilterState()]);
 
   if (!firmaId) {
     return (
@@ -44,7 +45,7 @@ export default async function GeraetePage() {
           <CardContent className="py-10 text-center text-sm text-muted-foreground">{loadError}</CardContent>
         </Card>
       ) : (
-        <GeraeteListe geraete={geraete} standorte={standorte} />
+        <GeraeteListe geraete={geraete} standorte={standorte} initialFilter={initialFilter} />
       )}
     </main>
   );

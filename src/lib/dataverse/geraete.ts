@@ -73,6 +73,29 @@ export interface Geraet {
   kundenId: string | null;
 }
 
+export interface GeraeteFilter {
+  suche: string;
+  /** Leerstring = "alle Lagerorte". */
+  lagerort: string;
+  /** Leerstring = "alle Standorte". */
+  standortId: string;
+}
+
+// Gemeinsame Filter-Regel für Geräte — genutzt sowohl von der Geräteliste
+// (PROJ-3) als auch von der firmenweiten Prüfberichte-Übersicht (PROJ-4),
+// damit ein auf /geraete gewählter Filter dort dieselbe Geräte-Teilmenge
+// ergibt (siehe geraete-filter-session.ts, Nutzerwunsch 2026-10-05).
+export function matchesGeraeteFilter(geraet: Geraet, filter: GeraeteFilter): boolean {
+  if (filter.standortId && geraet.standortId !== filter.standortId) return false;
+  if (filter.lagerort && geraet.lagerort !== filter.lagerort) return false;
+
+  const suchbegriff = filter.suche.trim().toLowerCase();
+  if (!suchbegriff) return true;
+  return [geraet.name, geraet.barcode, geraet.serienummer, geraet.kundenId].some((v) =>
+    v?.toLowerCase().includes(suchbegriff)
+  );
+}
+
 export interface GeraetStammdatenInput {
   serienummer: string | null;
   barcode: string | null;

@@ -189,6 +189,8 @@ Betrifft Component-Structure/Data-Model/Tech-Decisions im Tech-Design-Abschnitt 
 
 **Layout-Nachtrag (2026-10-05, Nutzerwunsch):** Stammdaten-Formular kompakter angeordnet — Barcode und Seriennummer sowie Herstelljahr/Erstgebrauch/Ablegereife stehen jetzt jeweils nebeneinander in einer schmaleren Reihe (Grid, auf Mobile weiterhin untereinander gestapelt) statt als volle Breite untereinander. Zubehör wurde ausserdem hinter die Datumsfelder verschoben (Reihenfolge jetzt: Barcode/Seriennummer, Lagerort, Herstelljahr/Erstgebrauch/Ablegereife, Zubehör, Bemerkungen, Kunden-ID).
 
+**Architektur-Nachtrag (2026-10-05, Nutzerwunsch, betrifft auch PROJ-4):** Der Geräteliste-Filter (Suche/Lagerort/Standort) gilt jetzt session-weit, analog zur Firma-Auswahl — neues `src/lib/geraete-filter-session.ts` (Cookie, 30 Tage) sowie eine gemeinsame reine Filter-Funktion `matchesGeraeteFilter()` in `src/lib/dataverse/geraete.ts`. `GeraeteListe` initialisiert sich daraus und schreibt Änderungen verzögert (400ms) zurück. Grund für die Verschiebung: Die firmenweite Prüfberichte-Übersicht (PROJ-4) übernimmt denselben Filter, damit der Nutzer nicht doppelt filtern muss (siehe PROJ-4 Implementation Notes).
+
 ## QA Test Results
 
 **Tested:** 2026-10-05

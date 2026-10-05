@@ -18,7 +18,9 @@ import {
   listFirmen,
   listGeraeteForStandorte,
   listStandorteForFirma,
+  matchesGeraeteFilter,
   updateGeraetStammdaten,
+  type Geraet,
 } from "./geraete";
 
 const VALID_FIRMA_ID = "11111111-1111-1111-1111-111111111111";
@@ -223,5 +225,57 @@ describe("updateGeraetStammdaten", () => {
     );
     const payload = updateRecord.mock.calls[0][2];
     expect(payload).not.toHaveProperty("bmvcc_geraetename");
+  });
+});
+
+function fixtureGeraet(overrides: Partial<Geraet> = {}): Geraet {
+  return {
+    id: VALID_GERAET_ID,
+    name: "Seil 1",
+    serienummer: "SN-1",
+    barcode: "BC-1",
+    status: "Freigabe",
+    letztePruefung: null,
+    ablegereife: null,
+    herstelljahr: null,
+    erstgebrauch: null,
+    standortId: VALID_STANDORT_ID,
+    artikelId: null,
+    lagerort: "Lager A",
+    pruefer: null,
+    zubehoer: null,
+    bemerkungen: null,
+    kundenId: "KD-42",
+    ...overrides,
+  };
+}
+
+describe("matchesGeraeteFilter", () => {
+  it("matches everything when the filter is empty", () => {
+    expect(matchesGeraeteFilter(fixtureGeraet(), { suche: "", lagerort: "", standortId: "" })).toBe(true);
+  });
+
+  it("excludes a Gerät at a different Standort", () => {
+    expect(
+      matchesGeraeteFilter(fixtureGeraet(), { suche: "", lagerort: "", standortId: VALID_STANDORT_ID_2 })
+    ).toBe(false);
+  });
+
+  it("excludes a Gerät at a different Lagerort", () => {
+    expect(matchesGeraeteFilter(fixtureGeraet(), { suche: "", lagerort: "Lager B", standortId: "" })).toBe(false);
+  });
+
+  it("matches a search term against name, barcode, serienummer or kundenId (case-insensitive)", () => {
+    expect(matchesGeraeteFilter(fixtureGeraet(), { suche: "seil", lagerort: "", standortId: "" })).toBe(true);
+    expect(matchesGeraeteFilter(fixtureGeraet(), { suche: "kd-42", lagerort: "", standortId: "" })).toBe(true);
+    expect(matchesGeraeteFilter(fixtureGeraet(), { suche: "nichts-passt", lagerort: "", standortId: "" })).toBe(
+      false
+    );
+  });
+
+  it("combines Standort/Lagerort restriction with a search term", () => {
+    const filter = { suche: "seil", lagerort: "Lager A", standortId: VALID_STANDORT_ID };
+    expect(matchesGeraeteFilter(fixtureGeraet(), filter)).toBe(true);
+    expect(matchesGeraeteFilter(fixtureGeraet({ lagerort: "Lager B" }), filter)).toBe(false);
   });
 });

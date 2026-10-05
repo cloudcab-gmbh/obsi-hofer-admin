@@ -14,11 +14,14 @@ const ALLE = "__alle__";
 export function PruefberichteUebersicht({
   berichte,
   geraetNamen,
+  initialSuche = "",
 }: {
   berichte: Pruefbericht[];
   geraetNamen: Map<string, string>;
+  /** Übernommen aus dem Geräteliste-Filter (siehe geraete-filter-session.ts), unabhängig änderbar. */
+  initialSuche?: string;
 }) {
-  const [suche, setSuche] = useState("");
+  const [suche, setSuche] = useState(initialSuche);
   const [ergebnis, setErgebnis] = useState(ALLE);
   const [zeigeStorniert, setZeigeStorniert] = useState(false);
 
