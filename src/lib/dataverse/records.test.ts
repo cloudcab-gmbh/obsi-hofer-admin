@@ -35,11 +35,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const VALID_ID = "22222222-2222-2222-2222-222222222222";
+
 describe("getRecord", () => {
   it("fetches a single record by id and returns its fields", async () => {
     stubFetchSequence(TOKEN_RESPONSE(), jsonResponse({ bmvcc_geraetename: "Seil 1" }));
 
-    const record = await getRecord("bmvcc_equipmentrecords", "abc-123");
+    const record = await getRecord("bmvcc_equipmentrecords", VALID_ID);
 
     expect(record).toEqual({ bmvcc_geraetename: "Seil 1" });
   });
@@ -47,9 +49,9 @@ describe("getRecord", () => {
   it("includes a $select query parameter when fields are requested", async () => {
     const fetchMock = stubFetchSequence(TOKEN_RESPONSE(), jsonResponse({}));
 
-    await getRecord("bmvcc_equipmentrecords", "abc-123", { select: ["bmvcc_geraetename", "bmvcc_barcode"] });
+    await getRecord("bmvcc_equipmentrecords", VALID_ID, { select: ["bmvcc_geraetename", "bmvcc_barcode"] });
 
-    const url = fetchMock.mock.calls[1][0] as string;
+    const url = decodeURIComponent(fetchMock.mock.calls[1][0] as string);
     expect(url).toContain("$select=bmvcc_geraetename,bmvcc_barcode");
   });
 
@@ -59,10 +61,16 @@ describe("getRecord", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("rejects a malformed (non-GUID) id without making a network call", async () => {
+    const fetchMock = stubFetchSequence();
+    await expect(getRecord("bmvcc_equipmentrecords", "abc-123")).rejects.toThrow(/GUID/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("surfaces a not_found DataverseError for a missing record", async () => {
     stubFetchSequence(TOKEN_RESPONSE(), jsonResponse({ error: { message: "not found" } }, { status: 404 }));
 
-    await expect(getRecord("bmvcc_equipmentrecords", "missing")).rejects.toMatchObject({ category: "not_found" });
+    await expect(getRecord("bmvcc_equipmentrecords", VALID_ID)).rejects.toMatchObject({ category: "not_found" });
   });
 });
 
@@ -109,6 +117,17 @@ describe("listRecords", () => {
     await listRecords("bmvcc_equipmentrecords", { pageCursor: cursor, filter: "should be ignored" });
 
     expect(fetchMock.mock.calls[1][0]).toBe(cursor);
+  });
+
+  it("refuses a pageCursor pointing to a different host (token exfiltration guard)", async () => {
+    const fetchMock = stubFetchSequence();
+    const maliciousCursor = "https://evil.example/steal-token";
+
+    await expect(listRecords("bmvcc_equipmentrecords", { pageCursor: maliciousCursor })).rejects.toThrow(
+      /unexpected host/
+    );
+    // Die Host-Prüfung schlägt fehl, bevor überhaupt ein Token geholt oder eine Anfrage gestellt wird.
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
@@ -163,18 +182,24 @@ describe("updateRecord", () => {
   it("sends a PATCH request with the changed fields", async () => {
     const fetchMock = stubFetchSequence(TOKEN_RESPONSE(), emptyResponse());
 
-    await updateRecord("bmvcc_equipmentrecords", "abc-123", { bmvcc_bemerkungen: "Aktualisiert" });
+    await updateRecord("bmvcc_equipmentrecords", VALID_ID, { bmvcc_bemerkungen: "Aktualisiert" });
 
     const [url, init] = fetchMock.mock.calls[1];
-    expect(url).toContain("bmvcc_equipmentrecords(abc-123)");
+    expect(url).toContain(`bmvcc_equipmentrecords(${VALID_ID})`);
     expect(init.method).toBe("PATCH");
     expect(JSON.parse(init.body)).toEqual({ bmvcc_bemerkungen: "Aktualisiert" });
+  });
+
+  it("rejects a malformed (non-GUID) id without making a network call", async () => {
+    const fetchMock = stubFetchSequence();
+    await expect(updateRecord("bmvcc_equipmentrecords", "abc-123", {})).rejects.toThrow(/GUID/);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("surfaces a permission_denied DataverseError on a 403 response", async () => {
     stubFetchSequence(TOKEN_RESPONSE(), jsonResponse({ error: { message: "Forbidden" } }, { status: 403 }));
 
-    await expect(updateRecord("bmvcc_equipmentrecords", "abc-123", {})).rejects.toMatchObject({
+    await expect(updateRecord("bmvcc_equipmentrecords", VALID_ID, {})).rejects.toMatchObject({
       category: "permission_denied",
     });
   });

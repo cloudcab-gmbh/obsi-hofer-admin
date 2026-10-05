@@ -87,6 +87,26 @@ describe("getDataverseAccessToken", () => {
 
     await expect(getDataverseAccessToken()).rejects.toBeInstanceOf(DataverseError);
   });
+
+  it("deduplicates concurrent requests into a single token request", async () => {
+    let resolveFetch: (value: Response) => void;
+    const fetchMock = vi.fn().mockReturnValue(
+      new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const first = getDataverseAccessToken();
+    const second = getDataverseAccessToken();
+
+    resolveFetch!(jsonResponse({ access_token: "token-1", expires_in: 3600 }));
+    const [a, b] = await Promise.all([first, second]);
+
+    expect(a).toBe("token-1");
+    expect(b).toBe("token-1");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("dataverseFetch", () => {
@@ -140,5 +160,24 @@ describe("dataverseFetch", () => {
     await expect(dataverseFetch("/api/data/v9.2/bmvcc_equipmentrecords")).rejects.toMatchObject({
       category: "unavailable",
     });
+  });
+
+  it("refuses an absolute URL on a different host, without sending the token there", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(dataverseFetch("https://evil.example/steal-token")).rejects.toThrow(/unexpected host/);
+    // Die Host-Prüfung schlägt fehl, bevor überhaupt ein Token geholt oder eine Anfrage gestellt wird.
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("allows an absolute URL on the configured Dataverse host", async () => {
+    const fetchMock = vi.fn();
+    stubToken(fetchMock);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ value: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const sameHostUrl = "https://obsi-hofer.crm4.dynamics.com/api/data/v9.2/bmvcc_equipmentrecords?$skiptoken=abc";
+    await expect(dataverseFetch(sameHostUrl)).resolves.toBeInstanceOf(Response);
   });
 });

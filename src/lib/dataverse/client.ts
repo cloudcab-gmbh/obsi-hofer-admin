@@ -16,17 +16,32 @@ interface CachedToken {
 }
 
 let cachedToken: CachedToken | null = null;
+// Dedupliziert gleichzeitige Token-Anfragen (z.B. direkt nach einem Kaltstart, bevor
+// der Cache gefüllt ist) — alle Aufrufer teilen sich dieselbe laufende Anfrage, statt
+// jeweils eine eigene redundante Anfrage an den Microsoft-Token-Endpoint zu stellen.
+let pendingTokenRequest: Promise<string> | null = null;
 
 /** Nur für Tests: erzwingt eine erneute Token-Beschaffung beim nächsten Aufruf. */
 export function resetDataverseTokenCache(): void {
   cachedToken = null;
+  pendingTokenRequest = null;
 }
 
 export async function getDataverseAccessToken(): Promise<string> {
   if (cachedToken && Date.now() < cachedToken.expiresAt) {
     return cachedToken.value;
   }
+  if (pendingTokenRequest) {
+    return pendingTokenRequest;
+  }
 
+  pendingTokenRequest = requestNewToken().finally(() => {
+    pendingTokenRequest = null;
+  });
+  return pendingTokenRequest;
+}
+
+async function requestNewToken(): Promise<string> {
   const tenantId = requireEnv("AZURE_TENANT_ID");
   const body = new URLSearchParams({
     grant_type: "client_credentials",
@@ -67,7 +82,17 @@ export async function getDataverseAccessToken(): Promise<string> {
 }
 
 function resolveUrl(pathOrUrl: string): string {
-  return pathOrUrl.startsWith("http") ? pathOrUrl : `${dataverseUrl()}${pathOrUrl}`;
+  if (!pathOrUrl.startsWith("http")) {
+    return `${dataverseUrl()}${pathOrUrl}`;
+  }
+
+  const base = dataverseUrl();
+  if (pathOrUrl !== base && !pathOrUrl.startsWith(`${base}/`)) {
+    // Verhindert, dass das echte Dataverse-Bearer-Token an eine fremde URL geschickt wird
+    // (z.B. ein nicht erneut geprüfter @odata.nextLink/pageCursor aus unsicherer Quelle).
+    throw new Error(`Refusing to send the Dataverse access token to an unexpected host: ${pathOrUrl}`);
+  }
+  return pathOrUrl;
 }
 
 /**
@@ -77,11 +102,14 @@ function resolveUrl(pathOrUrl: string): string {
  * oder eine vollständige URL (z.B. ein "@odata.nextLink" aus einer vorherigen Listenabfrage).
  */
 export async function dataverseFetch(pathOrUrl: string, init: RequestInit = {}): Promise<Response> {
+  // Ausserhalb des try/catch: ein Origin-Verstoss ist ein Programmfehler/Sicherheitsproblem,
+  // kein Netzwerkfehler, und soll nicht in eine generische "unavailable"-Meldung verwandelt werden.
+  const url = resolveUrl(pathOrUrl);
   const token = await getDataverseAccessToken();
 
   let res: Response;
   try {
-    res = await fetch(resolveUrl(pathOrUrl), {
+    res = await fetch(url, {
       ...init,
       headers: {
         Authorization: `Bearer ${token}`,

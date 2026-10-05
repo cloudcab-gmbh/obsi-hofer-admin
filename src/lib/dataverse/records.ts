@@ -30,8 +30,16 @@ function entityPath(entitySet: string): string {
   return `/api/data/${API_VERSION}/${entitySet}`;
 }
 
+const GUID_PATTERN = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
 function requireNonEmpty(value: string, label: string): void {
   if (!value) throw new Error(`${label} darf nicht leer sein`);
+}
+
+function requireValidId(id: string): void {
+  if (!GUID_PATTERN.test(id)) {
+    throw new Error(`id muss eine gültige Dataverse-GUID sein, erhalten: "${id}"`);
+  }
 }
 
 export async function getRecord<T = Record<string, unknown>>(
@@ -41,9 +49,13 @@ export async function getRecord<T = Record<string, unknown>>(
 ): Promise<T> {
   requireNonEmpty(entitySet, "entitySet");
   requireNonEmpty(id, "id");
+  requireValidId(id);
 
-  const query = options.select?.length ? `?$select=${options.select.join(",")}` : "";
-  const res = await dataverseFetch(`${entityPath(entitySet)}(${id})${query}`);
+  const params = new URLSearchParams();
+  if (options.select?.length) params.set("$select", options.select.join(","));
+  const query = params.toString();
+
+  const res = await dataverseFetch(`${entityPath(entitySet)}(${id})${query ? `?${query}` : ""}`);
   return (await res.json()) as T;
 }
 
@@ -96,6 +108,7 @@ export async function createRecord(entitySet: string, data: Record<string, unkno
 export async function updateRecord(entitySet: string, id: string, data: Record<string, unknown>): Promise<void> {
   requireNonEmpty(entitySet, "entitySet");
   requireNonEmpty(id, "id");
+  requireValidId(id);
 
   await dataverseFetch(`${entityPath(entitySet)}(${id})`, {
     method: "PATCH",

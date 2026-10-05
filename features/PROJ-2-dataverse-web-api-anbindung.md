@@ -163,7 +163,7 @@ Keine eigenen API-Routen: Diese Schicht ist reine Server-seitige Bibliothek, die
 
 #### EC-2: Paging bei grossen Ergebnismengen
 - [x] Funktional korrekt: `nextPageCursor` wird zurückgegeben und bei erneutem Aufruf direkt angefahren (getestet)
-- [ ] BUG: siehe BUG-1 (Sicherheitslücke im selben Mechanismus)
+- [x] BUG-1 behoben und erneut getestet (siehe Retest unten)
 
 #### EC-3: Referenziertes Gerät existiert nicht
 - [x] Generisch abgedeckt über die 400→`validation_error`-Zuordnung (getestet mit einem abgelehnten Payload); ein literaler Test mit einer ungültigen Geräte-Referenz ist erst mit echten Daten/PROJ-4 sinnvoll möglich
@@ -171,8 +171,8 @@ Keine eigenen API-Routen: Diese Schicht ist reine Server-seitige Bibliothek, die
 ### Security Audit Results (Red Team / Code Review)
 - [x] Zugangsdaten/Token verlassen den Server nie (reines Server-Modul, `process.env` ohne `NEXT_PUBLIC_`-Prefix)
 - [x] Keine Secrets in Log-Ausgaben (kein `console.log` mit Token/Secret-Inhalt)
-- [ ] BUG: siehe BUG-1 — unvalidierte absolute URL/`pageCursor` erlaubt potenziellen Token-Exfiltrations-Pfad (SSRF-artig)
-- [ ] BUG: siehe BUG-2 — `id`/`select` in `getRecord()` werden unenkodiert in die Query eingesetzt, uneinheitlich zu `listRecords()`
+- [x] BUG-1 behoben: `dataverseFetch` lehnt absolute URLs ausserhalb des konfigurierten `DATAVERSE_URL`-Origins ab
+- [x] BUG-2 behoben: `getRecord()`/`updateRecord()` validieren `id` als GUID, Query-Aufbau einheitlich über `URLSearchParams`
 - [x] Keine zusätzliche Paketabhängigkeit eingeführt, die die Angriffsfläche vergrössert
 
 ### Bugs Found
@@ -186,6 +186,7 @@ Keine eigenen API-Routen: Diese Schicht ist reine Server-seitige Bibliothek, die
   4. Tatsächlich: Jede beliebige absolute URL, die als `pageCursor` ankommt, erhält das gültige Dataverse-Bearer-Token im `Authorization`-Header
 - **Warum relevant trotz fehlendem aktuellem Aufrufer:** PROJ-3/PROJ-4 werden "Mehr laden"-Funktionen bauen, die den `nextPageCursor` zwischenspeichern/weiterreichen müssen. Sollte ein Cursor-Wert dabei je (direkt oder indirekt) aus Client-/Browser-Eingaben stammen, ohne dass serverseitig erneut auf denselben Origin geprüft wird, könnte ein Angreifer eine eigene URL unterschieben und das Token abgreifen. Besser jetzt an der einzigen zentralen Stelle (`dataverseFetch`) absichern, als später in jedem Aufrufer einzeln daran denken zu müssen.
 - **Priority:** Fix before deployment
+- **Status:** ✅ Fixed (2026-10-05) — `resolveUrl()` wirft jetzt einen Fehler, wenn eine absolute URL nicht mit `DATAVERSE_URL` übereinstimmt; die Prüfung erfolgt vor jedem Netzwerkaufruf (auch vor der Token-Beschaffung). Regressionstests: `client.test.ts` ("refuses an absolute URL on a different host…", "allows an absolute URL on the configured Dataverse host"), `records.test.ts` ("refuses a pageCursor pointing to a different host…").
 
 #### BUG-2: Unsaubere Query-String-Erstellung in `getRecord()` (keine Kodierung, keine ID-Validierung)
 - **Severity:** Medium
@@ -195,6 +196,7 @@ Keine eigenen API-Routen: Diese Schicht ist reine Server-seitige Bibliothek, die
   3. Erwartet: Sonderzeichen in `id` oder `select`-Feldnamen werden sauber kodiert bzw. zurückgewiesen
   4. Tatsächlich: Ein präparierter `id`-Wert (z.B. mit `)&$select=...`) könnte zusätzliche OData-Query-Parameter in die Anfrage einschleusen und so den Rückgabe-Umfang ungewollt verändern
 - **Priority:** Fix before deployment
+- **Status:** ✅ Fixed (2026-10-05) — `getRecord()` nutzt jetzt `URLSearchParams` wie `listRecords()`; `getRecord()` und `updateRecord()` validieren `id` gegen ein striktes GUID-Pattern und schlagen sonst sofort fehl, ohne Netzwerkaufruf. Regressionstests: `records.test.ts` ("rejects a malformed (non-GUID) id…" in beiden Funktionen).
 
 #### BUG-3: Keine Deduplizierung gleichzeitiger Token-Anfragen beim Kaltstart
 - **Severity:** Low
@@ -203,13 +205,17 @@ Keine eigenen API-Routen: Diese Schicht ist reine Server-seitige Bibliothek, die
   2. Erwartet: Nur eine Token-Anfrage wird ausgelöst, alle wartenden Aufrufer teilen sich das Ergebnis
   3. Tatsächlich: Jeder gleichzeitige Aufruf löst eine eigene, redundante Anfrage an den Microsoft-Token-Endpoint aus
 - **Priority:** Nice to have (bei diesem internen, wenig frequentierten Tool kein praktisches Problem, aber eine günstige Absicherung)
+- **Status:** ✅ Fixed (2026-10-05) — gleichzeitige Aufrufe teilen sich jetzt dieselbe laufende Token-Anfrage (`pendingTokenRequest`). Regressionstest: `client.test.ts` ("deduplicates concurrent requests into a single token request").
+
+### Retest (2026-10-05)
+Alle drei Bugs behoben, Testsuite um 6 neue Fälle erweitert (25 → 31 im Dataverse-Modul, 34 → 40 gesamt im Projekt). `npm test` (40/40), `npm run lint` und `npm run build` (inkl. TypeScript-Check) alle grün.
 
 ### Summary
 - **Acceptance Criteria:** 6/6 funktional erfüllt (AC-5 teilweise nicht auf dieser Ebene prüfbar, siehe oben)
-- **Bugs Found:** 3 total (0 critical, 1 high, 1 medium, 1 low)
-- **Security:** Issues found (BUG-1, BUG-2)
-- **Production Ready:** NO
-- **Recommendation:** BUG-1 und BUG-2 vor Deployment beheben (beide an der zentralen Dataverse-Zugriffsschicht, günstiger Fixpunkt bevor PROJ-3/PROJ-4 darauf aufbauen). BUG-3 optional. Zusätzlich empfohlen: ein einmaliger manueller Smoke-Test gegen die echte Dataverse-Instanz (diese Umgebung hat keinen Zugriff darauf), sobald BUG-1/BUG-2 behoben sind.
+- **Bugs Found:** 3 total (0 critical, 1 high, 1 medium, 1 low) — **alle 3 behoben**
+- **Security:** Behoben (BUG-1, BUG-2) — keine offenen Findings
+- **Production Ready:** YES
+- **Recommendation:** Freigegeben für `/deploy`. Da diese Schicht keine eigene UI/keinen eigenen Endpoint hat, empfiehlt sich weiterhin ein einmaliger manueller Smoke-Test gegen die echte Dataverse-Instanz, sobald PROJ-3 (Geräte-Verwaltung) das erste Mal tatsächlich darauf zugreift — das ist der erste Punkt, an dem ein echter End-to-End-Test überhaupt möglich ist.
 
 ## Deployment
 _To be added by /deploy_

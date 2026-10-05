@@ -16,7 +16,7 @@
 | ID | Feature | Status | Spec | Created |
 |----|---------|--------|------|---------|
 | PROJ-1 | Entra-ID-Login mit Rollen (Bearbeiter/Freigeber) | Deployed | [Spec](../features/PROJ-1-entra-id-login.md) | 2026-09-25 |
-| PROJ-2 | Dataverse-Web-API-Anbindung | In Review | [Spec](../features/PROJ-2-dataverse-web-api-anbindung.md) | 2026-09-25 |
+| PROJ-2 | Dataverse-Web-API-Anbindung | Approved | [Spec](../features/PROJ-2-dataverse-web-api-anbindung.md) | 2026-09-25 |
 | PROJ-3 | Geräte-Verwaltung | Roadmap | — | 2026-09-25 |
 | PROJ-4 | Prüfberichte-Verwaltung | Roadmap | — | 2026-09-25 |
 | PROJ-5 | Sync-Freigabe pro Firma | Roadmap | — | 2026-09-25 |
