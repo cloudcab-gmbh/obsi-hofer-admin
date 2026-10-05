@@ -46,7 +46,7 @@
 
 ## Open Questions
 - [ ] Wird künftig eine dritte Rolle (z.B. reiner Lesezugriff) benötigt? Aktuell nicht vorgesehen, bei Bedarf in `/refine PROJ-1` nachziehen
-- [ ] Echter Login-Flow mit einem echten Microsoft-Konto steht noch aus — dafür muss der Nutzer zuerst die App-Registrierung im Entra Admin Center einrichten (siehe Implementation Notes, Setup-Schritte). Bis dahin bleibt der Happy Path nur strukturell (Redirect-Logik), nicht end-to-end verifiziert
+- [x] Echter Login-Flow mit einem echten Microsoft-Konto → **2026-10-05 live verifiziert.** Nutzer hat die App-Registrierung eingerichtet, sich zunächst ohne Rolle angemeldet (korrekt auf `/kein-zugang` gelandet), sich danach selbst in Entra sowohl "Bearbeiter" als auch "Freigeber" zugewiesen, erneut angemeldet und korrekt auf `/start` gelandet. Kompletter Happy Path (Login → Rollen-Check → Redirect) end-to-end mit echtem Microsoft-Konto bestätigt
 
 ## Decision Log
 
