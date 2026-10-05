@@ -1,6 +1,6 @@
 # PROJ-2: Dataverse-Web-API-Anbindung
 
-## Status: In Progress
+## Status: Deployed
 **Created:** 2026-10-05
 **Last Updated:** 2026-10-05
 
@@ -218,4 +218,9 @@ Alle drei Bugs behoben, Testsuite um 6 neue Fälle erweitert (25 → 31 im Datav
 - **Recommendation:** Freigegeben für `/deploy`. Da diese Schicht keine eigene UI/keinen eigenen Endpoint hat, empfiehlt sich weiterhin ein einmaliger manueller Smoke-Test gegen die echte Dataverse-Instanz, sobald PROJ-3 (Geräte-Verwaltung) das erste Mal tatsächlich darauf zugreift — das ist der erste Punkt, an dem ein echter End-to-End-Test überhaupt möglich ist.
 
 ## Deployment
-_To be added by /deploy_
+
+- **Production URL:** https://obsi-hofer-admin.vercel.app (keine eigene Seite — reine Server-Bibliothek, siehe Implementation Notes)
+- **Deployed:** 2026-10-05
+- **Tag:** `v1.1.0-PROJ-2`
+- **Neue Umgebungsvariablen in Vercel (Production) ergänzt:** `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID` (dieselbe App-Registrierung wie PROJ-1), `DATAVERSE_URL` (`https://orgcb3d0024.crm17.dynamics.com/`)
+- **Verifikation:** Produktions-Build erfolgreich, `https://obsi-hofer-admin.vercel.app/login` antwortet mit HTTP 200 (keine Regression). Ein inhaltlicher End-to-End-Test gegen die echte Dataverse-Instanz ist mit diesem Feature allein nicht möglich (kein Aufrufer/keine UI) — folgt mit PROJ-3.
