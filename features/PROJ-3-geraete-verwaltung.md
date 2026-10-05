@@ -1,6 +1,6 @@
 # PROJ-3: Geräte-Verwaltung
 
-## Status: In Progress
+## Status: Deployed
 **Created:** 2026-10-05
 **Last Updated:** 2026-10-05
 
@@ -254,4 +254,9 @@ Alle 12 Acceptance Criteria erfüllt — die meisten direkt vom Nutzer live best
 - **Recommendation:** Freigegeben für `/deploy`. BUG-1/BUG-2 können bei Gelegenheit nachgezogen werden, sind aber kein Hindernis.
 
 ## Deployment
-_To be added by /deploy_
+
+- **Production URL:** https://obsi-hofer-admin.vercel.app (`/geraete`, `/start`)
+- **Deployed:** 2026-10-05
+- **Tag:** `v1.2.0-PROJ-3`
+- **Keine neuen Umgebungsvariablen** — nutzt dieselben Dataverse-Zugangsdaten wie PROJ-2
+- **Verifikation:** Produktions-Build erfolgreich; `/geraete` und `/start` antworten unauthentifiziert korrekt mit 307 → `/login` (keine Regression). Die eigentliche Funktionalität wurde bereits während der Entwicklung vom Nutzer live im Browser mit echtem Login und echten Dataverse-Daten über mehrere Testrunden verifiziert (siehe Implementation Notes).
