@@ -1,6 +1,6 @@
 # PROJ-4: Prüfberichte-Verwaltung
 
-## Status: Planned
+## Status: In Progress
 **Created:** 2026-10-05
 **Last Updated:** 2026-10-05
 
@@ -132,6 +132,27 @@ Kein eigenes Datenmodell — alle Daten kommen live aus Dataverse über PROJ-2. 
 ### D) Dependencies
 - Keine neuen shadcn-Komponenten nötig — `alert-dialog`, `select`, `input`, `table`, `card`, `badge` sind bereits installiert und in Verwendung (PROJ-1/PROJ-3)
 - Keine neuen npm-Pakete
+
+## Implementation Notes (Frontend)
+
+Umgesetzt (UI + Server Actions + Domänenlogik in einem Schritt, wie bei PROJ-3 — kein separater `/backend`-Durchlauf nötig, da PROJ-2 bereits die Backend-Schicht ist):
+
+- `src/lib/dataverse/pruefberichte.ts` — generische Funktionen (`listPruefberichteForGeraet`, `listPruefberichteForGeraete`, `getPruefbericht`, `getAktuellsterAktiverPruefbericht`, `createPruefbericht`, `updatePruefbericht`, `stornierePruefbericht`) plus `syncGeraetStatusFromPruefberichte()`
+- `src/lib/pruefer-kuerzel.ts` — `computePrueferKuerzel()`, 1:1 aus der Legacy-Power-App-Formel übernommen, mit Fallback für Namen ohne Leerzeichen
+- `src/app/(protected)/pruefberichte/actions.ts` — Server Actions mit Zod-Validierung (Prüfdatum + Ergebnis Pflicht)
+- `src/components/pruefbericht-tabelle.tsx`, `pruefbericht-historie.tsx`, `pruefberichte-uebersicht.tsx`, `pruefbericht-form.tsx` — UI-Komponenten
+- Neue Routen `src/app/(protected)/pruefberichte/page.tsx` (Übersicht), `.../neu/page.tsx` (Anlegen), `.../[id]/page.tsx` (Bearbeiten/Stornieren); `src/app/(protected)/geraete/[id]/page.tsx` erweitert um die Prüfbericht-Historie
+- Neue shadcn-Komponente `checkbox` installiert (für "auch stornierte anzeigen")
+
+**Von der Spec abweichende Implementierungs-Entscheidung (Korrektur während der Umsetzung):** Die Spec beschreibt "Neuanlage aktualisiert immer die Gerät-Felder, Bearbeiten nur wenn aktuellster" als zwei getrennte Regeln. Da das Prüfdatum frei und auch rückwirkend wählbar ist (Product Decision), kann ein neu angelegter Bericht ein älteres Datum haben als ein bereits bestehender — "neu = immer aktuellster" stimmt dann nicht mehr. Implementiert wurde stattdessen eine einzige, konsistente Regel für Anlegen/Bearbeiten/Stornieren: nach jeder Änderung wird der tatsächlich aktuellste aktive Bericht für das Gerät frisch ermittelt (`syncGeraetStatusFromPruefberichte`) und die Gerät-Felder darauf abgeglichen. Für den normalen, nicht-rückwirkenden Fall ist das Ergebnis identisch mit der Spec-Beschreibung; der Edge Case (rückwirkende Neuanlage) wird dadurch zusätzlich korrekt behandelt, ohne dass die Spec das explizit verlangt hätte.
+
+**Skalierungs-Vorkehrung:** `listPruefberichteForGeraete()` (für die firmenweite Übersicht) fragt die Gerät-IDs in 20er-Blöcken ab (`chunk()`-Hilfsfunktion) statt einer einzigen OR-Filterkette über bis zu ~200 Geräte-IDs — sonst drohte ein Dataverse-URL-Längenlimit. Gleiches Muster wie `chunk()` im Kundenportal-Repo (`src/lib/sync/batch.ts`).
+
+**Offene Verifikationspunkte gegen die echte Dataverse-Umgebung** (wie bei PROJ-2/PROJ-3 in dieser Umgebung nicht gegen echte Daten testbar):
+- `"bmvcc_Gearaet@odata.bind"` (Navigationseigenschaft für den Gerät-Lookup beim Anlegen eines Prüfberichts): Schreibweise ist ein begründetes Best-Guess (Schema-Namens-Konvention), nicht verifiziert — siehe Kommentar in `pruefberichte.ts`. Falls das beim ersten echten Anlegen fehlschlägt, muss hier die exakte Schreibweise aus dem Power-Platform-Customizer nachgetragen werden.
+- Mehrfeld-`$orderby` (`"bmvcc_inspectiondate desc,createdon desc"`) für die Tie-Breaking-Regel — Standard-OData-Syntax, aber nicht gegen die echte Umgebung getestet
+
+**Nicht möglich in dieser Umgebung:** Echter Login/echte Dataverse-Daten. Alle neuen/erweiterten Routen (`/pruefberichte`, `/pruefberichte/neu`, `/pruefberichte/[id]`, `/geraete/[id]`) wurden per Smoke-Test gegen den laufenden Dev-Server geprüft (korrekte Weiterleitung zu `/login` ohne Absturz) — die eigentliche Funktionalität muss der Nutzer im Browser mit echtem Login verifizieren.
 
 ## QA Test Results
 _To be added by /qa_

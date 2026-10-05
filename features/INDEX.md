@@ -18,7 +18,7 @@
 | PROJ-1 | Entra-ID-Login mit Rollen (Bearbeiter/Freigeber) | Deployed | [Spec](../features/PROJ-1-entra-id-login.md) | 2026-09-25 |
 | PROJ-2 | Dataverse-Web-API-Anbindung | Deployed | [Spec](../features/PROJ-2-dataverse-web-api-anbindung.md) | 2026-09-25 |
 | PROJ-3 | Geräte-Verwaltung | Deployed | [Spec](../features/PROJ-3-geraete-verwaltung.md) | 2026-09-25 |
-| PROJ-4 | Prüfberichte-Verwaltung | Architected | [Spec](../features/PROJ-4-pruefberichte-verwaltung.md) | 2026-09-25 |
+| PROJ-4 | Prüfberichte-Verwaltung | In Progress | [Spec](../features/PROJ-4-pruefberichte-verwaltung.md) | 2026-09-25 |
 | PROJ-5 | Sync-Freigabe pro Firma | Roadmap | — | 2026-09-25 |
 | PROJ-6 | Sync-Status/-Verlauf einsehen | Roadmap | — | 2026-09-25 |
 

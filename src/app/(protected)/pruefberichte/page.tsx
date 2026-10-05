@@ -1,0 +1,57 @@
+import Link from "next/link";
+import { listStandorteForFirma, listGeraeteForStandorte } from "@/lib/dataverse/geraete";
+import { listPruefberichteForGeraete, type Pruefbericht } from "@/lib/dataverse/pruefberichte";
+import { getCurrentFirmaId } from "@/lib/firma-session";
+import { PruefberichteUebersicht } from "@/components/pruefberichte-uebersicht";
+import { Card, CardContent } from "@/components/ui/card";
+
+export default async function PruefberichteUebersichtPage() {
+  const firmaId = await getCurrentFirmaId();
+
+  if (!firmaId) {
+    return (
+      <main className="mx-auto max-w-5xl px-4 py-8">
+        <h1 className="mb-6 text-xl font-semibold">Prüfberichte</h1>
+        <Card>
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+            Bitte zuerst auf der{" "}
+            <Link href="/start" className="font-medium text-primary underline-offset-2 hover:underline">
+              Startseite
+            </Link>{" "}
+            eine Firma auswählen.
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
+  let berichte: Pruefbericht[] = [];
+  let geraetNamen = new Map<string, string>();
+  let loadError: string | null = null;
+
+  try {
+    const standorte = await listStandorteForFirma(firmaId);
+    const geraete = await listGeraeteForStandorte(standorte.map((s) => s.id));
+    geraetNamen = new Map(geraete.map((g) => [g.id, g.name ?? "(ohne Name)"]));
+    berichte = await listPruefberichteForGeraete(
+      geraete.map((g) => g.id),
+      { includeStorniert: true }
+    );
+  } catch {
+    loadError = "Die Prüfberichte konnten nicht geladen werden.";
+  }
+
+  return (
+    <main className="mx-auto max-w-5xl px-4 py-8">
+      <h1 className="mb-6 text-xl font-semibold">Prüfberichte</h1>
+
+      {loadError ? (
+        <Card>
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">{loadError}</CardContent>
+        </Card>
+      ) : (
+        <PruefberichteUebersicht berichte={berichte} geraetNamen={geraetNamen} />
+      )}
+    </main>
+  );
+}
