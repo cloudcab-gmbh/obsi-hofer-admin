@@ -9,7 +9,8 @@
 - Requires: PROJ-2 (Dataverse-Web-API-Anbindung) — für Lesen/Schreiben der Gerätedaten
 
 ## User Stories
-- Als Bearbeiter möchte ich zuerst eine Firma auswählen und danach nur deren Geräte sehen, damit ich nicht durch die Geräte aller Kunden suchen muss.
+- Als Bearbeiter möchte ich zuerst eine Firma auswählen und danach nur deren Geräte sehen (über alle Standorte dieser Firma hinweg), damit ich nicht durch die Geräte aller Kunden suchen muss.
+- Als Bearbeiter möchte ich innerhalb einer Firma zusätzlich nach Standort filtern können (falls die Firma mehrere hat), damit ich gezielt die Geräte einer bestimmten Niederlassung finde.
 - Als Bearbeiter möchte ich innerhalb einer Firma nach Gerätename/Barcode/Seriennummer suchen und nach Lagerort filtern können, damit ich ein bestimmtes Gerät schnell finde.
 - Als Bearbeiter möchte ich die Stammdaten eines Geräts (Name, Barcode, Seriennummer, Lagerort, Bemerkungen, Zubehör, Herstelljahr, Erstgebrauch, Ablegereife) bearbeiten können, damit die Daten korrekt und aktuell bleiben.
 - Als Bearbeiter möchte ich den aktuellen Prüfstatus eines Geräts einsehen können, auch wenn ich ihn hier nicht ändern kann, damit ich weiss, ob eine Prüfung ansteht.
@@ -20,7 +21,8 @@
 - Löschen von Geräten — konsistent mit der PRD-Philosophie, keine Fachdaten echt zu löschen; "Ablegereife" dient bereits als Marker für ausser Betrieb genommene Geräte
 - Bearbeitung der Prüfungs-Felder (letzte Prüfung, Betriebsmittelstatus, Prüfer) — gehört exklusiv zu PROJ-4 (Prüfberichte-Verwaltung), hier nur read-only angezeigt
 - Ändern der Artikel-Verknüpfung eines Geräts — bei Anlage (ausserhalb dieses Tools) einmalig gesetzt, danach fix
-- Ändern der Firma-Zuordnung eines Geräts — ebenfalls fix nach Anlage
+- Ändern der Standort-/Firma-Zuordnung eines Geräts — ebenfalls fix nach Anlage (ein Gerät hängt technisch am Standort, der Standort an der Firma — siehe Tech Design)
+- Verwaltung von Standorten selbst (Anlegen/Bearbeiten/Löschen) — Standorte sind Stammdaten wie Firmen/Kontakte/Artikel, bleiben read-only (PRD Non-Goal)
 - Konfliktschutz bei gleichzeitiger Bearbeitung (optimistic locking) — bewusst nicht, Last-Write-Wins; konsistent mit PROJ-2 Product Decisions
 - Datums-Plausibilitätsprüfung (z.B. Ablegereife muss nach Erstgebrauch liegen) — bewusst nicht für den ersten Wurf
 - Pagination/"Mehr laden" in der Geräteliste — bei erwarteter Firmengrösse (wenige Dutzend bis ~200 Geräte) nicht nötig; PROJ-2s Paging-Mechanismus bleibt vorerst ungenutzt
@@ -32,7 +34,9 @@
 **Format:** Angenommen [Vorbedingung] / Wenn [Aktion] / Dann [Ergebnis]
 
 - [ ] Angenommen ein Bearbeiter oder Freigeber öffnet PROJ-3, wenn die Seite lädt, dann wird zuerst eine Firma-Auswahl angezeigt, bevor irgendwelche Geräte geladen werden
-- [ ] Angenommen eine Firma wurde ausgewählt, wenn die Geräteliste lädt, dann werden ausschliesslich Geräte dieser Firma angezeigt
+- [ ] Angenommen eine Firma wurde ausgewählt, wenn die Geräteliste lädt, dann werden ausschliesslich Geräte dieser Firma (über alle ihre Standorte hinweg) angezeigt
+- [ ] Angenommen eine ausgewählte Firma hat mehr als einen Standort, wenn die Geräteliste angezeigt wird, dann steht ein Standort-Filter zur Verfügung und der Standort wird pro Gerät in der Liste angezeigt
+- [ ] Angenommen eine ausgewählte Firma hat nur einen Standort, wenn die Geräteliste angezeigt wird, dann wird kein Standort-Filter angezeigt (nicht nötig)
 - [ ] Angenommen eine Firma mit Geräten ist ausgewählt, wenn der Nutzer einen Suchbegriff eingibt, der zu Gerätename/Barcode/Seriennummer passt, dann werden nur die passenden Geräte angezeigt
 - [ ] Angenommen eine Firma mit Geräten ist ausgewählt, wenn der Nutzer einen Lagerort-Filter wählt, dann werden nur Geräte an diesem Lagerort angezeigt
 - [ ] Angenommen eine ausgewählte Firma hat keine Geräte, wenn die Liste geladen wird, dann wird ein klarer Hinweis ("Keine Geräte gefunden") statt einer leeren Fläche angezeigt
@@ -40,7 +44,7 @@
 - [ ] Angenommen ein Bearbeiter ändert ein oder mehrere Stammdatenfelder und das Gerätename-Feld ist nicht leer, wenn er speichert, dann werden die Änderungen in Dataverse übernommen
 - [ ] Angenommen ein Bearbeiter leert das Gerätename-Feld, wenn er speichern will, dann wird eine Validierungsfehlermeldung angezeigt und nicht gespeichert
 - [ ] Angenommen Dataverse ist beim Speichern nicht erreichbar, wenn der Bearbeiter speichert, dann wird eine verständliche Fehlermeldung angezeigt und die eingegebenen Änderungen bleiben im Formular erhalten
-- [ ] Angenommen ein Bearbeiter betrachtet das Bearbeitungsformular, wenn er die Artikel-Verknüpfung oder Firma-Zuordnung ändern möchte, dann sind diese Felder nicht editierbar (read-only/ausgegraut)
+- [ ] Angenommen ein Bearbeiter betrachtet das Bearbeitungsformular, wenn er die Artikel-Verknüpfung, Standort- oder Firma-Zuordnung ändern möchte, dann sind diese Felder nicht editierbar (read-only/ausgegraut)
 
 ## Edge Cases
 - Zwei Bearbeiter öffnen und speichern dasselbe Gerät gleichzeitig → Last-Write-Wins, keine Warnung (siehe Product Decisions)
@@ -63,7 +67,8 @@
 |----------|-----------|------|
 | Keine Neuanlage von Geräten in PROJ-3 (Abweichung vom ursprünglichen PRD-Eintrag) | Neue Geräte entstehen weiterhin ausserhalb des Tools, direkt in Dataverse/Dynamics; PROJ-3 deckt das Tagesgeschäft (Stammdaten/Status pflegen) ab | 2026-10-05 |
 | Prüfungs-Felder (letzte Prüfung, Status, Prüfer) sind in PROJ-3 nur lesend | Sauberer Schnitt nach Single Responsibility: diese Felder werden ausschliesslich über das Anlegen eines Prüfberichts in PROJ-4 gesetzt, analog zum (dort allerdings vermischten) Verhalten der bestehenden Power App | 2026-10-05 |
-| Artikel-Verknüpfung und Firma-Zuordnung sind nach Anlage unveränderlich | Verhindert versehentliches Verschieben von Geräten zwischen Kunden oder Austauschen der Artikel-Referenz | 2026-10-05 |
+| Artikel-Verknüpfung und Standort-/Firma-Zuordnung sind nach Anlage unveränderlich | Verhindert versehentliches Verschieben von Geräten zwischen Kunden oder Austauschen der Artikel-Referenz | 2026-10-05 |
+| Innerhalb einer Firma zusätzlich nach Standort filterbar, Standort pro Gerät angezeigt | Beim Architektur-Review festgestellt: ein Gerät hängt technisch am Standort, nicht direkt an der Firma (siehe Tech Design) — eine Firma mit mehreren Standorten (Niederlassungen) braucht daher eine feinere Filterung als nur "Firma" | 2026-10-05 |
 | Pflicht: Firma zuerst auswählen, bevor Geräte geladen werden | Dieses Tool zeigt (anders als das Kundenportal) Geräte über alle Firmen hinweg — ohne Firma-Zwang müsste eine unübersichtlich grosse Gesamtliste geladen werden | 2026-10-05 |
 | Volltextsuche + Lagerort-Filter innerhalb der Firma | Übernommen aus der bewährten Legacy-App-UX, ohne deren Status-Tabs (da Status hier nur read-only ist) | 2026-10-05 |
 | Nur Gerätename ist Pflichtfeld, keine Datums-Plausibilitätsprüfung | Einfachheit für den ersten Wurf, entspricht dem bisherigen freien Umgang in der Legacy-App | 2026-10-05 |
@@ -77,7 +82,9 @@
 | Decision | Rationale | Date |
 |----------|-----------|------|
 | Server Actions statt eigener API-Routen | Nur dieses Frontend konsumiert die Daten; kein eigener REST-Layer nötig, direkter Aufruf der PROJ-2-Funktionen | 2026-10-05 |
-| Suche/Lagerort-Filter clientseitig auf der geladenen Firma-Liste statt serverseitig pro Eingabe | Erwartete Firmengrösse (≤~200 Geräte) macht das praktikabel; sofortiges Ergebnis ohne Server-Rundtrip | 2026-10-05 |
+| Zweistufiges Laden: erst Standorte der Firma, dann deren Geräte | Die Dataverse-Verknüpfung läuft über den Standort, nicht direkt über die Firma (beim Architektur-Review anhand der verifizierten Feldnamen im Kundenportal-Repo festgestellt) | 2026-10-05 |
+| Standort-Filter/-Spalte nur bei Firmen mit mehr als einem Standort sichtbar | Vermeidet unnötige UI bei der grossen Mehrheit der Firmen mit nur einem Standort | 2026-10-05 |
+| Suche/Lagerort-/Standort-Filter clientseitig auf der geladenen Firma-Liste statt serverseitig pro Eingabe | Erwartete Firmengrösse (≤~200 Geräte) macht das praktikabel; sofortiges Ergebnis ohne Server-Rundtrip | 2026-10-05 |
 | Eigene Route `/geraete/[id]` statt Dialog für die Bearbeitung | Genug Felder für einen Dialog zu eng; direkt verlinkbar | 2026-10-05 |
 | Direkter Aufruf einer Geräte-Detailseite ohne vorherige Firma-Auswahl erlaubt | Firma-Auswahl auf der Listenseite ist Navigationshilfe, kein Zugriffs-Gate; Detailseite lädt das Gerät direkt per ID | 2026-10-05 |
 | Formular-Validierung mit Zod + react-hook-form | Projekt-Konvention, bereits vorhandene Abhängigkeiten | 2026-10-05 |
@@ -93,30 +100,34 @@
 Geräte-Seite (/geraete)
 +-- Firma-Auswahl (durchsuchbare Combobox, Pflicht-Einstieg)
 +-- Geräteliste (erst sichtbar nach Firma-Auswahl)
+|   +-- Standort-Filter (Dropdown, nur sichtbar wenn die Firma >1 Standort hat)
 |   +-- Suchfeld (Gerätename / Barcode / Seriennummer)
 |   +-- Lagerort-Filter (Dropdown, Optionen aus den geladenen Geräten abgeleitet)
-|   +-- Tabelle (Name, Barcode, Lagerort, Status-Badge, Lagerort)
+|   +-- Tabelle (Name, Barcode, Standort, Lagerort, Status-Badge)
 |   +-- Leerer-Zustand-Hinweis ("Keine Geräte für diese Firma gefunden")
 +-- Geräte-Detailseite (/geraete/[id])
     +-- Stammdaten-Formular (editierbar: Name, Barcode, Seriennummer, Lagerort,
     |   Bemerkungen, Zubehör, Herstelljahr, Erstgebrauch, Ablegereife)
     +-- Prüfstatus-Bereich (read-only: Status-Badge, letzte Prüfung, Prüfer)
     +-- Artikel-Info (read-only)
-    +-- Firma-Zugehörigkeit (read-only)
+    +-- Standort- & Firma-Zugehörigkeit (read-only)
     +-- Speichern-Button + Fehlermeldungs-Bereich (bei Dataverse-Fehlern)
 ```
 
 ### B) Data Model (plain language)
-Kein eigenes Datenmodell — alle Daten kommen live aus Dataverse über die generischen Funktionen aus PROJ-2, nichts wird zwischengespeichert:
+Kein eigenes Datenmodell — alle Daten kommen live aus Dataverse über die generischen Funktionen aus PROJ-2, nichts wird zwischengespeichert. Wichtig für das Verständnis: **ein Gerät gehört technisch zu einem Standort, nicht direkt zu einer Firma — eine Firma kann mehrere Standorte (Niederlassungen) haben.**
 - **Firma-Auswahl:** Liste der Firmen wird aus Dataverse gelesen (nur lesend, keine eigene Firma-Verwaltung — siehe PRD Non-Goal)
-- **Geräteliste:** Alle Geräte der ausgewählten Firma werden in einem Rutsch geladen (siehe Product Decision "keine Pagination")
-- **Gerät-Detail:** Stammdaten (editierbar) + Prüfstatus/Artikel/Firma (read-only, aus verknüpften Dataverse-Datensätzen)
+- **Standorte einer Firma:** Werden nach der Firma-Auswahl nachgeladen, um daraus die zugehörigen Geräte zu bestimmen und — falls mehr als einer existiert — den Standort-Filter zu befüllen
+- **Geräteliste:** Alle Geräte aller Standorte der ausgewählten Firma werden in einem Rutsch geladen (siehe Product Decision "keine Pagination")
+- **Gerät-Detail:** Stammdaten (editierbar) + Prüfstatus/Artikel/Standort/Firma (read-only, aus verknüpften Dataverse-Datensätzen)
 
 ### C) Tech Decisions
-- **Server Actions statt eigener API-Routen:** Laden der Firmenliste, Geräteliste und Speichern erfolgen über Next.js Server Actions, die direkt die PROJ-2-Funktionen (`listRecords`, `getRecord`, `updateRecord`) aufrufen. Kein eigener REST-Layer nötig, da nur dieses eine Frontend die Daten konsumiert — konsistent mit PROJ-2s Design als reine Server-Bibliothek.
-- **Suche/Lagerort-Filter laufen clientseitig auf der bereits geladenen Firma-Liste, nicht pro Tastendruck gegen Dataverse:** Da pro Firma nur wenige Dutzend bis ~200 Geräte erwartet werden (Product Decision "keine Pagination"), wird die komplette Liste einmal geladen und Suche/Filter direkt im Browser angewendet — sofortiges Ergebnis ohne Server-Rundtrip pro Eingabe, analog zum bewährten Verhalten der Legacy-App. Die Lagerort-Filter-Optionen werden aus den geladenen Geräten abgeleitet (keine separate Dataverse-Abfrage).
+- **Server Actions statt eigener API-Routen:** Laden der Firmenliste, Standorte, Geräteliste und Speichern erfolgen über Next.js Server Actions, die direkt die PROJ-2-Funktionen (`listRecords`, `getRecord`, `updateRecord`) aufrufen. Kein eigener REST-Layer nötig, da nur dieses eine Frontend die Daten konsumiert — konsistent mit PROJ-2s Design als reine Server-Bibliothek.
+- **Geräte einer Firma werden in zwei Schritten geladen:** Erst werden die Standorte der ausgewählten Firma gelesen, dann die Geräte, die zu einem dieser Standorte gehören (da die Verknüpfung in Dataverse über den Standort läuft, nicht direkt über die Firma). Für eine Firma mit typischerweise sehr wenigen Standorten ist das ein vertretbarer zusätzlicher Lesevorgang.
+- **Standort-Filter/-Spalte nur sichtbar, wenn die Firma mehr als einen Standort hat:** Vermeidet unnötige UI bei der grossen Mehrheit der Firmen mit nur einem Standort.
+- **Suche/Lagerort-/Standort-Filter laufen clientseitig auf der bereits geladenen Firma-Liste, nicht pro Tastendruck gegen Dataverse:** Da pro Firma nur wenige Dutzend bis ~200 Geräte erwartet werden (Product Decision "keine Pagination"), wird die komplette Liste einmal geladen und Suche/Filter direkt im Browser angewendet — sofortiges Ergebnis ohne Server-Rundtrip pro Eingabe, analog zum bewährten Verhalten der Legacy-App. Die Lagerort-Filter-Optionen werden aus den geladenen Geräten abgeleitet (keine separate Dataverse-Abfrage).
 - **Eigene Detailseite (`/geraete/[id]`) statt Dialog/Modal:** Genug Felder, dass ein Dialog zu eng würde; eine eigene Route ist zudem direkt verlinkbar/mit Browser-Zurück navigierbar.
-- **Direkter Aufruf einer Geräte-Detailseite ohne vorherige Firma-Auswahl ist erlaubt** *(löst die offene Frage aus der Spec)*: Die Detailseite lädt das Gerät über seine ID direkt per `getRecord` und zeigt dessen Firma-Zugehörigkeit als Kontext an — die Firma-Auswahl auf der Listen-Seite ist reine Navigationshilfe, kein Zugriffs-Gate.
+- **Direkter Aufruf einer Geräte-Detailseite ohne vorherige Firma-Auswahl ist erlaubt** *(löst die offene Frage aus der Spec)*: Die Detailseite lädt das Gerät über seine ID direkt per `getRecord` und zeigt dessen Standort-/Firma-Zugehörigkeit (durch Nachladen der jeweiligen Datensätze) als Kontext an — die Firma-Auswahl auf der Listen-Seite ist reine Navigationshilfe, kein Zugriffs-Gate.
 - **Formular-Validierung mit Zod + react-hook-form** (bereits Projekt-Abhängigkeiten): nur Gerätename als Pflichtfeld, passend zur Product Decision.
 - **Bei Speicherfehlern bleibt der Formular-Zustand erhalten** und die aus PROJ-2 kommende Fehlerkategorie (`DataverseError`) wird in eine verständliche Meldung übersetzt — kein automatisches Zurücksetzen oder erneutes Laden des Formulars.
 - **Kein eigener Zwischenspeicher/Cache:** Jeder Seitenaufruf lädt frisch von Dataverse, passend zum PRD-Grundsatz "live lesen, keine eigene Datenhaltung".
