@@ -40,7 +40,7 @@
 
 ## Technical Requirements (optional)
 - Security: Zugangsdaten (Client-ID/Secret) ausschliesslich serverseitig, nie im Client-Bundle
-- Security: Applikationsbenutzer-Rechte strikt auf die benötigten Tabellen (Geräte, Prüfberichte) beschränkt — bereits eingerichtet (eigene Security Role, Create/Read/Write auf Organisationsebene)
+- Security: Applikationsbenutzer-Rechte strikt auf die benötigten Tabellen beschränkt — eigene Security Role auf Organisationsebene: Create/Read/Write auf Geräte und Prüfberichte; **nachträglich ergänzt (2026-10-05, ausgelöst durch PROJ-3):** zusätzlich Read auf Firma, Standort und Artikel (reine Stammdaten-Anzeige, kein Schreibzugriff nötig — siehe PROJ-3 Implementation Notes für den Fehler, der auf die fehlenden Rechte aufmerksam machte)
 
 ## Open Questions
 - [ ] Soll ein Konfliktschutz für gleichzeitiges Bearbeiten desselben Datensatzes eingebaut werden (z.B. optimistic locking über Dataverse-eigene ETags)? Aktuell nicht vorgesehen, bei wenigen gleichzeitigen internen Nutzern unwahrscheinlich — bei Bedarf in `/refine PROJ-2` nachziehen
