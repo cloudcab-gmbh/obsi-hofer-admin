@@ -135,10 +135,6 @@ export function GeraetForm({
           <Label htmlFor="lagerort">Lagerort</Label>
           <Input id="lagerort" {...register("lagerort")} />
         </div>
-        <div>
-          <Label htmlFor="zubehoer">Zubehör</Label>
-          <Input id="zubehoer" {...register("zubehoer")} />
-        </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <Label htmlFor="herstelljahr">Herstelljahr</Label>
@@ -152,6 +148,10 @@ export function GeraetForm({
             <Label htmlFor="ablegereife">Ablegereife</Label>
             <Input id="ablegereife" type="date" {...register("ablegereife")} />
           </div>
+        </div>
+        <div>
+          <Label htmlFor="zubehoer">Zubehör</Label>
+          <Input id="zubehoer" {...register("zubehoer")} />
         </div>
         <div>
           <Label htmlFor="bemerkungen">Bemerkungen</Label>
