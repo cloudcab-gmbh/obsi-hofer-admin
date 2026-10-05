@@ -69,7 +69,6 @@ export interface Geraet {
 }
 
 export interface GeraetStammdatenInput {
-  name: string;
   serienummer: string | null;
   barcode: string | null;
   lagerort: string | null;
@@ -203,7 +202,6 @@ export async function getArtikel(id: string): Promise<ArtikelInfo> {
 
 export async function updateGeraetStammdaten(id: string, input: GeraetStammdatenInput): Promise<void> {
   await updateRecord(GERAETE_ENTITY, id, {
-    bmvcc_geraetename: input.name,
     bmvcc_serienummer: input.serienummer,
     bmvcc_barcode: input.barcode,
     bmvcc_lagerort: input.lagerort,

@@ -6,7 +6,6 @@ import { updateGeraetStammdaten } from "@/lib/dataverse/geraete";
 import { DataverseError } from "@/lib/dataverse/errors";
 
 const stammdatenSchema = z.object({
-  name: z.string().trim().min(1, "Gerätename darf nicht leer sein."),
   serienummer: z.string().trim().nullable(),
   barcode: z.string().trim().nullable(),
   lagerort: z.string().trim().nullable(),
@@ -26,7 +25,6 @@ function emptyToNull(value: FormDataEntryValue | null): string | null {
 
 export async function saveGeraetStammdaten(id: string, formData: FormData): Promise<SaveGeraetResult> {
   const parsed = stammdatenSchema.safeParse({
-    name: formData.get("name") ?? "",
     serienummer: emptyToNull(formData.get("serienummer")),
     barcode: emptyToNull(formData.get("barcode")),
     lagerort: emptyToNull(formData.get("lagerort")),

@@ -15,7 +15,6 @@ import { saveGeraetStammdaten } from "@/app/(protected)/geraete/actions";
 import type { ArtikelInfo, Firma, Geraet, Standort } from "@/lib/dataverse/geraete";
 
 const schema = z.object({
-  name: z.string().trim().min(1, "Gerätename darf nicht leer sein."),
   serienummer: z.string(),
   barcode: z.string(),
   lagerort: z.string(),
@@ -58,14 +57,9 @@ export function GeraetForm({
   const [serverError, setServerError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<FormValues>({
+  const { register, handleSubmit } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      name: geraet.name ?? "",
       serienummer: geraet.serienummer ?? "",
       barcode: geraet.barcode ?? "",
       lagerort: geraet.lagerort ?? "",
@@ -98,6 +92,10 @@ export function GeraetForm({
       <Card>
         <CardContent className="grid grid-cols-1 gap-4 py-4 text-sm sm:grid-cols-2">
           <div>
+            <p className="text-muted-foreground">Gerätename</p>
+            <p>{geraet.name ?? "—"}</p>
+          </div>
+          <div>
             <p className="text-muted-foreground">Status</p>
             {geraet.status ? <Badge variant={getStatusBadgeVariant(geraet.status)}>{geraet.status}</Badge> : "—"}
           </div>
@@ -125,11 +123,6 @@ export function GeraetForm({
       </Card>
 
       <form onSubmit={onSubmit} className="space-y-4">
-        <div>
-          <Label htmlFor="name">Gerätename</Label>
-          <Input id="name" {...register("name")} />
-          {errors.name && <p className="mt-1 text-sm text-destructive">{errors.name.message}</p>}
-        </div>
         <div>
           <Label htmlFor="barcode">Barcode</Label>
           <Input id="barcode" {...register("barcode")} />

@@ -28,6 +28,7 @@
 - Pagination/"Mehr laden" in der Geräteliste — bei erwarteter Firmengrösse (wenige Dutzend bis ~200 Geräte) nicht nötig; PROJ-2s Paging-Mechanismus bleibt vorerst ungenutzt
 - Bulk-Bearbeitung mehrerer Geräte gleichzeitig
 - Bearbeitung von Artikel-Stammdaten selbst — bleiben read-only (PRD Non-Goal)
+- **Bearbeitung des Gerätenamens** — *Nachtrag 2026-10-05, beim ersten echten Test festgestellt:* `bmvcc_geraetename` ist in Dataverse ein automatisch generiertes Feld, kein frei vergebener Name; wird daher nur noch read-only angezeigt (siehe Product Decisions)
 
 ## Acceptance Criteria
 
@@ -41,10 +42,9 @@
 - [ ] Angenommen eine Firma mit Geräten ist ausgewählt, wenn der Nutzer einen Lagerort-Filter wählt, dann werden nur Geräte an diesem Lagerort angezeigt
 - [ ] Angenommen eine ausgewählte Firma hat keine Geräte, wenn die Liste geladen wird, dann wird ein klarer Hinweis ("Keine Geräte gefunden") statt einer leeren Fläche angezeigt
 - [ ] Angenommen ein Bearbeiter öffnet ein Gerät, wenn die Detailansicht lädt, dann werden alle Stammdaten sowie die Prüfungs-Felder (read-only) angezeigt
-- [ ] Angenommen ein Bearbeiter ändert ein oder mehrere Stammdatenfelder und das Gerätename-Feld ist nicht leer, wenn er speichert, dann werden die Änderungen in Dataverse übernommen
-- [ ] Angenommen ein Bearbeiter leert das Gerätename-Feld, wenn er speichern will, dann wird eine Validierungsfehlermeldung angezeigt und nicht gespeichert
+- [ ] Angenommen ein Bearbeiter ändert ein oder mehrere editierbare Stammdatenfelder, wenn er speichert, dann werden die Änderungen in Dataverse übernommen
 - [ ] Angenommen Dataverse ist beim Speichern nicht erreichbar, wenn der Bearbeiter speichert, dann wird eine verständliche Fehlermeldung angezeigt und die eingegebenen Änderungen bleiben im Formular erhalten
-- [ ] Angenommen ein Bearbeiter betrachtet das Bearbeitungsformular, wenn er die Artikel-Verknüpfung, Standort- oder Firma-Zuordnung ändern möchte, dann sind diese Felder nicht editierbar (read-only/ausgegraut)
+- [ ] Angenommen ein Bearbeiter betrachtet das Bearbeitungsformular, wenn er den Gerätenamen, die Artikel-Verknüpfung, Standort- oder Firma-Zuordnung ändern möchte, dann sind diese Felder nicht editierbar (read-only/ausgegraut)
 
 ## Edge Cases
 - Zwei Bearbeiter öffnen und speichern dasselbe Gerät gleichzeitig → Last-Write-Wins, keine Warnung (siehe Product Decisions)
@@ -71,7 +71,7 @@
 | Innerhalb einer Firma zusätzlich nach Standort filterbar, Standort pro Gerät angezeigt | Beim Architektur-Review festgestellt: ein Gerät hängt technisch am Standort, nicht direkt an der Firma (siehe Tech Design) — eine Firma mit mehreren Standorten (Niederlassungen) braucht daher eine feinere Filterung als nur "Firma" | 2026-10-05 |
 | Pflicht: Firma zuerst auswählen, bevor Geräte geladen werden | Dieses Tool zeigt (anders als das Kundenportal) Geräte über alle Firmen hinweg — ohne Firma-Zwang müsste eine unübersichtlich grosse Gesamtliste geladen werden | 2026-10-05 |
 | Volltextsuche + Lagerort-Filter innerhalb der Firma | Übernommen aus der bewährten Legacy-App-UX, ohne deren Status-Tabs (da Status hier nur read-only ist) | 2026-10-05 |
-| Nur Gerätename ist Pflichtfeld, keine Datums-Plausibilitätsprüfung | Einfachheit für den ersten Wurf, entspricht dem bisherigen freien Umgang in der Legacy-App | 2026-10-05 |
+| ~~Nur Gerätename ist Pflichtfeld~~ → Gerätename ist read-only, keine Pflichtfelder mehr; keine Datums-Plausibilitätsprüfung | *Korrigiert 2026-10-05 beim ersten echten Test:* `bmvcc_geraetename` ist ein automatisch generiertes Dataverse-Feld, nicht frei editierbar — alle verbleibenden Stammdatenfelder bleiben optional, analog zum bisherigen freien Umgang in der Legacy-App | 2026-10-05 |
 | Last-Write-Wins bei gleichzeitiger Bearbeitung, kein Konfliktschutz | Konsistent mit der PROJ-2-Entscheidung; bei wenigen gleichzeitigen internen Nutzern ein unwahrscheinliches Szenario | 2026-10-05 |
 | Keine Pagination in der Geräteliste | Erwartete Firmengrösse (wenige Dutzend bis ~200 Geräte) macht das Laden der kompletten Liste praktikabel | 2026-10-05 |
 | Kein Löschen von Geräten | Konsistent mit der PRD-Philosophie, keine Fachdaten echt zu löschen; Ablegereife dient bereits als "ausser Betrieb"-Marker | 2026-10-05 |
@@ -128,7 +128,8 @@ Kein eigenes Datenmodell — alle Daten kommen live aus Dataverse über die gene
 - **Suche/Lagerort-/Standort-Filter laufen clientseitig auf der bereits geladenen Firma-Liste, nicht pro Tastendruck gegen Dataverse:** Da pro Firma nur wenige Dutzend bis ~200 Geräte erwartet werden (Product Decision "keine Pagination"), wird die komplette Liste einmal geladen und Suche/Filter direkt im Browser angewendet — sofortiges Ergebnis ohne Server-Rundtrip pro Eingabe, analog zum bewährten Verhalten der Legacy-App. Die Lagerort-Filter-Optionen werden aus den geladenen Geräten abgeleitet (keine separate Dataverse-Abfrage).
 - **Eigene Detailseite (`/geraete/[id]`) statt Dialog/Modal:** Genug Felder, dass ein Dialog zu eng würde; eine eigene Route ist zudem direkt verlinkbar/mit Browser-Zurück navigierbar.
 - **Direkter Aufruf einer Geräte-Detailseite ohne vorherige Firma-Auswahl ist erlaubt** *(löst die offene Frage aus der Spec)*: Die Detailseite lädt das Gerät über seine ID direkt per `getRecord` und zeigt dessen Standort-/Firma-Zugehörigkeit (durch Nachladen der jeweiligen Datensätze) als Kontext an — die Firma-Auswahl auf der Listen-Seite ist reine Navigationshilfe, kein Zugriffs-Gate.
-- **Formular-Validierung mit Zod + react-hook-form** (bereits Projekt-Abhängigkeiten): nur Gerätename als Pflichtfeld, passend zur Product Decision.
+- **Formular-Validierung mit Zod + react-hook-form** (bereits Projekt-Abhängigkeiten): keine Pflichtfelder mehr, da Gerätename inzwischen read-only ist (siehe Product Decisions).
+- **Gerätename wird read-only in der Info-Karte angezeigt, nicht mehr als Formularfeld** *(Korrektur 2026-10-05)*: automatisch generiertes Dataverse-Feld, daher aus dem editierbaren Formular entfernt und nicht mehr Teil des an `updateGeraetStammdaten` übergebenen Payloads.
 - **Bei Speicherfehlern bleibt der Formular-Zustand erhalten** und die aus PROJ-2 kommende Fehlerkategorie (`DataverseError`) wird in eine verständliche Meldung übersetzt — kein automatisches Zurücksetzen oder erneutes Laden des Formulars.
 - **Kein eigener Zwischenspeicher/Cache:** Jeder Seitenaufruf lädt frisch von Dataverse, passend zum PRD-Grundsatz "live lesen, keine eigene Datenhaltung".
 
