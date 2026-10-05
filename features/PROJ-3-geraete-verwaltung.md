@@ -159,6 +159,8 @@ Umgesetzt (UI + Server Actions in einem Schritt, kein separater `/backend`-Durch
 
 **Produktions-Incident beim ersten echten Test (2026-10-05):** Beim ersten Öffnen von `/geraete` mit echtem Login kam `Keine ausreichende Berechtigung ... missing prvReadbmvcc_firma privilege`. Ursache: Die in PROJ-2 eingerichtete Security Role des Applikationsbenutzers deckte bewusst nur Geräte und Prüfberichte ab (siehe PROJ-2 Product Decisions) — Firma, Standort und Artikel waren dort nicht vorgesehen, weil PROJ-2 zum Zeitpunkt seiner Umsetzung diesen Bedarf noch nicht kannte. Behoben durch Ergänzen von Read-Rechten auf Firma (`bmvcc_firma`), Standort (`bmvcc_organizationlocation`) und Artikel (`bmvcc_artikel`) in derselben Security Role (siehe PROJ-2 Technical Requirements). Vom Nutzer bestätigt: funktioniert jetzt.
 
+**Bug gefunden beim ersten echten Test (2026-10-05):** "Herstelljahr" wurde als reines Textfeld angezeigt statt als Kalender-Datum wie Erstgebrauch/Ablegereife. Nutzer bestätigt: `bmvcc_herstelljahr` ist in Dataverse ebenfalls ein Datumsfeld — `GeraetForm` entsprechend korrigiert (`type="date"`, analog zu den anderen beiden).
+
 ## QA Test Results
 _To be added by /qa_
 

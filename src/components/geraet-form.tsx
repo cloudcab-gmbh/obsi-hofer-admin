@@ -137,7 +137,7 @@ export function GeraetForm({
         </div>
         <div>
           <Label htmlFor="herstelljahr">Herstelljahr</Label>
-          <Input id="herstelljahr" {...register("herstelljahr")} />
+          <Input id="herstelljahr" type="date" {...register("herstelljahr")} />
         </div>
         <div>
           <Label htmlFor="erstgebrauch">Erstgebrauch</Label>
