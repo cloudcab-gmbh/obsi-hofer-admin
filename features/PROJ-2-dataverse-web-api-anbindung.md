@@ -130,7 +130,86 @@ Keine eigenen API-Routen: Diese Schicht ist reine Server-seitige Bibliothek, die
 **Tests:** `src/lib/dataverse/client.test.ts` (10 Tests: Token-Beschaffung, -Cache, -Erneuerung, Fehlerfälle) und `src/lib/dataverse/records.test.ts` (14 Tests: alle vier Funktionen inkl. Fehlerpfade) — alle grün (`npm test`, 34/34 insgesamt im Projekt). `npm run lint` und `npm run build` (inkl. TypeScript-Check) ebenfalls grün.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-10-05
+**Tester:** QA Engineer (AI)
+**Hinweis zur Testmethode:** Dieses Feature hat keine eigene UI/keinen eigenen HTTP-Endpoint (reine Server-seitige Bibliothek, siehe Implementation Notes) — klassisches manuelles Browser-/Cross-Browser-/Responsive-Testen entfällt daher. Geprüft wurde per Code-Review + automatisierten Tests (gemocktes `fetch`, kein Zugriff auf eine echte Dataverse-Instanz in dieser Umgebung). Ein Smoke-Test gegen die echte Dataverse-Instanz steht noch aus (siehe Summary).
+
+### Acceptance Criteria Status
+
+#### AC-1: Einzelnen Datensatz lesen
+- [x] `getRecord()` liefert die Felder eines Datensatzes korrekt zurück (getestet)
+
+#### AC-2: Datensätze auflisten/filtern
+- [x] `listRecords()` baut Filter/Sortierung/Feldauswahl korrekt in die OData-Query ein (getestet)
+
+#### AC-3: Datensatz erstellen
+- [x] `createRecord()` legt den Datensatz an und liefert die neue ID zurück (getestet)
+
+#### AC-4: Datensatz aktualisieren
+- [x] `updateRecord()` sendet die Änderungen korrekt per PATCH (getestet)
+
+#### AC-5: Verständliche Fehlermeldung ohne Datenverlust bei Nichterreichbarkeit
+- [x] Netzwerkfehler und 5xx/429 werden als `unavailable` mit verständlicher deutscher Meldung geworfen (getestet)
+- [ ] "Ohne Datenverlust" ist auf dieser Ebene nicht abschliessend prüfbar — diese Bibliothek wirft nur einen Fehler, hält aber keinen Formularzustand; die eigentliche Erhaltung bereits eingegebener Daten ist Sache der aufrufenden UI (PROJ-3/PROJ-4) und muss dort erneut geprüft werden
+
+#### AC-6: Klarer Berechtigungsfehler statt kryptischem Code
+- [x] 401/403 werden als `permission_denied` mit verständlicher Meldung übersetzt (getestet)
+
+### Edge Cases Status
+
+#### EC-1: Token läuft während eines Vorgangs ab
+- [x] Automatische Erneuerung vor Ablauf, für Aufrufer transparent (getestet)
+
+#### EC-2: Paging bei grossen Ergebnismengen
+- [x] Funktional korrekt: `nextPageCursor` wird zurückgegeben und bei erneutem Aufruf direkt angefahren (getestet)
+- [ ] BUG: siehe BUG-1 (Sicherheitslücke im selben Mechanismus)
+
+#### EC-3: Referenziertes Gerät existiert nicht
+- [x] Generisch abgedeckt über die 400→`validation_error`-Zuordnung (getestet mit einem abgelehnten Payload); ein literaler Test mit einer ungültigen Geräte-Referenz ist erst mit echten Daten/PROJ-4 sinnvoll möglich
+
+### Security Audit Results (Red Team / Code Review)
+- [x] Zugangsdaten/Token verlassen den Server nie (reines Server-Modul, `process.env` ohne `NEXT_PUBLIC_`-Prefix)
+- [x] Keine Secrets in Log-Ausgaben (kein `console.log` mit Token/Secret-Inhalt)
+- [ ] BUG: siehe BUG-1 — unvalidierte absolute URL/`pageCursor` erlaubt potenziellen Token-Exfiltrations-Pfad (SSRF-artig)
+- [ ] BUG: siehe BUG-2 — `id`/`select` in `getRecord()` werden unenkodiert in die Query eingesetzt, uneinheitlich zu `listRecords()`
+- [x] Keine zusätzliche Paketabhängigkeit eingeführt, die die Angriffsfläche vergrössert
+
+### Bugs Found
+
+#### BUG-1: Unvalidierte absolute URL (`pageCursor`) ermöglicht potenzielle Token-Exfiltration
+- **Severity:** High
+- **Steps to Reproduce (Code-Review, aktuell nicht über eine echte Oberfläche erreichbar):**
+  1. `dataverseFetch(pathOrUrl)` prüft bei einer absoluten URL (beginnt mit `http`) nicht, ob sie zur konfigurierten `DATAVERSE_URL` gehört — sie wird direkt mit dem echten Bearer-Token angefragt
+  2. `listRecords()` reicht einen übergebenen `pageCursor` ungeprüft als genau diese URL durch
+  3. Erwartet: Nur URLs mit demselben Origin wie `DATAVERSE_URL` dürfen das Access-Token erhalten
+  4. Tatsächlich: Jede beliebige absolute URL, die als `pageCursor` ankommt, erhält das gültige Dataverse-Bearer-Token im `Authorization`-Header
+- **Warum relevant trotz fehlendem aktuellem Aufrufer:** PROJ-3/PROJ-4 werden "Mehr laden"-Funktionen bauen, die den `nextPageCursor` zwischenspeichern/weiterreichen müssen. Sollte ein Cursor-Wert dabei je (direkt oder indirekt) aus Client-/Browser-Eingaben stammen, ohne dass serverseitig erneut auf denselben Origin geprüft wird, könnte ein Angreifer eine eigene URL unterschieben und das Token abgreifen. Besser jetzt an der einzigen zentralen Stelle (`dataverseFetch`) absichern, als später in jedem Aufrufer einzeln daran denken zu müssen.
+- **Priority:** Fix before deployment
+
+#### BUG-2: Unsaubere Query-String-Erstellung in `getRecord()` (keine Kodierung, keine ID-Validierung)
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. `getRecord()` baut `` `?$select=${options.select.join(",")}` `` sowie `(${id})` per Template-String, statt wie `listRecords()` `URLSearchParams` zu verwenden
+  2. `id` wird nicht auf ein gültiges GUID-Format geprüft
+  3. Erwartet: Sonderzeichen in `id` oder `select`-Feldnamen werden sauber kodiert bzw. zurückgewiesen
+  4. Tatsächlich: Ein präparierter `id`-Wert (z.B. mit `)&$select=...`) könnte zusätzliche OData-Query-Parameter in die Anfrage einschleusen und so den Rückgabe-Umfang ungewollt verändern
+- **Priority:** Fix before deployment
+
+#### BUG-3: Keine Deduplizierung gleichzeitiger Token-Anfragen beim Kaltstart
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Direkt nach einem Neustart (leerer Token-Cache) treffen mehrere gleichzeitige Aufrufe von `getDataverseAccessToken()` ein
+  2. Erwartet: Nur eine Token-Anfrage wird ausgelöst, alle wartenden Aufrufer teilen sich das Ergebnis
+  3. Tatsächlich: Jeder gleichzeitige Aufruf löst eine eigene, redundante Anfrage an den Microsoft-Token-Endpoint aus
+- **Priority:** Nice to have (bei diesem internen, wenig frequentierten Tool kein praktisches Problem, aber eine günstige Absicherung)
+
+### Summary
+- **Acceptance Criteria:** 6/6 funktional erfüllt (AC-5 teilweise nicht auf dieser Ebene prüfbar, siehe oben)
+- **Bugs Found:** 3 total (0 critical, 1 high, 1 medium, 1 low)
+- **Security:** Issues found (BUG-1, BUG-2)
+- **Production Ready:** NO
+- **Recommendation:** BUG-1 und BUG-2 vor Deployment beheben (beide an der zentralen Dataverse-Zugriffsschicht, günstiger Fixpunkt bevor PROJ-3/PROJ-4 darauf aufbauen). BUG-3 optional. Zusätzlich empfohlen: ein einmaliger manueller Smoke-Test gegen die echte Dataverse-Instanz (diese Umgebung hat keinen Zugriff darauf), sobald BUG-1/BUG-2 behoben sind.
 
 ## Deployment
 _To be added by /deploy_
