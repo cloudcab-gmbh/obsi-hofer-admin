@@ -1,6 +1,6 @@
 # PROJ-3: Geräte-Verwaltung
 
-## Status: Planned
+## Status: In Progress
 **Created:** 2026-10-05
 **Last Updated:** 2026-10-05
 
@@ -135,6 +135,27 @@ Kein eigenes Datenmodell — alle Daten kommen live aus Dataverse über die gene
 ### D) Dependencies
 - `command` und `popover` (shadcn/ui) — Bausteine für die durchsuchbare Firma-Combobox, bisher nicht installiert (`npx shadcn@latest add command popover`)
 - Keine neuen npm-Pakete über das shadcn-CLI hinaus — Formular-Validierung (`zod`, `react-hook-form`) ist bereits vorhanden
+
+## Implementation Notes (Frontend)
+
+Umgesetzt (UI + Server Actions in einem Schritt, kein separater `/backend`-Durchlauf nötig — PROJ-2 ist bereits die Backend-Schicht, hier kamen keine neuen API-Routen/Tabellen hinzu):
+
+- `src/lib/dataverse/geraete.ts` — domänenspezifische Funktionen auf Basis von PROJ-2 (`listFirmen`, `listStandorteForFirma`, `listGeraeteForStandorte`, `getGeraet`, `getFirma`, `getStandort`, `getArtikel`, `updateGeraetStammdaten`); mappt rohe Dataverse-Feldnamen auf ein `Geraet`/`Firma`/`Standort`/`ArtikelInfo`-Objekt
+- `src/app/(protected)/geraete/actions.ts` — Server Action `saveGeraetStammdaten` mit Zod-Validierung (nur `name` Pflichtfeld, siehe Spec), übersetzt `DataverseError` in eine Nutzer-Meldung
+- `src/components/firma-combobox.tsx` — durchsuchbare Firma-Auswahl (shadcn `command`+`popover`, neu installiert)
+- `src/components/geraete-liste.tsx` — Geräte-Tabelle mit clientseitiger Suche/Lagerort-/Standort-Filterung (Standort-Filter/-Spalte nur bei >1 Standort sichtbar)
+- `src/components/geraet-form.tsx` — Bearbeitungsformular (react-hook-form + zod), zeigt Status/Prüfung/Prüfer/Firma/Standort/Artikel read-only
+- `src/lib/status-badge.ts` — 1:1 aus dem Kundenportal-Repo übernommene Status→Badge-Farbe-Zuordnung
+- `src/app/(protected)/geraete/page.tsx`, `src/app/(protected)/geraete/[id]/page.tsx` — die beiden Routen
+
+**Sicherheitsfix während der Umsetzung:** `firmaId` kommt direkt aus einem URL-Query-Parameter und wurde vor dem Einbau in `listStandorteForFirma` unquotiert in den OData-`$filter` eingesetzt — ohne Prüfung wäre das eine OData-Injection-Lücke gewesen (ein präparierter Wert hätte zusätzliche Filterbedingungen einschleusen können). Jetzt wird `firmaId` (und jede `standortId`) vor Verwendung gegen ein striktes GUID-Pattern geprüft.
+
+**Offene Verifikationspunkte gegen die echte Dataverse-Umgebung** (konnten in dieser Umgebung nicht gegen echte Daten getestet werden, siehe PROJ-2 QA-Hinweis):
+- Feldname `bmvcc_erstgebrauch`: stammt nur aus der Legacy-Power-App-Quelle (`docs/legacy-power-app/`), nicht aus dem gegen die echte Umgebung verifizierten Sync-Job-Mapping (das Feld wird dort nicht benötigt und daher nicht synct)
+- Feldname `bmvcc_notitzen` für "Bemerkungen": laut verifiziertem Sync-Job-Mapping korrekt (`src/lib/sync/jobs.ts` im Kundenportal-Repo, Kommentar "Verified against the real environment on 2026-09-16") — widerspricht der Legacy-Power-App-YAML, die stattdessen `bmvcc_bemerkungen` verwendet; hier wurde bewusst der verifizierten Quelle gefolgt
+- OData-Filtersyntax für Lookup-Gleichheit (`_bmvcc_standort_value eq <guid ohne Anführungszeichen>`) ist Standard-Dataverse-Konvention, aber nicht gegen die echte Umgebung getestet
+
+**Nicht möglich in dieser Umgebung:** Ein echter Login-Test (Entra-ID-SSO) oder ein Abgleich gegen echte Dataverse-Daten — der Build läuft sauber durch und `/geraete`, `/geraete/[id]` leiten unauthentifiziert korrekt zu `/login` weiter (per Smoke-Test gegen den laufenden Dev-Server geprüft), aber die eigentliche Funktionalität (Firma auswählen, Geräte sehen, speichern) muss vom Nutzer im Browser mit echtem Login verifiziert werden.
 
 ## QA Test Results
 _To be added by /qa_
