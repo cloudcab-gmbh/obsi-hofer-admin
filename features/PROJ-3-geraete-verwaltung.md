@@ -54,7 +54,6 @@
 - Zugriff nur für eingeloggte Nutzer mit Rolle Bearbeiter oder Freigeber (PROJ-1)
 
 ## Open Questions
-- [ ] Was passiert, wenn jemand direkt zu einer Geräte-Detailseite navigiert (z.B. per Lesezeichen), ohne vorher eine Firma gewählt zu haben? Technische Entscheidung, wird in `/architecture` geklärt
 - [ ] Falls sich die Annahme "wenige Dutzend bis ~200 Geräte pro Firma" als falsch herausstellt, muss Pagination nachgerüstet werden — PROJ-2 unterstützt das bereits (Paging-Cursor), die UI müsste dann ergänzt werden
 
 ## Decision Log
@@ -77,12 +76,54 @@
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Server Actions statt eigener API-Routen | Nur dieses Frontend konsumiert die Daten; kein eigener REST-Layer nötig, direkter Aufruf der PROJ-2-Funktionen | 2026-10-05 |
+| Suche/Lagerort-Filter clientseitig auf der geladenen Firma-Liste statt serverseitig pro Eingabe | Erwartete Firmengrösse (≤~200 Geräte) macht das praktikabel; sofortiges Ergebnis ohne Server-Rundtrip | 2026-10-05 |
+| Eigene Route `/geraete/[id]` statt Dialog für die Bearbeitung | Genug Felder für einen Dialog zu eng; direkt verlinkbar | 2026-10-05 |
+| Direkter Aufruf einer Geräte-Detailseite ohne vorherige Firma-Auswahl erlaubt | Firma-Auswahl auf der Listenseite ist Navigationshilfe, kein Zugriffs-Gate; Detailseite lädt das Gerät direkt per ID | 2026-10-05 |
+| Formular-Validierung mit Zod + react-hook-form | Projekt-Konvention, bereits vorhandene Abhängigkeiten | 2026-10-05 |
+| Neue shadcn-Komponenten `command`/`popover` für die Firma-Combobox | Bisher nur eine einfache `select`-Komponente installiert, die bei vielen Firmen nicht durchsuchbar wäre | 2026-10-05 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### A) Component Structure
+```
+Geräte-Seite (/geraete)
++-- Firma-Auswahl (durchsuchbare Combobox, Pflicht-Einstieg)
++-- Geräteliste (erst sichtbar nach Firma-Auswahl)
+|   +-- Suchfeld (Gerätename / Barcode / Seriennummer)
+|   +-- Lagerort-Filter (Dropdown, Optionen aus den geladenen Geräten abgeleitet)
+|   +-- Tabelle (Name, Barcode, Lagerort, Status-Badge, Lagerort)
+|   +-- Leerer-Zustand-Hinweis ("Keine Geräte für diese Firma gefunden")
++-- Geräte-Detailseite (/geraete/[id])
+    +-- Stammdaten-Formular (editierbar: Name, Barcode, Seriennummer, Lagerort,
+    |   Bemerkungen, Zubehör, Herstelljahr, Erstgebrauch, Ablegereife)
+    +-- Prüfstatus-Bereich (read-only: Status-Badge, letzte Prüfung, Prüfer)
+    +-- Artikel-Info (read-only)
+    +-- Firma-Zugehörigkeit (read-only)
+    +-- Speichern-Button + Fehlermeldungs-Bereich (bei Dataverse-Fehlern)
+```
+
+### B) Data Model (plain language)
+Kein eigenes Datenmodell — alle Daten kommen live aus Dataverse über die generischen Funktionen aus PROJ-2, nichts wird zwischengespeichert:
+- **Firma-Auswahl:** Liste der Firmen wird aus Dataverse gelesen (nur lesend, keine eigene Firma-Verwaltung — siehe PRD Non-Goal)
+- **Geräteliste:** Alle Geräte der ausgewählten Firma werden in einem Rutsch geladen (siehe Product Decision "keine Pagination")
+- **Gerät-Detail:** Stammdaten (editierbar) + Prüfstatus/Artikel/Firma (read-only, aus verknüpften Dataverse-Datensätzen)
+
+### C) Tech Decisions
+- **Server Actions statt eigener API-Routen:** Laden der Firmenliste, Geräteliste und Speichern erfolgen über Next.js Server Actions, die direkt die PROJ-2-Funktionen (`listRecords`, `getRecord`, `updateRecord`) aufrufen. Kein eigener REST-Layer nötig, da nur dieses eine Frontend die Daten konsumiert — konsistent mit PROJ-2s Design als reine Server-Bibliothek.
+- **Suche/Lagerort-Filter laufen clientseitig auf der bereits geladenen Firma-Liste, nicht pro Tastendruck gegen Dataverse:** Da pro Firma nur wenige Dutzend bis ~200 Geräte erwartet werden (Product Decision "keine Pagination"), wird die komplette Liste einmal geladen und Suche/Filter direkt im Browser angewendet — sofortiges Ergebnis ohne Server-Rundtrip pro Eingabe, analog zum bewährten Verhalten der Legacy-App. Die Lagerort-Filter-Optionen werden aus den geladenen Geräten abgeleitet (keine separate Dataverse-Abfrage).
+- **Eigene Detailseite (`/geraete/[id]`) statt Dialog/Modal:** Genug Felder, dass ein Dialog zu eng würde; eine eigene Route ist zudem direkt verlinkbar/mit Browser-Zurück navigierbar.
+- **Direkter Aufruf einer Geräte-Detailseite ohne vorherige Firma-Auswahl ist erlaubt** *(löst die offene Frage aus der Spec)*: Die Detailseite lädt das Gerät über seine ID direkt per `getRecord` und zeigt dessen Firma-Zugehörigkeit als Kontext an — die Firma-Auswahl auf der Listen-Seite ist reine Navigationshilfe, kein Zugriffs-Gate.
+- **Formular-Validierung mit Zod + react-hook-form** (bereits Projekt-Abhängigkeiten): nur Gerätename als Pflichtfeld, passend zur Product Decision.
+- **Bei Speicherfehlern bleibt der Formular-Zustand erhalten** und die aus PROJ-2 kommende Fehlerkategorie (`DataverseError`) wird in eine verständliche Meldung übersetzt — kein automatisches Zurücksetzen oder erneutes Laden des Formulars.
+- **Kein eigener Zwischenspeicher/Cache:** Jeder Seitenaufruf lädt frisch von Dataverse, passend zum PRD-Grundsatz "live lesen, keine eigene Datenhaltung".
+
+### D) Dependencies
+- `command` und `popover` (shadcn/ui) — Bausteine für die durchsuchbare Firma-Combobox, bisher nicht installiert (`npx shadcn@latest add command popover`)
+- Keine neuen npm-Pakete über das shadcn-CLI hinaus — Formular-Validierung (`zod`, `react-hook-form`) ist bereits vorhanden
 
 ## QA Test Results
 _To be added by /qa_
