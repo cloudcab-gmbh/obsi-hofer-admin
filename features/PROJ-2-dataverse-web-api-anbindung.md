@@ -44,7 +44,6 @@
 
 ## Open Questions
 - [ ] Soll ein Konfliktschutz für gleichzeitiges Bearbeiten desselben Datensatzes eingebaut werden (z.B. optimistic locking über Dataverse-eigene ETags)? Aktuell nicht vorgesehen, bei wenigen gleichzeitigen internen Nutzern unwahrscheinlich — bei Bedarf in `/refine PROJ-2` nachziehen
-- [ ] Wie soll Paging bei grossen Ergebnismengen gehandhabt werden? Technische Entscheidung, wird in `/architecture` geklärt
 
 ## Decision Log
 
@@ -62,12 +61,60 @@
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Server-only Modul, Zugangsdaten/Token nie im Client-Bundle | Dieselbe App-Registrierung steuert auch den Login — ein Leck wäre besonders kritisch | 2026-10-05 |
+| Token-Cache mit automatischer Erneuerung vor Ablauf statt Neuanmeldung pro Anfrage | Schneller, schont die Login-Infrastruktur, für Aufrufer transparent | 2026-10-05 |
+| Direkter REST/OData-Zugriff auf die Dataverse Web API, keine zusätzliche SDK-Bibliothek | Standard-Schnittstelle; gleiches Vorgehen wie im bestehenden Sync-Service des Kundenportal-Repos | 2026-10-05 |
+| Paging als "eine Seite pro Aufruf plus Fortsetzungsmarke" statt automatischem Nachladen aller Seiten | Vermeidet unvorhersehbare Wartezeit/Speicherlast bei grossen Ergebnismengen; Aufrufer (PROJ-3/PROJ-4) entscheidet selbst über Nachladen | 2026-10-05 |
+| Rohe Dataverse-Feldnamen ohne Umbenennung in dieser Schicht | Hält die generischen Funktionen wirklich generisch; Umbenennung für die UI gehört zu PROJ-3/PROJ-4 | 2026-10-05 |
+| Technische Fehler werden in eine kleine Zahl verständlicher Fehlerkategorien übersetzt | PROJ-3/PROJ-4 müssen keine Dataverse-spezifischen Fehlerformate kennen | 2026-10-05 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### A) Component Structure
+Diese Funktion hat keine eigene Benutzeroberfläche — sie ist eine reine Backend-Infrastrukturschicht, die ausschliesslich von den Folge-Features genutzt wird:
+
+```
+Dataverse-Anbindung (Server-seitig, nie im Browser sichtbar)
++-- Token-Beschaffung & -Cache (Client-Credentials-Flow)
++-- Generische Funktionen
+|   +-- Einzelnen Datensatz lesen
+|   +-- Datensätze auflisten/filtern (seitenweise)
+|   +-- Datensatz erstellen
+|   +-- Datensatz aktualisieren
++-- Fehler-Übersetzung (Dataverse-Fehler -> verständliche Kategorien)
+
+Genutzt von: PROJ-3 (Geräte-Verwaltung), PROJ-4 (Prüfberichte-Verwaltung), PROJ-5 (Sync-Freigabe, indirekt für Statusanzeige)
+```
+
+### B) Data Model (plain language)
+Kein eigenes Datenmodell/keine eigene Datenbank — Dataverse bleibt alleinige Quelle. Diese Schicht beschreibt nur, **wie** auf zwei bestehende Dataverse-Tabellen zugegriffen wird:
+- **Geräte-Tabelle** (`bmvcc_equipmentrecord`)
+- **Prüfbericht-Tabelle** (`bmvcc_pruefbericht`), referenziert ein Gerät
+
+Jede Leseanfrage ("Datensätze auflisten") kann angeben:
+- welche Tabelle
+- optionaler Filter (z.B. "nur Geräte einer bestimmten Firma")
+- optionale Auswahl der benötigten Felder (um nicht immer alle Felder zu laden)
+- optionale Sortierung
+- eine Fortsetzungsmarke, um eine grosse Ergebnismenge seitenweise nachzuladen (siehe Tech-Entscheidung Paging unten)
+
+Jede Schreibanfrage ("erstellen"/"aktualisieren") übergibt: Tabelle, (bei Aktualisierung) ID, sowie die zu setzenden Feldwerte als einfache Schlüssel-Wert-Liste — ohne eigene Umbenennung der Dataverse-Feldnamen (siehe Tech-Entscheidung "Rohe Feldnamen" unten).
+
+### C) Tech Decisions
+- **Server-only Modul, nie im Client-Bundle:** Die Anbindung läuft ausschliesslich auf dem Server (z.B. in Server Actions/Route Handlers). Zugangsdaten und Zugriffstoken verlassen den Server nie — notwendig, da dieselbe App-Registrierung auch den Login steuert und ein Leck hier besonders kritisch wäre.
+- **Token-Cache statt Neuanmeldung pro Anfrage:** Das Zugriffstoken (Client-Credentials-Flow) wird nach Erhalt serverseitig zwischengespeichert und kurz vor Ablauf automatisch erneuert, statt bei jeder einzelnen Dataverse-Anfrage neu anzufordern. Das ist schneller und schont die Login-Infrastruktur, bleibt aber für alle Aufrufer unsichtbar (erfüllt den Edge Case "Token läuft während eines Vorgangs ab").
+- **Direkter Zugriff auf die Dataverse Web API (REST/OData), keine zusätzliche SDK-Bibliothek:** Die Dataverse Web API ist eine Standard-REST-Schnittstelle; ein zusätzliches Paket dafür ist nicht nötig. Gleiches Vorgehen wie im bestehenden Dataverse-Sync-Service des Kundenportal-Repos — konsistent zwischen beiden Projekten.
+- **Paging als "eine Seite pro Aufruf" statt automatischem Nachladen aller Seiten:** Die Listen-Funktion liefert pro Aufruf eine begrenzte Anzahl Datensätze plus eine Fortsetzungsmarke zurück. Die aufrufende Stelle (PROJ-3/PROJ-4) entscheidet, ob/wann weitere Seiten nachgeladen werden (z.B. "Mehr laden"-Button oder automatisches Scrollen). Vermeidet unvorhersehbar lange Wartezeiten oder Speicherlast bei sehr grossen, gefilterten Ergebnismengen. *(Löst die in der Spec offene Paging-Frage.)*
+- **Rohe Dataverse-Feldnamen, keine Umbenennung in dieser Schicht:** Die generischen Funktionen geben/erwarten Felder exakt so, wie Dataverse sie kennt (z.B. `bmvcc_name`). Eine nutzerfreundlichere Umbenennung/Zuordnung für die Oberfläche erfolgt erst in PROJ-3/PROJ-4 — hält diese Schicht wirklich generisch und wiederverwendbar für beide Tabellen.
+- **Fehler-Übersetzung in verständliche Kategorien:** Technische Dataverse-/HTTP-Fehler (z.B. nicht erreichbar, keine Berechtigung, Datensatz nicht gefunden, ungültige Eingabe, vorübergehend überlastet) werden in eine kleine Zahl klar benannter Fehlerarten übersetzt. PROJ-3/PROJ-4 müssen dadurch keine Dataverse-spezifischen Fehlerformate kennen, um dem Nutzer eine verständliche Meldung zu zeigen.
+- **Kein automatisches Retry, kein Konfliktschutz in dieser Schicht:** Bewusst so übernommen aus den Product Decisions der Spec — hält die erste Version einfach; beides könnte bei Bedarf später zentral in genau dieser Schicht nachgerüstet werden, ohne PROJ-3/PROJ-4 anfassen zu müssen.
+
+### D) Dependencies
+- Keine neue Paketabhängigkeit nötig — die Anbindung nutzt die in Next.js eingebaute `fetch`-Funktion direkt gegen die Dataverse Web API.
+- Hinweis (kein Teil dieser Spec, aber beim Lesen von `package.json` aufgefallen): `@supabase/ssr` und `@supabase/supabase-js` sind noch aus dem Kopiervorgang vom Kundenportal-Repo vorhanden, werden in diesem eigenständigen Datenbank-losen Projekt aber nirgends verwendet. Empfehlung: bei Gelegenheit als Aufräum-Chore entfernen (nicht Teil von PROJ-2).
 
 ## QA Test Results
 _To be added by /qa_
