@@ -14,6 +14,7 @@ vi.mock("./records", () => ({
 
 import {
   createPruefbericht,
+  getAktuelleBemerkungenForGeraete,
   getAktuellsterAktiverPruefbericht,
   getPruefbericht,
   listPruefberichteForGeraet,
@@ -312,5 +313,51 @@ describe("stornierePruefbericht", () => {
 
     await expect(stornierePruefbericht(BERICHT_ID)).rejects.toMatchObject({ category: "validation_error" });
     expect(updateRecord).not.toHaveBeenCalled();
+  });
+});
+
+describe("getAktuelleBemerkungenForGeraete", () => {
+  it("returns an empty map without querying Dataverse for an empty id list", async () => {
+    const result = await getAktuelleBemerkungenForGeraete([]);
+    expect(result).toEqual(new Map());
+    expect(listRecords).not.toHaveBeenCalled();
+  });
+
+  it("maps each Gerät to the Bemerkung of its most recent active Bericht", async () => {
+    listRecords.mockResolvedValue({
+      records: [
+        rawBericht({ bmvcc_pruefberichtid: "neu", bmvcc_inspectiondate: "2026-03-01", bmvcc_remark: "Neuester" }),
+        rawBericht({ bmvcc_pruefberichtid: "alt", bmvcc_inspectiondate: "2026-01-01", bmvcc_remark: "Älter" }),
+        rawBericht({
+          bmvcc_pruefberichtid: "andereGeraet",
+          _bmvcc_gearaet_value: GERAET_ID_2,
+          bmvcc_inspectiondate: "2026-02-01",
+          bmvcc_remark: "Anderes Gerät",
+        }),
+      ],
+      nextPageCursor: null,
+    });
+
+    const result = await getAktuelleBemerkungenForGeraete([GERAET_ID, GERAET_ID_2]);
+
+    expect(result.get(GERAET_ID)).toBe("Neuester");
+    expect(result.get(GERAET_ID_2)).toBe("Anderes Gerät");
+  });
+
+  it("only considers non-stornierte Berichte", async () => {
+    listRecords.mockResolvedValue({ records: [], nextPageCursor: null });
+
+    await getAktuelleBemerkungenForGeraete([GERAET_ID]);
+
+    const filterArg = listRecords.mock.calls[0][1].filter as string;
+    expect(filterArg).toContain("bmvcc_isarchived eq false");
+  });
+
+  it("leaves a Gerät without any active Bericht out of the map", async () => {
+    listRecords.mockResolvedValue({ records: [], nextPageCursor: null });
+
+    const result = await getAktuelleBemerkungenForGeraete([GERAET_ID]);
+
+    expect(result.has(GERAET_ID)).toBe(false);
   });
 });

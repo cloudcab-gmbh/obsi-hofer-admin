@@ -193,6 +193,8 @@ Betrifft Component-Structure/Data-Model/Tech-Decisions im Tech-Design-Abschnitt 
 
 **Nachtrag (2026-10-05, Nutzerwunsch):** Zusätzlicher Filter "Letzte Prüfung (Tage)" in der Geräteliste — zeigt nur Geräte, deren letzte Prüfung höchstens N Tage zurückliegt (Zahlenfeld, leer = keine Einschränkung, Platzhalter schlägt 7 Tage vor; standardmässig AUS, konsistent mit den übrigen Filtern). Geräte ohne jemals erfasste Prüfung werden bei aktivem Filter ausgeblendet. Teil des session-weiten Filters und damit auch in der PROJ-4-Übersicht wirksam.
 
+**Nachtrag (2026-10-05, Nutzerwunsch):** Zusätzliche Spalte "Bemerkung" in der Geräteliste, direkt hinter "Status" — zeigt die Bemerkung des jeweils aktuellsten aktiven Prüfberichts (PROJ-4) je Gerät. Neue Funktion `getAktuelleBemerkungenForGeraete()` in `src/lib/dataverse/pruefberichte.ts`, holt alle betroffenen Prüfberichte gebatcht statt pro Gerät einzeln (nutzt die bereits vorhandene Chunking-Logik von `listPruefberichteForGeraete`).
+
 ## QA Test Results
 
 **Tested:** 2026-10-05

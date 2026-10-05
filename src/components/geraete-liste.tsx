@@ -19,10 +19,13 @@ export function GeraeteListe({
   geraete,
   standorte,
   initialFilter,
+  pruefberichtBemerkungen,
 }: {
   geraete: Geraet[];
   standorte: Standort[];
   initialFilter: GeraeteFilterState;
+  /** Bemerkung des jeweils aktuellsten aktiven Prüfberichts, pro Gerät-ID. */
+  pruefberichtBemerkungen: Map<string, string | null>;
 }) {
   const [suche, setSuche] = useState(initialFilter.suche);
   const [lagerort, setLagerort] = useState(initialFilter.lagerort || ALLE);
@@ -149,6 +152,7 @@ export function GeraeteListe({
                   <TableHead>Lagerort</TableHead>
                   <TableHead>Letzte Prüfung</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Bemerkung</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -170,6 +174,7 @@ export function GeraeteListe({
                     <TableCell>
                       {g.status ? <Badge variant={getStatusBadgeVariant(g.status)}>{g.status}</Badge> : "—"}
                     </TableCell>
+                    <TableCell>{pruefberichtBemerkungen.get(g.id) ?? "—"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

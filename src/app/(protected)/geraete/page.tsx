@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listStandorteForFirma, listGeraeteForStandorte, type Geraet, type Standort } from "@/lib/dataverse/geraete";
+import { getAktuelleBemerkungenForGeraete } from "@/lib/dataverse/pruefberichte";
 import { getCurrentFirmaId } from "@/lib/firma-session";
 import { getGeraeteFilterState } from "@/lib/geraete-filter-session";
 import { GeraeteListe } from "@/components/geraete-liste";
@@ -27,11 +28,13 @@ export default async function GeraetePage() {
 
   let standorte: Standort[] = [];
   let geraete: Geraet[] = [];
+  let pruefberichtBemerkungen = new Map<string, string | null>();
   let loadError: string | null = null;
 
   try {
     standorte = await listStandorteForFirma(firmaId);
     geraete = await listGeraeteForStandorte(standorte.map((s) => s.id));
+    pruefberichtBemerkungen = await getAktuelleBemerkungenForGeraete(geraete.map((g) => g.id));
   } catch {
     loadError = "Die Gerätedaten konnten nicht geladen werden.";
   }
@@ -45,7 +48,12 @@ export default async function GeraetePage() {
           <CardContent className="py-10 text-center text-sm text-muted-foreground">{loadError}</CardContent>
         </Card>
       ) : (
-        <GeraeteListe geraete={geraete} standorte={standorte} initialFilter={initialFilter} />
+        <GeraeteListe
+          geraete={geraete}
+          standorte={standorte}
+          initialFilter={initialFilter}
+          pruefberichtBemerkungen={pruefberichtBemerkungen}
+        />
       )}
     </main>
   );

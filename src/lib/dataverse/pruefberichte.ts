@@ -123,6 +123,25 @@ export async function getPruefbericht(id: string): Promise<Pruefbericht> {
   return mapPruefbericht(raw);
 }
 
+// Für die Geräteliste (PROJ-3): Bemerkung des jeweils aktuellsten aktiven
+// Prüfberichts pro Gerät, in einem gebatchten Abruf statt einer Anfrage pro
+// Gerät. `listPruefberichteForGeraete` liefert bereits nach Prüfdatum
+// absteigend sortiert — der erste Treffer pro geraetId ist daher der
+// aktuellste (bei exakt gleichem Prüfdatum hier ohne das createdon-
+// Tie-Breaking aus `getAktuellsterAktiverPruefbericht`, da das für eine
+// reine Anzeige-Spalte keinen praktischen Unterschied macht).
+export async function getAktuelleBemerkungenForGeraete(geraetIds: string[]): Promise<Map<string, string | null>> {
+  const berichte = await listPruefberichteForGeraete(geraetIds, { includeStorniert: false });
+
+  const bemerkungen = new Map<string, string | null>();
+  for (const bericht of berichte) {
+    if (!bemerkungen.has(bericht.geraetId)) {
+      bemerkungen.set(bericht.geraetId, bericht.bemerkungen);
+    }
+  }
+  return bemerkungen;
+}
+
 // "Aktuellster aktiver Bericht": höchstes Prüfdatum, bei Gleichstand der
 // zuletzt erstellte (Dataverse-Systemfeld `createdon`) — löst die in der
 // Spec offene Tie-Breaking-Frage ohne ein neues Feld (siehe Tech Design).
