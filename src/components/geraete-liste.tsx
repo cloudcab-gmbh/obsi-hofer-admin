@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,6 +13,7 @@ import { getStatusBadgeVariant } from "@/lib/status-badge";
 import { formatDatum } from "@/lib/format";
 import { matchesGeraeteFilter, type Geraet, type Standort } from "@/lib/dataverse/geraete";
 import { setGeraeteFilterState, type GeraeteFilterState } from "@/lib/geraete-filter-session";
+import { generatePdfAction } from "@/app/(protected)/geraete/actions";
 
 const ALLE = "__alle__";
 
@@ -31,6 +33,8 @@ export function GeraeteListe({
   const [lagerort, setLagerort] = useState(initialFilter.lagerort || ALLE);
   const [standortId, setStandortId] = useState(initialFilter.standortId || ALLE);
   const [letztePruefungTage, setLetztePruefungTage] = useState(initialFilter.letztePruefungTage);
+  const [pdfPending, startPdfTransition] = useTransition();
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   // Der Filter gilt session-weit (siehe geraete-filter-session.ts), damit er
   // beim Wechsel zu /pruefberichte erhalten bleibt — verzögert geschrieben,
@@ -67,6 +71,24 @@ export function GeraeteListe({
       })
     );
   }, [geraete, suche, lagerort, standortId, letztePruefungTage]);
+
+  function handleGeneratePdf() {
+    setPdfError(null);
+    startPdfTransition(async () => {
+      const result = await generatePdfAction(gefiltert, lagerort === ALLE ? null : lagerort);
+      if (!result.success) {
+        setPdfError(result.message);
+        return;
+      }
+      const bytes = Uint8Array.from(atob(result.pdfBase64), (c) => c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = result.dateiname;
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+  }
 
   if (geraete.length === 0) {
     return (
@@ -133,7 +155,16 @@ export function GeraeteListe({
             className="w-24"
           />
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleGeneratePdf}
+          disabled={pdfPending || gefiltert.length === 0}
+        >
+          {pdfPending ? "PDF wird generiert..." : "PDF generieren"}
+        </Button>
       </div>
+      {pdfError && <p className="mb-4 text-sm text-destructive">{pdfError}</p>}
 
       {gefiltert.length === 0 ? (
         <Card>

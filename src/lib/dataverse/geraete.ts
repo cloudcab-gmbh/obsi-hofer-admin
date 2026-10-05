@@ -240,6 +240,49 @@ export async function getArtikel(id: string): Promise<ArtikelInfo> {
   };
 }
 
+function chunk<T>(items: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    result.push(items.slice(i, i + size));
+  }
+  return result;
+}
+
+const ARTIKEL_ID_CHUNK_SIZE = 20;
+
+// Für PROJ-7 (PDF-Export): Artikel-Stammdaten für mehrere Geräte in einem
+// gebatchten Abruf statt einer Anfrage pro Gerät — dedupliziert auf die
+// tatsächlich vorkommenden, unterschiedlichen Artikel-IDs (viele Geräte
+// teilen sich denselben Artikel).
+export async function listArtikelByIds(artikelIds: string[]): Promise<Map<string, ArtikelInfo>> {
+  const eindeutigeIds = Array.from(new Set(artikelIds));
+  if (eindeutigeIds.length === 0) return new Map();
+  eindeutigeIds.forEach((id) => requireValidGuid(id, "artikelId"));
+
+  const ergebnisse = await Promise.all(
+    chunk(eindeutigeIds, ARTIKEL_ID_CHUNK_SIZE).map(async (idsInChunk) => {
+      const filter = idsInChunk.map((id) => `bmvcc_artikelid eq ${id}`).join(" or ");
+      const { records } = await listRecords(ARTIKEL_ENTITY, {
+        select: ["bmvcc_artikelid", "bmvcc_modelarticle", "bmvcc_manufacturer", "bmvcc_articletype", "bmvcc_dimensions", "bmvcc_standardnorm"],
+        filter,
+        top: 500,
+      });
+      return records.map((raw) => ({
+        id: raw.bmvcc_artikelid as string,
+        bezeichnung: asString(raw.bmvcc_modelarticle),
+        hersteller: asString(raw.bmvcc_manufacturer),
+        typ: asString(raw.bmvcc_articletype),
+        dimension: asString(raw.bmvcc_dimensions),
+        norm: asString(raw.bmvcc_standardnorm),
+      }));
+    })
+  );
+
+  const map = new Map<string, ArtikelInfo>();
+  ergebnisse.flat().forEach((artikel) => map.set(artikel.id, artikel));
+  return map;
+}
+
 export async function updateGeraetStammdaten(id: string, input: GeraetStammdatenInput): Promise<void> {
   await updateRecord(GERAETE_ENTITY, id, {
     bmvcc_serienummer: input.serienummer,

@@ -142,6 +142,22 @@ export async function getAktuelleBemerkungenForGeraete(geraetIds: string[]): Pro
   return bemerkungen;
 }
 
+// Für PROJ-7 (PDF-Export): vollständiger aktuellster aktiver Prüfbericht pro
+// Gerät, gebatcht wie `getAktuelleBemerkungenForGeraete`. Geräte ohne aktiven
+// Prüfbericht fehlen bewusst in der Map (siehe PROJ-7 Product Decisions:
+// werden aus dem PDF ausgeschlossen, nicht mit leeren Feldern angezeigt).
+export async function getAktuellstePruefberichteForGeraete(geraetIds: string[]): Promise<Map<string, Pruefbericht>> {
+  const berichte = await listPruefberichteForGeraete(geraetIds, { includeStorniert: false });
+
+  const aktuellste = new Map<string, Pruefbericht>();
+  for (const bericht of berichte) {
+    if (!aktuellste.has(bericht.geraetId)) {
+      aktuellste.set(bericht.geraetId, bericht);
+    }
+  }
+  return aktuellste;
+}
+
 // "Aktuellster aktiver Bericht": höchstes Prüfdatum, bei Gleichstand der
 // zuletzt erstellte (Dataverse-Systemfeld `createdon`) — löst die in der
 // Spec offene Tie-Breaking-Frage ohne ein neues Feld (siehe Tech Design).
