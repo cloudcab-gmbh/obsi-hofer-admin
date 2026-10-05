@@ -188,7 +188,70 @@ Betrifft Component-Structure/Data-Model/Tech-Decisions im Tech-Design-Abschnitt 
 **Nachtrag (2026-10-05, Nutzerwunsch):** Zusätzliche Spalte "Letzte Prüfung" in der Geräteliste, direkt hinter "Lagerort" — bisher nur im Detail-Formular read-only sichtbar, jetzt auch in der Liste auf einen Blick erkennbar. Dafür `formatDatum()` aus `geraet-form.tsx` in ein gemeinsames `src/lib/format.ts` extrahiert, um Duplikation zu vermeiden.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-10-05
+**Tester:** QA Engineer (AI), aufbauend auf einer ausgiebigen Live-Testrunde des Nutzers selbst (echter Login, echte Dataverse-Daten)
+**Hinweis zur Testmethode:** Der Nutzer hat diese Runde bereits selbst live im Browser mit echten Daten getestet und dabei 7 echte Bugs/Lücken gefunden, die alle noch während der Testrunde behoben wurden (siehe Implementation Notes für Details zu jedem einzelnen). Diese QA-Runde ergänzt das um Code-Review, einen Security-Audit und automatisierte Tests für den bisher ungetesteten Code (`geraete.ts`, `actions.ts`, `firma-session.ts`); ein zusätzlicher manueller Playwright-E2E-Durchlauf ist in dieser Umgebung weiterhin nicht möglich (kein echter Entra-Login/keine echten Dataverse-Daten hier verfügbar).
+
+### Acceptance Criteria Status
+Alle 12 Acceptance Criteria erfüllt — die meisten direkt vom Nutzer live bestätigt ("funktioniert", "alles ok"), die übrigen (Standort-Filter-Sichtbarkeits-Schwelle bei genau einem vs. mehreren Standorten, Lagerort-Filter, Leer-Zustände) per Code-Review verifiziert.
+
+- [x] Hinweis + Link zu `/start` ohne gewählte Firma
+- [x] Firma-Auswahl bleibt über die Session erhalten (Cookie, 30 Tage) — vom Nutzer bestätigt
+- [x] Geräteliste zeigt ausschliesslich Geräte der gewählten Firma über alle Standorte hinweg
+- [x] Standort-Filter/-Spalte nur bei >1 Standort sichtbar (Code-Review: `standorte.length > 1`)
+- [x] Kein Standort-Filter bei genau einem Standort (Code-Review, derselbe Schalter)
+- [x] Suche nach Gerätename/Barcode/Seriennummer (und zusätzlich Kunden-ID, siehe Nachtrag) funktioniert
+- [x] Lagerort-Filter funktioniert (Code-Review: korrekt aus geladenen Geräten abgeleitet)
+- [x] "Keine Geräte gefunden"-Hinweis bei leerer gefilterter/ungefilterter Liste
+- [x] Detailansicht zeigt Stammdaten + read-only Prüfungs-Felder — vom Nutzer bestätigt
+- [x] Speichern übernimmt Änderungen in Dataverse — vom Nutzer bestätigt
+- [x] Verständliche Fehlermeldung + Datenerhalt bei Speicherfehler (Code-Review: `register()` ist unkontrolliert, kein `reset()` im Fehlerfall — Werte bleiben im Formular)
+- [x] Gerätename/Artikel/Standort/Firma read-only — vom Nutzer bestätigt (Gerätename-Korrektur war einer der 7 Bugs dieser Runde)
+
+### Edge Cases Status
+- [x] Last-Write-Wins bei gleichzeitiger Bearbeitung (Code-Review: kein Konfliktschutz implementiert, wie geplant)
+- [x] Firma mit bis zu ~200 Geräten: komplette Liste wird geladen, clientseitig gefiltert (Code-Review)
+- [x] Direkter Aufruf einer Geräte-Detailseite ohne vorherige Firma-Auswahl funktioniert weiterhin (lädt über die ID, unabhängig von der Session-Firma)
+- [x] Firma-Dropdown durchsuchbar (nach Bugfix: eigene Teilstring-Suche statt cmdk-Fuzzy-Suche)
+
+### Security Audit Results (Red Team / Code Review)
+- [x] Zugriff auf alle `/geraete`-Routen nur für eingeloggte Nutzer mit Rolle Bearbeiter/Freigeber (proxy.ts-Gate aus PROJ-1, unverändert)
+- [x] Keine Rollen-Differenzierung nötig/vorhanden (Bearbeiter = Freigeber für diese Funktion, wie in Product Decisions festgelegt)
+- [x] OData-Injection über `firmaId`/`standortId` verhindert (GUID-Validierung in `geraete.ts`, bereits während der Umsetzung gefunden und behoben, jetzt zusätzlich per Unit-Test abgesichert)
+- [x] `id`-Routenparameter der Detailseite wird über PROJ-2s `getRecord`-GUID-Validierung abgesichert
+- [x] Keine XSS-Angriffsfläche: alle Werte werden über React-JSX ausgegeben (automatisches Escaping), kein `dangerouslySetInnerHTML`
+- [x] Session-Cookie (`aktuelle_firma_id`) ist `httpOnly`, `sameSite=lax`, `secure` in Produktion, enthält keine sensiblen Daten (nur eine Firma-GUID)
+- [x] Keine Secrets im Client-Bundle (Dataverse-Zugangsdaten bleiben vollständig in PROJ-2 serverseitig)
+- [ ] BUG: siehe BUG-1 (Low) — mehrfache redundante Dataverse-Aufrufe für dieselbe Firma pro Seitenaufruf
+
+### Bugs Found
+
+#### BUG-1: Redundante `getFirma`-Aufrufe bei jedem `/start`-Aufruf
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. `/start` lädt selbst `getFirma(currentFirmaId)` für den "Weiter zu Geräte"-Button
+  2. `AppHeader` (wird auf jeder geschützten Seite gerendert, auch auf `/start` selbst) lädt unabhängig davon erneut `getFirma(currentFirmaId)` für die Kopfzeilen-Anzeige
+  3. Erwartet: Die aktuelle Firma wird pro Seitenaufruf einmal geladen
+  4. Tatsächlich: Ein Aufruf von `/start` löst zwei identische Dataverse-Anfragen aus; jede andere Seite mit `AppHeader` löst zusätzlich zu ihrem eigenen Bedarf eine weitere `getFirma`-Anfrage aus
+- **Priority:** Nice to have (bei diesem internen, wenig frequentierten Tool kein praktisches Problem, aber ein einfacher Optimierungspunkt für später, z.B. Firma-Name direkt im Cookie mitführen statt bei jedem Aufruf nachzuladen)
+
+#### BUG-2: Keine Begrenzung der OR-Filter-Kette bei sehr vielen Standorten einer Firma
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. `listGeraeteForStandorte()` baut für jede Firma eine OData-`$filter`-Kette mit einer OR-Bedingung pro Standort
+  2. Erwartet: Auch bei ungewöhnlich vielen Standorten einer Firma funktioniert die Abfrage zuverlässig
+  3. Tatsächlich: Bei sehr vielen Standorten (deutlich mehr als in der Praxis erwartet) könnte die resultierende Filter-/URL-Länge an Dataverse-Grenzen stossen — kein Safeguard vorhanden
+- **Priority:** Nice to have (unrealistisch bei der erwarteten Firmenstruktur; falls doch relevant, späterer Wechsel auf eine `Containsvalues`-Funktion oder mehrere Teilabfragen)
+
+### Summary
+- **Acceptance Criteria:** 12/12 erfüllt
+- **Bugs Found während dieser QA-Runde:** 2 total (0 critical, 0 high, 0 medium, 2 low) — beide "Nice to have", nicht blockierend
+- **Zusätzlich während der Live-Testrunde des Nutzers gefunden und bereits behoben (siehe Implementation Notes):** 7 (Zurück-Navigation fehlte, Herstelljahr-Feldtyp, Datums-Zeitstempel-Truncation, Firma-Suche, Gerätename-read-only, Firma-Auswahl-Architektur, Kunden-ID-Feld — keines davon mehr offen)
+- **Security:** Keine offenen Findings ausser den zwei Low-Priority-Nice-to-haves oben
+- **Neue Unit-Tests:** 22 (`geraete.test.ts`, `actions.test.ts`, `firma-session.test.ts`) — Testsuite insgesamt jetzt 62/62 grün
+- **Production Ready:** YES
+- **Recommendation:** Freigegeben für `/deploy`. BUG-1/BUG-2 können bei Gelegenheit nachgezogen werden, sind aber kein Hindernis.
 
 ## Deployment
 _To be added by /deploy_
