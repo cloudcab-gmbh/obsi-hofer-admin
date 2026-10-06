@@ -33,6 +33,14 @@ interface ExtrahierteVorlage {
 // direkt über `cell.value` gelesen und je nach Zelltyp (Text, Zahl, Datum,
 // Hyperlink, Rich-Text, Formel) der sichtbare Text selbst ermittelt.
 function zellText(cell: ExcelJS.Cell): string | null {
+  // Live-Fund (2026-10-06): In der Titelzeile ist die Adress-/Kontaktzeile
+  // über mehrere Spalten hinweg verbunden (merged cell). exceljs liefert für
+  // JEDE Zelle innerhalb eines Merge-Bereichs denselben Wert zurück (nicht
+  // nur für die Anker-Zelle oben links) — ohne diese Prüfung würde derselbe
+  // Text mehrfach in benachbarte Spalten unserer neuen Kopfzeile geschrieben
+  // (live beobachtet: "Obsi Hofer Gm Obsi Hofer GmbH I Obsi Hofer GmbH ...").
+  if (cell.isMerged && cell.master !== cell) return null;
+
   const value = cell.value;
   if (value === null || value === undefined) return null;
   if (typeof value === "string") return value.trim() || null;
@@ -188,6 +196,12 @@ export async function erzeugeArbeitskopie(vorlageBuffer: ArrayBuffer, zeilen: Ex
 
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("Bericht");
+  // Live-Fund (2026-10-06): ohne eigene Seiteneinrichtung verwendet die PDF-
+  // Konvertierung die Excel-Standardeinstellung (Hochformat, keine Skalierung)
+  // — bei vielen Spalten wurde die Tabelle dadurch über mehrere schmale Seiten
+  // aufgeteilt statt als eine breite Seite. "Auf 1 Seite breit" im Querformat
+  // entspricht dem bisherigen, manuell erstellten Referenzformat.
+  worksheet.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
 
   titelZeilen.forEach((zelleWerte) => {
     const row = worksheet.addRow(zelleWerte);

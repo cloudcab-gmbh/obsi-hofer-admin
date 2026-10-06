@@ -47,6 +47,7 @@ async function buildVorlage(
     mitBedingterFormatierung?: boolean;
     mitLogo?: boolean;
     mitHyperlinkInTitel?: boolean;
+    mitVerbundenerAdresszeile?: boolean;
     sheetName?: string;
   } = {}
 ): Promise<ArrayBuffer> {
@@ -56,6 +57,11 @@ async function buildVorlage(
   const titelRow = worksheet.addRow(["Prüfbericht Absturzsicherungen", "", "Beispiel-Firma"]);
   if (options.mitHyperlinkInTitel) {
     titelRow.getCell(4).value = { text: "info@obsi-hofer.ch", hyperlink: "mailto:info@obsi-hofer.ch" };
+  }
+  if (options.mitVerbundenerAdresszeile) {
+    const adressRow = worksheet.addRow([]);
+    worksheet.mergeCells(adressRow.number, 1, adressRow.number, 3);
+    adressRow.getCell(1).value = "Obsi Hofer GmbH I 4805 Brittnau";
   }
   worksheet.addRow(HEADER);
 
@@ -244,5 +250,31 @@ describe("erzeugeArbeitskopie", () => {
     // exceljs-Standardbreite (8.43) — sonst wird der Inhalt beim PDF-Export
     // abgeschnitten (live beobachtet).
     expect(worksheet.getColumn(1).width).toBeGreaterThan(15);
+  });
+
+  // Live-Fund (2026-10-06): exceljs liefert für JEDE Zelle innerhalb eines
+  // Merge-Bereichs denselben Wert (nicht nur für die Anker-Zelle) — ohne
+  // Behandlung erschien derselbe Adresstext live mehrfach in benachbarten
+  // Spalten der neuen Kopfzeile ("Obsi Hofer Gm Obsi Hofer GmbH I ...").
+  it("only takes a merged title-row cell's value from its anchor cell, not from every cell in the merge", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true, mitVerbundenerAdresszeile: true });
+
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ lagerort: "X" })]);
+    const worksheet = await loadWorksheet(ergebnis);
+
+    const adressZeile = worksheet.getRow(2); // Zeile 1 = Titel, Zeile 2 = verbundene Adresszeile, Zeile 3 = Kopfzeile
+    expect(adressZeile.getCell(1).text).toBe("Obsi Hofer GmbH I 4805 Brittnau");
+    expect(adressZeile.getCell(2).text).toBeFalsy();
+    expect(adressZeile.getCell(3).text).toBeFalsy();
+  });
+
+  it("sets up the page for landscape printing, scaled to fit one page wide", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true });
+
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()]);
+    const worksheet = await loadWorksheet(ergebnis);
+
+    expect(worksheet.pageSetup.orientation).toBe("landscape");
+    expect(worksheet.pageSetup.fitToWidth).toBe(1);
   });
 });
