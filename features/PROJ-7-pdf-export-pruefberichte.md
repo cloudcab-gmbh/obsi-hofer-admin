@@ -1,8 +1,8 @@
 # PROJ-7: PDF-Export Prüfberichte (kundenspezifisches Template)
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-10-05
-**Last Updated:** 2026-10-05
+**Last Updated:** 2026-10-06
 
 ## Dependencies
 - Requires: PROJ-1 (Entra-ID-Login mit Rollen) — Bearbeiter/Freigeber müssen eingeloggt sein
@@ -155,7 +155,74 @@ Siehe Decision Log → Technical Decisions oben.
 - `npx tsc --noEmit`, `npx eslint .`, `npx vitest run` (156 Tests, 37 davon neu) und `npm run build` laufen fehlerfrei durch.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-10-06
+**Tester:** QA Engineer (AI)
+**Hinweis zur Testmethode:** Wie bei allen bisherigen Features in diesem Repo lässt sich der echte Login-Flow nicht automatisiert/wiederholbar durchspielen. Zusätzlich ist der Zugriff auf die echte SharePoint-/Graph-Instanz vom lokalen Code aus nicht testbar (reine Konfigurationssache: Consent/Permission-Grant sind jetzt gesetzt, aber ein Live-Aufruf aus dem Agenten-Kontext ist nicht möglich). Fokus dieser Runde: Code-Review + automatisierte Tests (156/156 grün) + Red-Team-Analyse des neuen Datenflusses Client → Server Action → SharePoint.
+
+### Acceptance Criteria Status
+- [x] Firmenspezifische Vorlage im aktuellen Jahresordner wird gefunden und verwendet (`export.test.ts`: "uses the firma-specific template found in the current year's folder")
+- [x] Fehlt eine Vorlage im Jahresordner, wird die zentrale Standard-Vorlage verwendet (`export.test.ts`: "falls back to the central Standard-Vorlage...")
+- [x] Prüfdatum/Prüfer/Prüfergebnis/Bemerkung des aktuellsten aktiven Prüfberichts erscheinen pro Zeile (`export.ts`: `zuExportZeile`, Daten stammen aus `getAktuellstePruefberichteForGeraete` — serverseitig frisch aus Dataverse, nicht aus Client-Daten, siehe BUG-1 unten für die übrigen Felder)
+- [x] Geräte ohne aktiven Prüfbericht werden ausgeschlossen (`export.test.ts`: "excludes a Gerät without an active Prüfbericht...")
+- [x]/[ ] Farbliche Hervorhebung je Prüfergebnis — funktioniert über die in der Vorlage vorhandene bedingte Formatierung (`arbeitskopie.test.ts`, mehrere Tests); **nicht verifizierbar gegen die echte Vorlagen-Datei** in dieser Umgebung, siehe Implementation Notes
+- [x] Leere gefilterte Geräteliste → Fehlermeldung statt leerem PDF (`export.test.ts`: "throws an ExportFehler... when the Geräte list is empty")
+- [x] PDF wird zum Download angeboten UND im Jahresordner abgelegt (`export.test.ts`: zwei `uploadKundenDatei`-Aufrufe verifiziert) — siehe BUG-3 für den Fehlerfall
+- [x] Lagerort-Filter erscheint im Dateinamen, sonst entfällt der Zusatz (`export.test.ts`: beide Fälle getestet)
+
+### Edge Cases Status
+- [x] Reale Jahres-Datei bleibt unverändert (Vorlage wird nur gelesen, nicht beschrieben) — durch das Design erzwungen: `downloadKundenDatei`/`ladeVorlage` haben keinerlei Schreibpfad auf die Quelle, nur `erzeugeArbeitskopie` (arbeitet im Speicher) wird hochgeladen
+- [x] Mehrere Excel-Dateien im selben Jahresordner → zuletzt geänderte gewinnt (`kunden-drive.test.ts`: "picks the most recently modified .xlsx file...")
+- [x] Zwei Bearbeiter generieren zeitgleich für dieselbe Firma → unkritisch, da nur lesender Zugriff auf die reale Datei und je Export eine eigene, UUID-benannte temporäre Datei (`_temp-${crypto.randomUUID()}.xlsx`), keine gemeinsame Ressource
+- [ ] **Siehe BUG-2**: Microsoft Graph/SharePoint-Fehler beim Löschen der temporären Arbeitskopie maskiert eine ansonsten erfolgreiche PDF-Generierung
+- [ ] **Siehe BUG-3**: Fehler beim finalen Archiv-Upload verhindert auch den Download, obwohl das PDF bereits fertig im Speicher vorliegt
+
+### Security Audit Results (Red Team)
+- [x] Authentifizierung: `generatePdfAction` liegt unter `(protected)/geraete`, die Proxy-Middleware (`src/proxy.ts`) greift für denselben Pfad auch bei Server-Action-POSTs (kein `/api`-Ausschluss für diese Route) — ein nicht eingeloggter Aufruf wird vor Erreichen der Action umgeleitet
+- [x] Autorisierung/Firma-Isolation beim SharePoint-Pfad: `firmaName` wird ausschliesslich serverseitig über `getCurrentFirmaId()` → `getFirma()` aufgelöst, nie vom Client übernommen — ein Client kann also nicht gezielt in den Jahresordner einer anderen Firma schreiben/lesen lassen
+- [x] OData-/Pfad-Injection: `artikelId`-Liste läuft weiterhin durch `requireValidGuid` (unverändert aus den bestehenden Modulen); SharePoint-Pfadsegmente werden über `bereinigeFuerDateinamen` von den klassischen Sonderzeichen (`\ / : * ? " < > |`) befreit. Ein Firmenname, der ausschliesslich aus `..` besteht, wurde geprüft: Microsoft Graphs pfadbasierte Adressierung (`/root:/{pfad}:/`) löst Segmente als exakte Kind-Elementnamen auf, nicht als generischen Dateisystempfad — ein Segment `..` würde als (nicht existierendes) Element gesucht, nicht als Verzeichnis-Aufstieg interpretiert; keine praktikable Traversal-Möglichkeit gefunden
+- [ ] **BUG-1 (High):** Server Action vertraut vollständigen, vom Client mitgegebenen `Geraet`-Objekten statt die Stammdaten serverseitig neu zu laden
+- [ ] BUG-2 (Medium): siehe oben
+- [ ] BUG-3 (Low): siehe oben
+
+### Bugs Found
+
+#### BUG-1: Client-seitig mitgegebene Gerätedaten werden ungeprüft in das offizielle PDF übernommen
+- **Severity:** High
+- **Steps to Reproduce:**
+  1. `generatePdfAction(geraete, lagerortFilter)` (`src/app/(protected)/geraete/actions.ts`) nimmt ein vollständiges Array von `Geraet`-Objekten vom Client entgegen — das sind exakt die Objekte, die der Browser im Zustand der `GeraeteListe`-Komponente hält
+  2. Next.js Server Actions sind als eigenständige, direkt aufrufbare Endpoints exponiert (POST auf denselben Routen-Pfad mit einem `Next-Action`-Header) — ein eingeloggter Bearbeiter/Freigeber kann diesen Aufruf direkt (z.B. per curl/DevTools) mit selbst zusammengestellten `Geraet`-Objekten ausführen, nicht nur über die UI
+  3. In `generatePruefberichtPdf` (`src/lib/pruefbericht-export/export.ts`) wird zwar der **Prüfbericht** (Datum/Prüfer/Ergebnis/Bemerkung) korrekt serverseitig über `getAktuellstePruefberichteForGeraete(geraete.map(g => g.id))` frisch aus Dataverse geladen — die **Gerätestammdaten** selbst (`lagerort`, `serienummer`, `barcode`, `herstelljahr`, `erstgebrauch`, `ablegereife`, `zubehoer`, `kundenId`, `name`/Inv.Nr.) werden aber direkt und ungeprüft aus dem vom Client mitgegebenen Objekt in `zuExportZeile()` übernommen
+  4. Ein manipulierter Aufruf könnte für ein real existierendes Gerät (mit echtem, gültigem Prüfbericht — sonst würde es weiter unten herausgefiltert) z.B. ein gefälschtes `ablegereife`-Datum, eine falsche Seriennummer oder einen falschen Lagerort im generierten, offiziell wirkenden PDF erscheinen lassen
+  5. Das PDF wird automatisch im echten Kunden-Archiv (`Kunden/{Firma}/Prüfberichte/{Jahr}/`) abgelegt und steht zum Download/Versand an den Kunden bereit — ein Nachweisdokument für sicherheitsrelevante Prüfungen (Absturzsicherungen!) mit potenziell falschen Gerätedaten wäre damit faktisch nicht mehr vertrauenswürdig
+  6. Das eigentliche Prüfergebnis (Freigabe/keine Freigabe) selbst kann dadurch **nicht** gefälscht werden (kommt immer frisch aus Dataverse) — das mindert die Schwere, macht den Fund aber nicht harmlos: falsche Herstellungs-/Ablegereife-Daten sind bei Absturzsicherungsausrüstung selbst sicherheitsrelevant
+- **Priority:** Fix before deployment
+
+#### BUG-2: Fehler beim Löschen der temporären Arbeitskopie maskiert eine erfolgreiche PDF-Generierung
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. In `generatePruefberichtPdf` steht die Konvertierung in einem `try`, das Löschen der temporären Datei im zugehörigen `finally`
+  2. Schlägt `konvertiereZuPdf` erfolgreich durch, aber `loescheKundenDatei` im `finally`-Block wirft (z.B. kurzzeitiger Netzwerkfehler bei Graph), überschreibt diese Exception laut JavaScript-Semantik das erfolgreiche Ergebnis des `try`-Blocks
+  3. Der Bearbeiter sieht eine Fehlermeldung und bekommt kein PDF, obwohl die Generierung selbst vollständig erfolgreich war — einzige tatsächliche Folge wäre eine liegen gebliebene, harmlose `_temp-*.xlsx`-Datei im Jahresordner
+- **Priority:** Should fix
+
+#### BUG-3: Fehler beim finalen Archiv-Upload verhindert auch den Download
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Nach erfolgreicher PDF-Konvertierung wird das Ergebnis zusätzlich per `uploadKundenDatei` archiviert — schlägt dieser letzte Schritt fehl (z.B. transiente SharePoint-Störung), wirft `generatePruefberichtPdf` komplett, bevor es das bereits fertige PDF zurückgibt
+  2. Der Bearbeiter bekommt weder Download noch Archiv-Kopie, obwohl das PDF korrekt im Speicher vorlag
+- **Priority:** Nice to have
+
+### Automatisierte Tests
+- **Unit-/Integrationstests (Vitest):** 156/156 grün gesamt (37 neu für PROJ-7: `feld-mapping.test.ts`, `arbeitskopie.test.ts`, `export.test.ts`, `sharepoint/client.test.ts`, `sharepoint/kunden-drive.test.ts`)
+- **Regression:** Alle bisherigen PROJ-1/2/3/4-Tests weiterhin grün. `npx tsc --noEmit`, `npm run lint` und `npm run build` laufen fehlerfrei durch
+
+### Summary
+- **Acceptance Criteria:** 8/8 funktional erfüllt, 1 davon (Farbcodierung) nur per Unit-Test gegen eine synthetische Vorlage verifiziert, nicht gegen die echte Datei
+- **Bugs Found:** 3 total (0 critical, 1 high, 1 medium, 1 low)
+- **Security:** 1 High-Finding — Datenintegrität des erzeugten Nachweisdokuments, keine Zugriffskontrolllücke (Firma-Isolation und Authentifizierung sind sauber)
+- **Production Ready:** NO
+- **Recommendation:** BUG-1 vor dem Deploy beheben (Server Action auf `geraetIds: string[]` umstellen, Gerätestammdaten serverseitig per Dataverse neu laden statt vom Client zu übernehmen, dabei zusätzlich prüfen, dass jedes geladene Gerät tatsächlich zur aktuellen Session-Firma gehört). BUG-2 sollte im selben Zug behoben werden (Fehler beim Löschen der temporären Datei separat abfangen/loggen statt den Erfolg zu überschreiben). BUG-3 kann bei Gelegenheit, muss aber nicht vor dem ersten Deploy behoben werden.
 
 ## Deployment
 _To be added by /deploy_
