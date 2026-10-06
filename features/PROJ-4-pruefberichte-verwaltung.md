@@ -1,6 +1,6 @@
 # PROJ-4: Prüfberichte-Verwaltung
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-10-05
 **Last Updated:** 2026-10-06
 
@@ -308,4 +308,12 @@ Zusätzlich für alle 20 in den letzten 2 Tagen geänderten Prüfberichte geprü
 - **Recommendation:** Freigegeben (Status **Approved**), bereit für `/deploy`.
 
 ## Deployment
-_To be added by /deploy_
+- **Production URL:** https://obsi-hofer-admin.vercel.app
+- **Deployed:** 2026-10-06 (automatisch via Vercel bei Push auf `main`, letzter Commit `907ca46`)
+- **Tag:** `v1.4.0-PROJ-4`
+- **Voraussetzung (vom Nutzer erledigt):** Sicherheitsrolle des App-Benutzers "# OBSI Hofer Admin" um **"Anfügen an" (Append To) auf Geraete** ergänzt; auf Prüfbericht sind Erstellen, Schreiben und Anfügen nötig. Keine neuen Umgebungsvariablen.
+- **Verifiziert:**
+  - Pre-Deployment: `npm run build`, `npm run lint`, `npx tsc --noEmit`, `npm test` (185/185) und `npm run test:e2e` grün; keine Secrets im Repo; alle Umgebungsvariablen in `.env.local.example` dokumentiert
+  - Produktion: `/login` antwortet mit HTTP 200; `/pruefberichte`, `/pruefberichte/neu` und `/geraete` leiten ohne Session per 307 auf `/login` um
+  - Schreibpfad live in Produktion: Anlegen, Bearbeiten und Stornieren am 2026-10-06 durch den Nutzer, anhand der Dataverse-Datensätze verifiziert (siehe QA Runde 2)
+  - Nicht separat live geprüft: die Normalisierung der Altdaten-Schreibweise (BUG-4-Fix, nur Unit-Test) — beim nächsten Öffnen eines Berichts mit "Letzte Freigabe" kurz kontrollieren
