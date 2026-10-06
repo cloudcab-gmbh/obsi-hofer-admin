@@ -22,17 +22,28 @@ export function KundenportalKontakte({ kontakte, firmaName }: { kontakte: Kunden
     setFreigaben((m) => new Map(m).set(kontakt.id, neu));
     setSpeichernd((s) => new Set(s).add(kontakt.id));
 
-    const result = await setKundenportalFreigabeAction(kontakt.id, neu);
-
-    if (!result.success) {
-      setFreigaben((m) => new Map(m).set(kontakt.id, vorher));
-      setFehler(`${kontakt.name}: ${result.message}`);
+    // QA BUG-1: Der Aufruf selbst kann werfen (Verbindungsabbruch, oder nach
+    // einem Vercel-Deploy ist die Server-Action-ID der offenen Seite
+    // ungültig) — dann ebenfalls zurücksetzen, statt einen nicht
+    // gespeicherten Zustand dauerhaft gesperrt anzuzeigen.
+    let fehlermeldung: string | null = null;
+    try {
+      const result = await setKundenportalFreigabeAction(kontakt.id, neu);
+      if (!result.success) fehlermeldung = result.message;
+    } catch {
+      fehlermeldung = "Die Änderung konnte nicht gespeichert werden. Bitte die Seite neu laden und erneut versuchen.";
+    } finally {
+      setSpeichernd((s) => {
+        const next = new Set(s);
+        next.delete(kontakt.id);
+        return next;
+      });
     }
-    setSpeichernd((s) => {
-      const next = new Set(s);
-      next.delete(kontakt.id);
-      return next;
-    });
+
+    if (fehlermeldung) {
+      setFreigaben((m) => new Map(m).set(kontakt.id, vorher));
+      setFehler(`${kontakt.name}: ${fehlermeldung}`);
+    }
   }
 
   return (

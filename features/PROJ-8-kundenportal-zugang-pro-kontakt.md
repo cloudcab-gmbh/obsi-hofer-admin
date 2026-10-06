@@ -1,6 +1,6 @@
 # PROJ-8: Kundenportal-Zugang pro Kontakt
 
-## Status: In Review
+## Status: Approved
 **Created:** 2026-10-06
 **Last Updated:** 2026-10-06
 
@@ -180,7 +180,7 @@ Umgesetzt in einem Durchlauf (UI + Server Action + Datenzugriff), wie bei PROJ-3
 - [x] Bearbeiter: Zugriff serverseitig verweigert (Seite + Action) — Code-Review + Unit-Test `actions.test.ts`
 - [x] Ohne Firma: Hinweis mit Link zu `/start` — Code-Review (gleiches Muster wie `/geraete`)
 - [x] Firma ohne Kontakte: Leer-Hinweis — Code-Review + Unit-Test
-- [ ] Fehler beim Speichern: Meldung + Rücksetzen — **teilweise**: bei einem von Dataverse gemeldeten Fehler korrekt (Action liefert die Meldung), bei einem Fehler des Aufrufs selbst nicht → siehe BUG-1
+- [x] Fehler beim Speichern: Meldung + Rücksetzen — gemeldete und geworfene Fehler, nach Behebung von BUG-1 (Komponententests)
 
 ### Edge Cases Status
 - [x] Kontakt mehrerer Firmen → Hinweis "Freigabe gilt auch für weitere Firmen" (gegen echte Daten verifiziert: "4Viertel")
@@ -211,6 +211,7 @@ Umgesetzt in einem Durchlauf (UI + Server Action + Datenzugriff), wie bei PROJ-3
   5. Tatsächlich: `aendereFreigabe()` in `kundenportal-kontakte.tsx` wartet ohne `try/catch` auf die Action; wirft der Aufruf, wird weder zurückgesetzt noch eine Meldung gezeigt, und der Kontakt bleibt in "speichernd" → Häkchen zeigt den neuen, **nicht gespeicherten** Zustand und ist bis zum Neuladen gesperrt. Gleiches gilt, wenn die Action vor ihrem eigenen `try` wirft (z.B. Fehler beim Lesen der Session)
 - **Workaround:** Seite neu laden — zeigt den tatsächlichen Stand
 - **Priority:** Fix before deployment (verletzt das Akzeptanzkriterium und den Grundsatz "Liste zeigt nie einen Zustand, der nicht in Dataverse steht")
+- **Status:** ✅ Fixed (2026-10-06) — `aendereFreigabe()` umschliesst den Aufruf mit `try/catch/finally`: die Sperre wird immer aufgehoben, und bei einem geworfenen Fehler wird wie bei einer gemeldeten Ablehnung zurückgesetzt und "Die Änderung konnte nicht gespeichert werden. Bitte die Seite neu laden und erneut versuchen." angezeigt. Neue Komponententests `src/components/kundenportal-kontakte.test.tsx` (4 Fälle: Erfolg, gemeldeter Fehler, geworfener Fehler, E-Mail-Sperre); per Gegenprobe bestätigt, dass der BUG-1-Test mit dem alten Code fehlschlägt. `npm test` 206/206, Lint, TypeScript und Build grün
 
 ### Automatisierte Tests
 - `npm test`: 202/202 grün (17 für PROJ-8: `kontakte.test.ts`, `sync-freigabe/actions.test.ts`)
@@ -218,10 +219,10 @@ Umgesetzt in einem Durchlauf (UI + Server Action + Datenzugriff), wie bei PROJ-3
 - Nicht durchgeführt: Cross-Browser-/Responsive-Test der eingeloggten Seite (benötigt echten Login); Tabelle ist per `overflow-x-auto` für schmale Bildschirme vorbereitet
 
 ### Summary
-- **Acceptance Criteria:** 9/10 erfüllt (3 davon live verifiziert), 1 teilweise (BUG-1)
-- **Bugs Found:** 1 total (0 critical, 0 high, 1 medium, 0 low)
+- **Acceptance Criteria:** 10/10 erfüllt (3 davon live verifiziert)
+- **Bugs Found:** 1 total (0 critical, 0 high, 1 medium, 0 low) — **behoben**, keine offenen Bugs
 - **Security:** keine Findings
-- **Production Ready:** JA nach Regel (keine Critical/High) — **Empfehlung: BUG-1 vor dem Deploy beheben**, da er bei jedem Auto-Deploy mit offener Seite auftreten kann und dann einen falschen Freigabestatus anzeigt
+- **Production Ready:** **JA** — Status **Approved**, bereit für `/deploy`
 
 ## Deployment
 _To be added by /deploy_
