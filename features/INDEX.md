@@ -22,7 +22,7 @@
 | PROJ-5 | Sync-Freigabe pro Firma | Planned | [Spec](../features/PROJ-5-sync-freigabe-pro-firma.md) | 2026-09-25 |
 | PROJ-6 | Sync-Status/-Verlauf einsehen | Roadmap | — | 2026-09-25 |
 | PROJ-7 | PDF-Export Prüfberichte (kundenspezifisches Template) | Deployed | [Spec](../features/PROJ-7-pdf-export-pruefberichte.md) | 2026-10-05 |
-| PROJ-8 | Kundenportal-Zugang pro Kontakt | Planned | [Spec](../features/PROJ-8-kundenportal-zugang-pro-kontakt.md) | 2026-10-06 |
+| PROJ-8 | Kundenportal-Zugang pro Kontakt | Architected | [Spec](../features/PROJ-8-kundenportal-zugang-pro-kontakt.md) | 2026-10-06 |
 
 <!-- Add features above this line -->
 

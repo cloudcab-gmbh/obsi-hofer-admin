@@ -1,6 +1,6 @@
 # PROJ-8: Kundenportal-Zugang pro Kontakt
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-10-06
 **Last Updated:** 2026-10-06
 
@@ -88,12 +88,57 @@
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Neue, wiederverwendbare serverseitige Prüfung "nur Freigeber", auf Seiten- UND Aktionsebene | Der bestehende Zugriffsschutz (`proxy.ts`) lässt Bearbeiter und Freigeber gleichermassen durch, der Header blendet den Menüpunkt nur aus. Die Spec verlangt eine echte serverseitige Sperre; dieselbe Prüfung braucht PROJ-5 für den Sync-Button | 2026-10-06 |
+| Server Action pro Häkchen-Änderung (statt Sammel-"Speichern"-Button), mit sofortiger Anzeige und Rücksetzen bei Fehler | Spec verlangt sofortiges Speichern; Rücksetzen auf den gespeicherten Zustand bei Fehler erfüllt das Fehler-Kriterium; konsistent mit den Server Actions aus PROJ-3/4 | 2026-10-06 |
+| E-Mail-Regel wird serverseitig erneut geprüft: Freigeben ohne E-Mail wird abgelehnt, Entziehen ist immer erlaubt | Die deaktivierte Checkbox allein liesse sich mit einem nachgebauten Request umgehen (gleiche Lehre wie QA BUG-1 in PROJ-4); Entziehen muss auch bei fehlender E-Mail möglich bleiben (Edge Case) | 2026-10-06 |
+| Firmen-Zuordnung über `bmvcc_relation`, Kontakte danach gebündelt in Blöcken nachgeladen | Einzige befüllte Verknüpfung (verifiziert); Blockweises Laden vermeidet zu lange Dataverse-Abfragen — gleiches Muster wie bei Geräten/Prüfberichten | 2026-10-06 |
+| "Auch anderen Firmen zugeordnet" wird aus einer zweiten Abfrage auf `bmvcc_relation` für die angezeigten Kontakte ermittelt | Ohne diese Info würde ein Freigeber nicht merken, dass ein Häkchen auch für andere Firmen gilt (Edge Case, aktuell 11 Kontakte) | 2026-10-06 |
+| Der Seiten-Rahmen `/sync-freigabe` wird von PROJ-8 angelegt; die Anzahl freigegebener Kontakte wird auf Seitenebene bereitgehalten | PROJ-5 hängt seinen Sync-Bereich darunter und braucht genau diese Zahl (Button-Sperre, Bestätigungsdialog) — ohne erneutes Laden | 2026-10-06 |
+| Keine neuen Pakete und keine neuen shadcn-Komponenten | `checkbox`, `table`, `card`, `badge` sind bereits installiert | 2026-10-06 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### A) Component Structure
+```
+/sync-freigabe (neue Seite, nur für Freigeber)
++-- Zugriffsprüfung "nur Freigeber"
+|   +-- Bearbeiter → Weiterleitung auf "Kein Zugang" (wie bei fehlender Rolle)
++-- Keine Firma gewählt → Hinweis + Link zu /start (gleiches Muster wie /geraete)
++-- Bereich "Kundenportal-Zugang" (PROJ-8)
+|   +-- Überschrift mit Firmenname
+|   +-- Hinweis: "Änderungen werden mit dem nächsten Sync im Kundenportal wirksam."
+|   +-- Kontakt-Tabelle (alphabetisch nach Name)
+|   |   +-- Spalten: Name, E-Mail, Rolle, Kundenportal (Häkchen)
+|   |   +-- Kein E-Mail → Häkchen deaktiviert + Hinweis "Keine E-Mail-Adresse hinterlegt"
+|   |   |   (bereits gesetztes Häkchen bleibt entfernbar)
+|   |   +-- Mehreren Firmen zugeordnet → Hinweis "gilt auch für weitere Firmen"
+|   |   +-- Während des Speicherns: Häkchen dieses Kontakts gesperrt
+|   |   +-- Fehler: Meldung + Häkchen springt auf den gespeicherten Zustand zurück
+|   +-- Leer-Zustand: "Dieser Firma sind in Bexio keine Kontakte zugeordnet."
++-- [Platz für PROJ-5: Sync-Bereich mit Button, nutzt die Anzahl freigegebener Kontakte]
+```
+
+### B) Data Model (plain language)
+Kein eigenes Datenmodell — alles live aus Dataverse:
+- **Welche Kontakte gehören zur Firma:** alle Relationen (`bmvcc_relation`) mit dieser Firma → liefert je Kontakt die Person und die Rolle. Mehrere Relationen derselben Person zur selben Firma werden zu einem Eintrag zusammengefasst, Rollen kommagetrennt.
+- **Kontaktdaten:** zu diesen Personen aus `bmvcc_kontakt` Name (Name 1 + Name 2), E-Mail, Aktiv-Status und das Häkchen "Kundenportal". Inaktive werden verworfen.
+- **Weitere Firmen:** für die angezeigten Kontakte eine zweite Relations-Abfrage, ob sie noch anderen Firmen zugeordnet sind (nur ja/nein für den Hinweis).
+- **Geschrieben wird ausschliesslich** das Feld "Kundenportal" (Ja/Nein) eines einzelnen Kontakts.
+
+### C) Tech Decisions (für PM erklärt)
+- **Echte Zugriffssperre für Nicht-Freigeber:** Heute lässt der Zugriffsschutz alle Mitarbeitenden mit Bearbeiter- oder Freigeber-Rolle auf jede Seite. Für diese Seite und die Häkchen-Aktion kommt eine zusätzliche Prüfung "nur Freigeber" hinzu — auf der Seite selbst und bei jeder Speicher-Aktion, damit sie sich nicht über einen direkten Aufruf umgehen lässt. Dieselbe Prüfung nutzt später PROJ-5.
+- **Jedes Häkchen speichert sofort:** Kein separater Speichern-Knopf. Die Änderung wird sofort angezeigt; schlägt das Speichern fehl, erscheint eine Meldung und das Häkchen springt zurück — so zeigt die Liste nie einen Zustand, der nicht in Dataverse steht.
+- **Regeln werden auf dem Server geprüft, nicht nur in der Anzeige:** Freigeben ohne E-Mail wird vom Server abgelehnt, auch wenn jemand die deaktivierte Checkbox umgeht. Entziehen ist immer erlaubt.
+- **Zuordnung über Bexio-Relationen:** Die einzige tatsächlich gepflegte Verbindung zwischen Firma und Kontakt; Rollen kommen von dort mit.
+- **Vorbereitet für PROJ-5:** Die Seite wird so aufgebaut, dass der Sync-Bereich später einfach darunter ergänzt wird und die Zahl der freigegebenen Kontakte direkt mitbekommt.
+
+### D) Dependencies
+- Keine neuen Pakete
+- Keine neuen shadcn-Komponenten (`checkbox`, `table`, `card`, `badge` vorhanden)
+- Dataverse-Rechte: bereits erteilt und verifiziert (siehe Dependencies)
 
 ## QA Test Results
 _To be added by /qa_
