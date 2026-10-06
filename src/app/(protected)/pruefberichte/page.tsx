@@ -75,7 +75,7 @@ export default async function PruefberichteUebersichtPage() {
           <CardContent className="py-10 text-center text-sm text-muted-foreground">{loadError}</CardContent>
         </Card>
       ) : (
-        <PruefberichteUebersicht berichte={berichte} geraetNamen={geraetNamen} initialSuche={filter.suche} />
+        <PruefberichteUebersicht key={firmaId ?? ""} berichte={berichte} geraetNamen={geraetNamen} initialSuche={filter.suche} />
       )}
     </main>
   );

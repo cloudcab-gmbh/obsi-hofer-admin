@@ -2,7 +2,7 @@
 
 ## Status: Deployed
 **Created:** 2026-10-05
-**Last Updated:** 2026-10-05
+**Last Updated:** 2026-10-06
 
 ## Dependencies
 - Requires: PROJ-1 (Entra-ID-Login mit Rollen) — für eingeloggte Nutzer mit Rolle Bearbeiter/Freigeber
@@ -192,6 +192,8 @@ Betrifft Component-Structure/Data-Model/Tech-Decisions im Tech-Design-Abschnitt 
 **Architektur-Nachtrag (2026-10-05, Nutzerwunsch, betrifft auch PROJ-4):** Der Geräteliste-Filter (Suche/Lagerort/Standort) gilt jetzt session-weit, analog zur Firma-Auswahl — neues `src/lib/geraete-filter-session.ts` (Cookie, 30 Tage) sowie eine gemeinsame reine Filter-Funktion `matchesGeraeteFilter()` in `src/lib/dataverse/geraete.ts`. `GeraeteListe` initialisiert sich daraus und schreibt Änderungen verzögert (400ms) zurück. Grund für die Verschiebung: Die firmenweite Prüfberichte-Übersicht (PROJ-4) übernimmt denselben Filter, damit der Nutzer nicht doppelt filtern muss (siehe PROJ-4 Implementation Notes).
 
 **Nachtrag (2026-10-05, Nutzerwunsch):** Zusätzlicher Filter "Letzte Prüfung (Tage)" in der Geräteliste — zeigt nur Geräte, deren letzte Prüfung höchstens N Tage zurückliegt (Zahlenfeld, leer = keine Einschränkung, Platzhalter schlägt 7 Tage vor; standardmässig AUS, konsistent mit den übrigen Filtern). Geräte ohne jemals erfasste Prüfung werden bei aktivem Filter ausgeblendet. Teil des session-weiten Filters und damit auch in der PROJ-4-Übersicht wirksam.
+
+**Nachtrag (2026-10-06, Nutzerwunsch):** Beim Wechsel der Firma werden die Geräteliste-Filter (Suche, Lagerort, Standort, Letzte Prüfung) zurückgesetzt — Lagerorte/Standorte sind firmenspezifisch, ein übernommener Filter hätte bei der neuen Firma eine leere oder falsche Liste gezeigt. `setCurrentFirmaId()` (`firma-session.ts`) löscht das Filter-Cookie über das neue `clearGeraeteFilterState()`, wenn sich die Firma tatsächlich ändert (gleiche Firma erneut gewählt → Filter bleibt). Zusätzlich erhalten `GeraeteListe` und `PruefberichteUebersicht` `key={firmaId}`, damit ihr Client-State beim Firmenwechsel neu aus dem (jetzt leeren) Filter aufgebaut wird statt die alten Werte zu behalten. Tests in `firma-session.test.ts`.
 
 **Nachtrag (2026-10-05, Nutzerwunsch):** Zusätzliche Spalte "PB_Bemerkung" in der Geräteliste, direkt hinter "Status" — zeigt die Bemerkung des jeweils aktuellsten aktiven Prüfberichts (PROJ-4) je Gerät. Neue Funktion `getAktuelleBemerkungenForGeraete()` in `src/lib/dataverse/pruefberichte.ts`, holt alle betroffenen Prüfberichte gebatcht statt pro Gerät einzeln (nutzt die bereits vorhandene Chunking-Logik von `listPruefberichteForGeraete`).
 

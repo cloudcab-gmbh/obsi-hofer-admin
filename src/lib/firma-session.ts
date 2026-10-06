@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { clearGeraeteFilterState } from "./geraete-filter-session";
 
 // "Aktuelle Firma" gilt global für die Session (Nutzerwunsch 2026-10-05,
 // siehe PROJ-3 Implementation Notes) — einmal auf /start gewählt, gilt sie
@@ -16,6 +17,11 @@ export async function getCurrentFirmaId(): Promise<string | null> {
 
 export async function setCurrentFirmaId(firmaId: string): Promise<void> {
   const store = await cookies();
+  // Nutzerwunsch 2026-10-06: Filter der Geräteliste gelten nur für die Firma,
+  // für die sie gesetzt wurden (Lagerorte/Standorte sind firmenspezifisch).
+  if (store.get(COOKIE_NAME)?.value !== firmaId) {
+    await clearGeraeteFilterState();
+  }
   store.set(COOKIE_NAME, firmaId, {
     httpOnly: true,
     sameSite: "lax",

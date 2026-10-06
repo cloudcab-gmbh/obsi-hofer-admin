@@ -38,6 +38,12 @@ export async function getGeraeteFilterState(): Promise<GeraeteFilterState> {
   }
 }
 
+/** Setzt den Filter zurück — beim Firmenwechsel, da Lagerorte/Standorte firmenspezifisch sind. */
+export async function clearGeraeteFilterState(): Promise<void> {
+  const store = await cookies();
+  store.delete(COOKIE_NAME);
+}
+
 export async function setGeraeteFilterState(state: GeraeteFilterState): Promise<void> {
   const store = await cookies();
   store.set(COOKIE_NAME, JSON.stringify(state), {

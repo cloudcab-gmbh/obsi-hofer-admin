@@ -49,6 +49,9 @@ export default async function GeraetePage() {
         </Card>
       ) : (
         <GeraeteListe
+          // Neu aufbauen bei Firmenwechsel, sonst behält der Client-State die
+          // Filter der vorherigen Firma (der Cookie wird serverseitig geleert).
+          key={firmaId ?? ""}
           geraete={geraete}
           standorte={standorte}
           initialFilter={initialFilter}
