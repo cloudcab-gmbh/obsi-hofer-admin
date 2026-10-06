@@ -206,14 +206,6 @@ export async function erzeugeArbeitskopie(
     cell.border = { bottom: { style: "thin" } };
   });
 
-  // Live-Fund (2026-10-06): eine frisch erzeugte Arbeitsmappe hat ohne
-  // explizite Breiten die exceljs-Standardbreite (sehr schmal) — Inhalte
-  // wurden dadurch beim PDF-Export abgeschnitten. Breite richtet sich nach
-  // der Länge der jeweiligen Spaltenüberschrift, mit Mindest-/Höchstmass.
-  headerZeile.forEach((text, index) => {
-    worksheet.getColumn(index + 1).width = Math.min(40, Math.max(12, (text?.length ?? 10) + 4));
-  });
-
   // Live-Fund (2026-10-06): bedingte Formatierung (addConditionalFormatting,
   // intern eine SEARCH()-Formel) wurde von der Graph-PDF-Konvertierung
   // offenbar nicht ausgewertet — das Prüfergebnis blieb im exportierten PDF
@@ -237,6 +229,20 @@ export async function erzeugeArbeitskopie(
       row.getCell(ergebnisSpalte).fill = { type: "pattern", pattern: "solid", fgColor: { argb: treffer.argb } };
     }
   });
+
+  // Live-Fund (2026-10-06): die Spaltenbreite allein anhand der Kopfzeilen-
+  // Überschrift zu setzen reichte nicht — kurze Überschriften wie "Artikel"
+  // oder "Zubehör" enthalten oft deutlich längere tatsächliche Werte
+  // ("Höhensicherungsgerät mit Rettungshub", "1x Stahlkarabiner TL+"), die
+  // dadurch im PDF abgeschnitten wurden. Breite richtet sich jetzt nach dem
+  // längsten tatsächlich vorkommenden Inhalt je Spalte (Kopfzeile oder
+  // Datenwert), mit Mindest-/Höchstmass.
+  for (let spalte = 1; spalte <= spaltenAnzahl; spalte++) {
+    const feld = mapping.get(spalte);
+    const headerLaenge = headerZeile[spalte - 1]?.length ?? 10;
+    const maxDatenLaenge = feld ? Math.max(0, ...zeilen.map((zeile) => zeile[feld]?.length ?? 0)) : 0;
+    worksheet.getColumn(spalte).width = Math.min(50, Math.max(12, Math.max(headerLaenge, maxDatenLaenge) + 2));
+  }
 
   const buffer = await workbook.xlsx.writeBuffer();
   return buffer as ArrayBuffer;

@@ -295,6 +295,23 @@ describe("erzeugeArbeitskopie", () => {
     expect(worksheet.getColumn(1).width).toBeGreaterThan(15);
   });
 
+  // Live-Fund (2026-10-06): Breite allein anhand der Kopfzeile reichte nicht
+  // — kurze Überschriften wie "Artikel" enthalten oft deutlich längere
+  // tatsächliche Werte ("Höhensicherungsgerät mit Rettungshub"), die dadurch
+  // im PDF abgeschnitten wurden.
+  it("widens a column to fit its longest actual data value, even when the header itself is short", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true });
+
+    const ergebnis = await erzeugeArbeitskopie(
+      vorlage,
+      [leereZeile({ artikel: "Höhensicherungsgerät mit Rettungshub" })],
+      FIRMA_NAME
+    );
+    const worksheet = await loadWorksheet(ergebnis);
+
+    expect(worksheet.getColumn(2).width).toBeGreaterThan(30); // Spalte 2 = "Artikel"
+  });
+
   // Live-Fund (2026-10-06): exceljs liefert für JEDE Zelle innerhalb eines
   // Merge-Bereichs denselben Wert (nicht nur für die Anker-Zelle) — geprüft
   // anhand einer (unüblichen, aber denkbaren) verbundenen Kopfzeilen-Zelle,
