@@ -89,13 +89,16 @@ export function KundenportalKontakte({ kontakte, firmaName }: { kontakte: Kunden
                           )}
                         </TableCell>
                         <TableCell>{kontakt.rollen.length > 0 ? kontakt.rollen.join(", ") : "—"}</TableCell>
-                        <TableCell className="text-center">
-                          <Checkbox
-                            checked={freigegeben}
-                            disabled={gesperrt}
-                            onCheckedChange={(wert) => aendereFreigabe(kontakt, wert === true)}
-                            aria-label={`Kundenportal-Zugang für ${kontakt.name}`}
-                          />
+                        <TableCell>
+                          {/* Checkbox ist ein Block-Element (grid) und ignoriert text-center — daher flex. */}
+                          <div className="flex justify-center">
+                            <Checkbox
+                              checked={freigegeben}
+                              disabled={gesperrt}
+                              onCheckedChange={(wert) => aendereFreigabe(kontakt, wert === true)}
+                              aria-label={`Kundenportal-Zugang für ${kontakt.name}`}
+                            />
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
