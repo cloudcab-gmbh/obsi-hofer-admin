@@ -111,6 +111,13 @@ export async function dataverseFetch(pathOrUrl: string, init: RequestInit = {}):
   try {
     res = await fetch(url, {
       ...init,
+      // Next.js patcht den globalen fetch für sein eigenes Data-/Request-
+      // Caching, was bei Antworten ohne Body (z.B. 204 No Content) zu einem
+      // Absturz beim internen Response-Klonen führen kann ("Cannot read
+      // properties of null (reading 'locked')", siehe PROJ-7 Implementation
+      // Notes für den Fund). Dataverse-Antworten sollen ohnehin nie gecacht
+      // werden, daher hier vorsorglich dieselbe Absicherung.
+      cache: "no-store",
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",

@@ -88,6 +88,21 @@ describe("graphFetch", () => {
     expect(init.headers.Authorization).toBe("Bearer token-1");
   });
 
+  // Next.js' gepatchter fetch stürzte bei Antworten ohne Body (z.B. das 204
+  // No Content der DELETE-Anfrage beim Aufräumen der temporären Arbeitskopie)
+  // mit "Cannot read properties of null (reading 'locked')" ab — live im
+  // produktiven PDF-Export gefunden.
+  it("opts out of Next.js' fetch caching to avoid a crash on bodyless responses", async () => {
+    const fetchMock = vi.fn();
+    stubToken(fetchMock);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ value: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await graphFetch("/sites/obsihofer.sharepoint.com");
+
+    expect(fetchMock.mock.calls[1][1].cache).toBe("no-store");
+  });
+
   it("maps a 404 response to a not_found SharePointError", async () => {
     const fetchMock = vi.fn();
     stubToken(fetchMock);

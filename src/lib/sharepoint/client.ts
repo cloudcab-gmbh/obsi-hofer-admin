@@ -91,6 +91,13 @@ export async function graphFetch(pathOrUrl: string, init: RequestInit = {}): Pro
   try {
     res = await fetch(url, {
       ...init,
+      // Next.js patcht den globalen fetch für sein eigenes Data-/Request-
+      // Caching, was bei Antworten ohne Body (z.B. das 204 No Content einer
+      // DELETE-Anfrage) zu einem Absturz beim internen Response-Klonen führt
+      // ("Cannot read properties of null (reading 'locked')"). Diese Graph-
+      // Aufrufe sollen ohnehin nie gecacht werden, also wird das komplett
+      // umgangen.
+      cache: "no-store",
       headers: {
         Authorization: `Bearer ${token}`,
         ...init.headers,

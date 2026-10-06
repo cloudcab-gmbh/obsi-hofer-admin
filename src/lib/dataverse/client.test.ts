@@ -128,6 +128,21 @@ describe("dataverseFetch", () => {
     expect(init.headers["OData-Version"]).toBe("4.0");
   });
 
+  // Next.js' gepatchter fetch löste bei Antworten ohne Body (z.B. 204 No
+  // Content) einen internen Absturz beim Response-Klonen aus ("Cannot read
+  // properties of null (reading 'locked')") — siehe PROJ-7 Implementation
+  // Notes für den ursprünglichen Fund in graphFetch.
+  it("opts out of Next.js' fetch caching to avoid a crash on bodyless responses", async () => {
+    const fetchMock = vi.fn();
+    stubToken(fetchMock);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ value: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await dataverseFetch("/api/data/v9.2/bmvcc_equipmentrecords");
+
+    expect(fetchMock.mock.calls[1][1].cache).toBe("no-store");
+  });
+
   it("calls an absolute URL (e.g. an @odata.nextLink) as-is", async () => {
     const fetchMock = vi.fn();
     stubToken(fetchMock);
