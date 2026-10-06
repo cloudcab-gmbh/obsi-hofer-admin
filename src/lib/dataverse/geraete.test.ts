@@ -155,7 +155,7 @@ describe("listGeraeteForStandorte", () => {
           bmvcc_lagerort: "Lager A",
           bmvcc_pruefer: "M. Muster",
           bmvcc_zubehoer: "Karabiner",
-          bmvcc_notitzen: "Alles ok",
+          bmvcc_bemerkungen: "Alles ok",
           bmvcc_kundenid: "KD-42",
         },
       ],

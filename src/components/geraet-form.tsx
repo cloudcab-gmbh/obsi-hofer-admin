@@ -7,6 +7,7 @@ import { z } from "zod";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -151,11 +152,11 @@ export function GeraetForm({
         </div>
         <div>
           <Label htmlFor="zubehoer">Zubehör</Label>
-          <Input id="zubehoer" {...register("zubehoer")} />
+          <Textarea id="zubehoer" rows={3} {...register("zubehoer")} />
         </div>
         <div>
           <Label htmlFor="bemerkungen">Bemerkungen</Label>
-          <Input id="bemerkungen" {...register("bemerkungen")} />
+          <Textarea id="bemerkungen" rows={3} {...register("bemerkungen")} />
         </div>
         <div>
           <Label htmlFor="kundenId">Kunden-eigene Gerätebezeichnung</Label>

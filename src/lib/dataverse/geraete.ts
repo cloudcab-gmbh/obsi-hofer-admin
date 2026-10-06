@@ -27,7 +27,11 @@ const GERAET_SELECT = [
   "bmvcc_lagerort",
   "bmvcc_pruefer",
   "bmvcc_zubehoer",
-  "bmvcc_notitzen",
+  // Live-Fund (2026-10-06): "Bemerkungen" ist bmvcc_bemerkungen (mehrzeilige
+  // Notizen, wie in der Legacy-Power-App), NICHT bmvcc_notitzen — beide
+  // Spalten existieren und sind befüllt, notitzen enthält kurze Kennungen
+  // ("105 Akra", "A020-030") und wird im Admin-Tool nicht angezeigt.
+  "bmvcc_bemerkungen",
   "bmvcc_kundenid",
 ];
 
@@ -150,7 +154,7 @@ function mapGeraet(raw: Record<string, unknown>): Geraet {
     lagerort: asString(raw.bmvcc_lagerort),
     pruefer: asString(raw.bmvcc_pruefer),
     zubehoer: asString(raw.bmvcc_zubehoer),
-    bemerkungen: asString(raw.bmvcc_notitzen),
+    bemerkungen: asString(raw.bmvcc_bemerkungen),
     kundenId: asString(raw.bmvcc_kundenid),
   };
 }
@@ -288,7 +292,7 @@ export async function updateGeraetStammdaten(id: string, input: GeraetStammdaten
     bmvcc_serienummer: input.serienummer,
     bmvcc_barcode: input.barcode,
     bmvcc_lagerort: input.lagerort,
-    bmvcc_notitzen: input.bemerkungen,
+    bmvcc_bemerkungen: input.bemerkungen,
     bmvcc_zubehoer: input.zubehoer,
     bmvcc_herstelljahr: input.herstelljahr,
     bmvcc_erstgebrauch: input.erstgebrauch,
