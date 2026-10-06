@@ -1,6 +1,6 @@
 # PROJ-8: Kundenportal-Zugang pro Kontakt
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-10-06
 **Last Updated:** 2026-10-06
 
@@ -139,6 +139,25 @@ Kein eigenes Datenmodell — alles live aus Dataverse:
 - Keine neuen Pakete
 - Keine neuen shadcn-Komponenten (`checkbox`, `table`, `card`, `badge` vorhanden)
 - Dataverse-Rechte: bereits erteilt und verifiziert (siehe Dependencies)
+
+## Implementation Notes (Frontend)
+
+Umgesetzt in einem Durchlauf (UI + Server Action + Datenzugriff), wie bei PROJ-3/PROJ-4 — kein separater `/backend`-Schritt nötig, da PROJ-2 bereits die Backend-Schicht ist:
+
+- `src/lib/auth/freigeber.ts` — neue, wiederverwendbare Prüfung `istFreigeber()` / `aktuellerBenutzerIstFreigeber()` (auch für PROJ-5 gedacht)
+- `src/lib/dataverse/kontakte.ts` — `listKundenportalKontakteForFirma()` (Relationen der Firma → aktive Kontakte in 20er-Blöcken → zweite Relations-Abfrage für "weitere Firmen"; Rollen zusammengefasst; Name "Vorname Nachname", sortiert nach Nachname) und `setKundenportalFreigabe()` (schreibt nur `bmvcc_kundenportal`; Freigeben serverseitig nur für aktive Kontakte mit E-Mail, Entziehen immer)
+- `src/app/(protected)/sync-freigabe/actions.ts` — Server Action `setKundenportalFreigabeAction()` mit eigener Freigeber-Prüfung und Zod-Validierung
+- `src/app/(protected)/sync-freigabe/page.tsx` — neue Seite: Freigeber-Prüfung, Hinweis ohne Firma, Fehlerzustand, `key={firmaId}` für sauberen Neuaufbau bei Firmenwechsel
+- `src/components/kundenportal-kontakte.tsx` — Kontakttabelle mit sofort speicherndem Häkchen (Anzeige sofort, Rücksetzen + Fehlermeldung bei Fehler, Häkchen während des Speicherns gesperrt), Zähler "X von Y Kontakten freigegeben", Leer-Zustand, Hinweis bei Kontakten mehrerer Firmen
+- Unit-Tests: `kontakte.test.ts` (12) und `sync-freigabe/actions.test.ts` (5) — `npm test` 202/202, Lint, TypeScript und Build grün
+
+**Abweichungen vom Tech Design (bewusst):**
+- Bearbeiter werden nicht auf `/kein-zugang` weitergeleitet, sondern sehen auf der Seite selbst den Hinweis "nur für Freigeber". Grund: `proxy.ts` leitet Benutzer mit gültiger Rolle (also auch Bearbeiter) von `/kein-zugang` sofort auf `/start` zurück — eine Weiterleitung dorthin wäre wirkungslos bzw. verwirrend
+- Zusätzlich zum Spec-Umfang wird auch das Freigeben eines **inaktiven** Kontakts serverseitig abgelehnt (die UI zeigt inaktive ohnehin nicht an; Absicherung gegen Direktaufrufe)
+
+**Gefundener Stolperstein:** Zod 4 prüft bei `z.string().uuid()` die RFC-Versionsbits — echte Dataverse-IDs (z.B. `…-f111-…`) würden abgelehnt. Die Action nutzt daher `z.guid()`; ein Regressionstest mit einer echten Dataverse-ID-Form deckt das ab.
+
+**Gegen echtes Dataverse verifiziert (rein lesend, 2026-10-06):** Die drei Abfragen (Relationen der Firma inkl. `statecode`-Filter, aktive Kontakte per ID-Block, Relationen zu *anderen* Firmen per `ne`) werden akzeptiert und liefern plausible Ergebnisse (z.B. 19 Kontakte bei "Dottikon Exclusive Synthesis AG"; Mehrfach-Zuordnung bei "4Viertel" korrekt erkannt). **Nicht** verifiziert: das eigentliche Schreiben des Häkchens und die Oberfläche mit echtem Freigeber-Login — beides steht für den Nutzer-Test aus.
 
 ## QA Test Results
 _To be added by /qa_
