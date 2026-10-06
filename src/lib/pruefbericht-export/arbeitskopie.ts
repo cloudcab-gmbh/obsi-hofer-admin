@@ -255,10 +255,14 @@ export async function erzeugeArbeitskopie(
   // Leerzeile als optischer Abstand zwischen Kopfzeile und Datentabelle
   // (Nutzerwunsch) — in der Vorlage selbst könnte das nicht nachgebildet
   // werden, da wir von dort ohnehin nur die Kopfzeilen-Texte übernehmen,
-  // keine Zeilenstruktur darunter. Live-Fund: eine komplett unberührte Zeile
-  // (kein Wert, keine Formatierung) bekam beim Rendern keine eigene Höhe und
-  // war dadurch unsichtbar — explizite Höhe erzwingt den sichtbaren Abstand.
-  worksheet.addRow([]).height = 10;
+  // keine Zeilenstruktur darunter. Live-Fund (zweiter Versuch): selbst mit
+  // expliziter Höhe (10pt) blieb die Zeile unsichtbar — vermutlich behandelt
+  // die Graph-PDF-Konvertierung eine Zeile ganz ohne jede Zelle anders als
+  // eine "normale" leere Zeile mit echten, nur leeren Zellen; ausserdem war
+  // 10pt nach der "auf 1 Seite skalieren"-Verkleinerung bei vielen Spalten
+  // vermutlich kaum noch wahrnehmbar. Jetzt: echte (leere) Zellen über die
+  // volle Tabellenbreite plus deutlich grosszügigere Höhe.
+  worksheet.addRow(new Array(letzteHeaderSpalte).fill(null)).height = 20;
 
   // Live-Fund (2026-10-06, erster/zweiter Versuch): Logo zunächst oben
   // rechts in einer eigens reservierten, schmalen Spalte platziert — in
