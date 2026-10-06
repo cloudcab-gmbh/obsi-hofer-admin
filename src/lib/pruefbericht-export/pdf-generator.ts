@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import ExcelJS from "exceljs";
 import pdfMake from "pdfmake";
+import PDFDocument from "pdfkit";
 import type { Column, Content, TableCell, TDocumentDefinitions } from "pdfmake/interfaces";
 import type { ExportFeld, ExportZeile } from "./feld-mapping";
 import {
@@ -39,6 +40,17 @@ interface NodeVirtualFileSystem {
 const pdfMakeMitVirtualFs = pdfMake as unknown as { virtualfs: NodeVirtualFileSystem };
 
 let fontsRegistriert = false;
+let fontBuffer: Map<string, Buffer> | null = null;
+
+function ladeFontBuffer(): Map<string, Buffer> {
+  if (!fontBuffer) {
+    fontBuffer = new Map();
+    for (const dateiname of new Set(Object.values(ROBOTO_DATEIEN))) {
+      fontBuffer.set(dateiname, readFileSync(path.join(process.cwd(), "public", "fonts", "Roboto", dateiname)));
+    }
+  }
+  return fontBuffer;
+}
 
 /**
  * Live-Fund (2026-10-06, bei der Architektur-Umstellung): ein Font-
@@ -63,8 +75,7 @@ let fontsRegistriert = false;
 function registriereFontsFallsNoetig(): void {
   if (fontsRegistriert) return;
 
-  for (const dateiname of new Set(Object.values(ROBOTO_DATEIEN))) {
-    const buffer = readFileSync(path.join(process.cwd(), "public", "fonts", "Roboto", dateiname));
+  for (const [dateiname, buffer] of ladeFontBuffer()) {
     pdfMakeMitVirtualFs.virtualfs.writeFileSync(dateiname, buffer);
   }
 
@@ -94,31 +105,145 @@ function argbZuCssFarbe(argb: string): string {
   return `#${argb.slice(2)}`;
 }
 
+/** Breite eines Texts in pt bei gegebener Schriftgrösse (fett = Kopfzeile). */
+export type TextMesser = (text: string, fett: boolean, schriftgroesse: number) => number;
+
 /**
- * Spaltenbreiten als Prozentsätze (Summe 100%), proportional zum längsten
- * tatsächlich vorkommenden Inhalt je Spalte (Kopfzeile oder Datenwert) —
- * dieselbe Heuristik, die zuvor für die Excel-Spaltenbreiten verwendet wurde.
- * Bei mehrzeiligen Werten (wrapText-Fälle wie "Zubehör") ist nur die
- * längste EINZELNE Zeile relevant, nicht die Gesamtlänge über alle Zeilen
- * hinweg, sonst würde die Spalte unnötig breit.
+ * Grobe Schätzung ohne Font-Datei (für reine Unit-Tests der Dokumentstruktur).
+ * Im echten Export ersetzt durch `erstelleTextMesser()`, das mit der
+ * tatsächlichen Roboto-Schrift misst.
+ */
+const geschaetzteTextBreite: TextMesser = (text, fett, schriftgroesse) =>
+  text.length * schriftgroesse * (fett ? 0.56 : 0.52);
+
+/** Misst Texte mit den echten Roboto-Fonts über pdfkit (dieselbe Engine, die pdfmake intern zum Rendern nutzt). */
+function erstelleTextMesser(): TextMesser {
+  const fonts = ladeFontBuffer();
+  const doc = new PDFDocument({ autoFirstPage: false });
+  doc.registerFont("normal", fonts.get(ROBOTO_DATEIEN.normal)!);
+  doc.registerFont("fett", fonts.get(ROBOTO_DATEIEN.bold)!);
+  return (text, fett, schriftgroesse) => doc.font(fett ? "fett" : "normal").fontSize(schriftgroesse).widthOfString(text);
+}
+
+const SEITENBREITE_QUER = 841.89; // A4 quer, pt
+const SEITENRAND = 24;
+const ZELLEN_PADDING = 3;
+const LINIENBREITE = 0.5;
+const MAX_TABELLEN_SCHRIFT = 9;
+const MIN_TABELLEN_SCHRIFT = 7;
+/** Anzahl Spalten, die mehrzeilig umbrechen dürfen, bevor die Schrift verkleinert wird. */
+const FREITEXT_SPALTEN = 2;
+
+/**
+ * Wörter, an denen pdfmake (über die `linebreak`-Bibliothek) eine Zeile
+ * umbrechen darf: Leerzeichen/Zeilenumbrüche und nach einem Bindestrich.
+ * Ist eine Spalte schmaler als ihr längstes solches Wort, bricht pdfmake das
+ * Wort mitten drin um ("Stahlkarabine/r", "Scanc/ode") — genau das soll die
+ * Breitenberechnung verhindern.
+ */
+function woerter(text: string): string[] {
+  return text.split(/\s+|(?<=-)/).filter((wort) => wort.length > 0);
+}
+
+/**
+ * Spaltenbreiten in pt, auf Basis der gemessenen Textbreiten (Live-Fund
+ * 2026-10-06: die frühere Zeichenzahl-proportionale Verteilung gab langen
+ * Spalten wie "Bemerkungen" zu viel und kurzen wie "Scancode", "Serien-Nr."
+ * oder "Zubehör" zu wenig Platz, sodass Wörter mitten im Wort umbrachen):
+ *  1. Mindestbreite je Spalte = längstes nicht umbrechbares Wort (Kopfzeile
+ *     fett, Daten normal) — darunter würde ein Wort zerschnitten.
+ *  2. Wunschbreite je Spalte = längste Datenzeile (bei Mehrzeilern die
+ *     längste EINZELNE Zeile, nicht die Gesamtlänge).
+ *  3. Der Platz über den Minima geht zuerst an die Spalten mit dem kleinsten
+ *     Fehlbetrag (siehe `verteileRestplatz`).
+ *  4. Die Tabellenschrift wird (9pt → 7pt) nur so weit verkleinert, bis
+ *     höchstens FREITEXT_SPALTEN Spalten noch umbrechen müssen.
  */
 function berechneSpaltenbreiten(
   headerZeile: (string | null)[],
   mapping: Map<number, ExportFeld>,
   letzteHeaderSpalte: number,
-  zeilen: ExportZeile[]
-): string[] {
-  const gewichte: number[] = [];
+  zeilen: ExportZeile[],
+  messen: TextMesser
+): { widths: number[]; schriftgroesse: number } {
+  const verfuegbar =
+    SEITENBREITE_QUER - 2 * SEITENRAND - letzteHeaderSpalte * (2 * ZELLEN_PADDING + LINIENBREITE) - LINIENBREITE;
+
+  // Gemessen wird einmal bei MAX_TABELLEN_SCHRIFT; Textbreiten skalieren
+  // linear mit der Schriftgrösse.
+  const minimumBasis: number[] = [];
+  const wunschBasis: number[] = [];
   for (let spalte = 1; spalte <= letzteHeaderSpalte; spalte++) {
     const feld = mapping.get(spalte);
-    const headerLaenge = headerZeile[spalte - 1]?.length ?? 10;
-    const maxDatenLaenge = feld
-      ? Math.max(0, ...zeilen.map((zeile) => Math.max(0, ...(zeile[feld]?.split("\n").map((z) => z.length) ?? [0]))))
-      : 0;
-    gewichte.push(Math.max(12, Math.max(headerLaenge, maxDatenLaenge) + 2));
+    // Kopfzeile: darf an Leerzeichen/Bindestrich umbrechen ("Herstell-/jahr"),
+    // zählt also nur für die Mindest-, nicht für die Wunschbreite.
+    let min = Math.max(0, ...woerter(headerZeile[spalte - 1] ?? "").map((w) => messen(w, true, MAX_TABELLEN_SCHRIFT)));
+    let pref = 0;
+    if (feld) {
+      for (const zeile of zeilen) {
+        const wert = zeile[feld];
+        if (!wert) continue;
+        for (const textZeile of wert.split("\n")) pref = Math.max(pref, messen(textZeile, false, MAX_TABELLEN_SCHRIFT));
+        for (const wort of woerter(wert)) min = Math.max(min, messen(wort, false, MAX_TABELLEN_SCHRIFT));
+      }
+    }
+    minimumBasis.push(min);
+    wunschBasis.push(Math.max(pref, min));
   }
-  const summe = gewichte.reduce((a, b) => a + b, 0);
-  return gewichte.map((gewicht) => `${((gewicht / summe) * 100).toFixed(2)}%`);
+
+  const summe = (werte: number[]) => werte.reduce((a, b) => a + b, 0);
+  // +1pt Reserve je Spalte gegen Rundungsunterschiede zwischen Messung und Rendering.
+  const skaliere = (werte: number[], groesse: number) =>
+    werte.map((w) => Math.max(12, (w * groesse) / MAX_TABELLEN_SCHRIFT + 1));
+
+  // Grösste Schrift, bei der jede Spalte ihr Minimum bekommt und höchstens
+  // die FREITEXT_SPALTEN Spalten mit dem grössten Fehlbetrag (typisch
+  // Artikel/Bemerkungen) noch umbrechen müssen.
+  let letzterVersuch: { widths: number[]; schriftgroesse: number } | null = null;
+  for (let groesse = MAX_TABELLEN_SCHRIFT; groesse >= MIN_TABELLEN_SCHRIFT; groesse -= 0.5) {
+    const minimum = skaliere(minimumBasis, groesse);
+    const wunsch = skaliere(wunschBasis, groesse);
+    if (summe(minimum) > verfuegbar) continue;
+    const { widths, unerfuellt } = verteileRestplatz(minimum, wunsch, verfuegbar);
+    letzterVersuch = { widths, schriftgroesse: groesse };
+    if (unerfuellt <= FREITEXT_SPALTEN) return letzterVersuch;
+  }
+  if (letzterVersuch) return letzterVersuch;
+
+  // Notfall (extrem viele/breite Spalten): kleinste Schrift, Minima
+  // proportional auf die Seite gestaucht — Wörter können dann umbrechen.
+  const minimum = skaliere(minimumBasis, MIN_TABELLEN_SCHRIFT);
+  const summeMin = summe(minimum);
+  return { widths: minimum.map((m) => (m * verfuegbar) / summeMin), schriftgroesse: MIN_TABELLEN_SCHRIFT };
+}
+
+/**
+ * Verteilt den Platz über den Mindestbreiten: zuerst an die Spalten, denen
+ * am wenigsten zur Wunschbreite fehlt (z.B. Zubehör "1x Stahlkarabiner TL"
+ * einzeilig), sodass möglichst viele Spalten gar nicht umbrechen; die
+ * langen Freitext-Spalten erhalten, was übrig bleibt. Passen alle
+ * Wunschbreiten, wird der Überschuss proportional verteilt.
+ */
+function verteileRestplatz(
+  minimum: number[],
+  wunsch: number[],
+  verfuegbar: number
+): { widths: number[]; unerfuellt: number } {
+  const widths = [...minimum];
+  let rest = verfuegbar - minimum.reduce((a, b) => a + b, 0);
+  const nachFehlbetrag = widths.map((_, i) => i).sort((a, b) => wunsch[a] - minimum[a] - (wunsch[b] - minimum[b]));
+  let unerfuellt = 0;
+  for (const i of nachFehlbetrag) {
+    const zuwachs = Math.min(rest, wunsch[i] - widths[i]);
+    widths[i] += zuwachs;
+    rest -= zuwachs;
+    if (wunsch[i] - widths[i] > 0.01) unerfuellt++;
+  }
+  if (rest > 0.01) {
+    const gesamt = widths.reduce((a, b) => a + b, 0);
+    return { widths: widths.map((w) => w + (rest * w) / gesamt), unerfuellt };
+  }
+  return { widths, unerfuellt };
 }
 
 function buildTableBody(
@@ -162,7 +287,7 @@ function buildKopfbereich(firmaName: string, logoDataUrl: string | null): Conten
   spalten.push({
     stack: [
       { text: "Prüfbericht Absturzsicherungen", bold: true, fontSize: 14 },
-      { text: firmaName, bold: true, fontSize: 12 },
+      { text: firmaName, bold: true, fontSize: 14, margin: [0, 6, 0, 0] },
     ],
     width: "*",
   });
@@ -183,6 +308,8 @@ export interface PdfBuildInput {
   zeilen: ExportZeile[];
   firmaName: string;
   logoDataUrl: string | null;
+  /** Standard: grobe Zeichen-Schätzung; `erzeugePdf` übergibt die echte Font-Messung. */
+  textMesser?: TextMesser;
 }
 
 /**
@@ -194,13 +321,19 @@ export interface PdfBuildInput {
 export function buildDocumentDefinition(input: PdfBuildInput): TDocumentDefinitions {
   const { headerZeile, mapping, letzteHeaderSpalte, farbRegeln, zeilen, firmaName, logoDataUrl } = input;
 
-  const widths = berechneSpaltenbreiten(headerZeile, mapping, letzteHeaderSpalte, zeilen);
+  const { widths, schriftgroesse } = berechneSpaltenbreiten(
+    headerZeile,
+    mapping,
+    letzteHeaderSpalte,
+    zeilen,
+    input.textMesser ?? geschaetzteTextBreite
+  );
   const body = buildTableBody(headerZeile, mapping, letzteHeaderSpalte, farbRegeln, zeilen);
 
   return {
     pageSize: "A4",
     pageOrientation: "landscape",
-    pageMargins: [24, 24, 24, 24],
+    pageMargins: [SEITENRAND, SEITENRAND, SEITENRAND, SEITENRAND],
     defaultStyle: { font: "Roboto", fontSize: 9 },
     content: [
       buildKopfbereich(firmaName, logoDataUrl),
@@ -214,14 +347,15 @@ export function buildDocumentDefinition(input: PdfBuildInput): TDocumentDefiniti
         // direkt auf das tatsächliche Rendering, ohne Konvertierungsschritt
         // dazwischen.
         margin: [0, 20, 0, 0] as [number, number, number, number],
+        fontSize: schriftgroesse,
         table: { headerRows: 1, widths, body },
         layout: {
-          hLineWidth: () => 0.5,
-          vLineWidth: () => 0.5,
+          hLineWidth: () => LINIENBREITE,
+          vLineWidth: () => LINIENBREITE,
           hLineColor: () => "#cccccc",
           vLineColor: () => "#cccccc",
-          paddingLeft: () => 4,
-          paddingRight: () => 4,
+          paddingLeft: () => ZELLEN_PADDING,
+          paddingRight: () => ZELLEN_PADDING,
           paddingTop: () => 3,
           paddingBottom: () => 3,
         },
@@ -256,6 +390,7 @@ export async function erzeugePdf(vorlageBuffer: ArrayBuffer, zeilen: ExportZeile
     zeilen,
     firmaName,
     logoDataUrl: ladeLogoDataUrl(),
+    textMesser: erstelleTextMesser(),
   });
 
   return pdfMake.createPdf(docDefinition).getBuffer();

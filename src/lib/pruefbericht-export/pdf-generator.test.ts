@@ -161,11 +161,8 @@ describe("buildDocumentDefinition", () => {
       logoDataUrl: null,
     });
 
-    const table = tableFromContent(doc);
-    const widths = table.widths as string[];
-    const artikelAnteil = parseFloat(widths[1]);
-    const lagerortAnteil = parseFloat(widths[0]);
-    expect(artikelAnteil).toBeGreaterThan(lagerortAnteil);
+    const widths = tableFromContent(doc).widths as number[];
+    expect(widths[1]).toBeGreaterThan(widths[0]);
   });
 
   // Live-Fund (2026-10-06): die Breite wurde früher anhand der GESAMTlänge
@@ -183,13 +180,73 @@ describe("buildDocumentDefinition", () => {
       logoDataUrl: null,
     });
 
-    const table = tableFromContent(doc);
-    const widths = table.widths as string[];
-    const bemerkungenAnteil = parseFloat(widths[3]);
-    // "Bemerkungen" (11 Zeichen) als längste einzelne Zeile ("Zeile1" etc., 6
-    // Zeichen) darf nicht so breit werden, wie es die Gesamtlänge (~24
-    // Zeichen über alle Zeilen) nahelegen würde.
-    expect(bemerkungenAnteil).toBeLessThan(35);
+    const einzeilig = buildDocumentDefinition({
+      headerZeile: HEADER,
+      mapping: mapping(),
+      letzteHeaderSpalte: HEADER.length,
+      farbRegeln: [],
+      zeilen: [leereZeile({ bemerkungen: "Zeile1 Zeile2 Zeile3 Zeile4" })],
+      firmaName: "Beispiel-Firma",
+      logoDataUrl: null,
+    });
+
+    const mehrzeiligBreite = (tableFromContent(doc).widths as number[])[3];
+    const einzeiligBreite = (tableFromContent(einzeilig).widths as number[])[3];
+    expect(mehrzeiligBreite).toBeLessThan(einzeiligBreite);
+  });
+
+  // Live-Fund (2026-10-06): "Stahlkarabine/r", "Scanc/ode", "Serie/n-Nr." —
+  // kurze Spalten wurden schmaler als ihr längstes Wort und Wörter brachen
+  // mitten drin um, während lange Spalten (Bemerkungen) zu viel Platz bekamen.
+  it("never makes a column narrower than its longest unbreakable word, even when other columns are long", () => {
+    const header = ["Scancode", "Zubehör", "Bemerkungen"];
+    const map = new Map<number, ExportFeld>([
+      [1, "barcode"],
+      [2, "zubehoer"],
+      [3, "bemerkungen"],
+    ]);
+    // Messung: 1pt pro Zeichen, unabhängig von Schrift/Fettdruck — macht die Erwartung exakt.
+    const messer = (text: string) => text.length;
+    const doc = buildDocumentDefinition({
+      headerZeile: header,
+      mapping: map,
+      letzteHeaderSpalte: header.length,
+      farbRegeln: [],
+      zeilen: [
+        leereZeile({
+          zubehoer: "1x Stahlkarabiner TL",
+          bemerkungen: "sehr ".repeat(400),
+        }),
+      ],
+      firmaName: "Beispiel-Firma",
+      logoDataUrl: null,
+      textMesser: messer,
+    });
+
+    const widths = tableFromContent(doc).widths as number[];
+    expect(widths[0]).toBeGreaterThanOrEqual("Scancode".length);
+    expect(widths[1]).toBeGreaterThanOrEqual("Stahlkarabiner".length);
+  });
+
+  it("keeps the total table width within the landscape page and shrinks the font when even the minimum widths don't fit", () => {
+    const header = Array.from({ length: 16 }, (_, i) => `Spalte${i}`);
+    const map = new Map<number, ExportFeld>([[1, "bemerkungen"]]);
+    const doc = buildDocumentDefinition({
+      headerZeile: header,
+      mapping: map,
+      letzteHeaderSpalte: header.length,
+      farbRegeln: [],
+      zeilen: [leereZeile({ bemerkungen: "x".repeat(200) })],
+      firmaName: "Beispiel-Firma",
+      logoDataUrl: null,
+    });
+
+    const content = doc.content as { table?: Table; fontSize?: number }[];
+    const tableElement = content.find((element) => "table" in element)!;
+    const widths = tableElement.table!.widths as number[];
+    const gesamt = widths.reduce((a, b) => a + b, 0) + widths.length * 6.5 + 0.5;
+    expect(gesamt).toBeLessThanOrEqual(841.89 - 48 + 0.01);
+    expect(tableElement.fontSize).toBeLessThan(9);
   });
 
   it("puts the firma name and a visual gap before the table, without requiring a logo", () => {
