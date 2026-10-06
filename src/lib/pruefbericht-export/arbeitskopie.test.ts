@@ -13,6 +13,7 @@ const HEADER = [
   "Prüfergebnis",
   "Bemerkungen",
 ];
+const ERGEBNIS_SPALTE = 7; // "G" — 1-indiziert wie HEADER oben
 
 function leereZeile(overrides: Partial<ExportZeile> = {}): ExportZeile {
   return {
@@ -41,10 +42,15 @@ const EIN_PIXEL_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
 async function buildVorlage(
-  options: { mitBeispielzeile?: boolean; mitBedingterFormatierung?: boolean; mitLogo?: boolean } = {}
+  options: {
+    mitBeispielzeile?: boolean;
+    mitBedingterFormatierung?: boolean;
+    mitLogo?: boolean;
+    sheetName?: string;
+  } = {}
 ): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet("Bericht");
+  const worksheet = workbook.addWorksheet(options.sheetName ?? "Bericht");
 
   worksheet.addRow(["Prüfbericht Absturzsicherungen", "", "Beispiel-Firma"]);
   worksheet.addRow(HEADER);
@@ -56,20 +62,26 @@ async function buildVorlage(
 
   if (options.mitBeispielzeile) {
     const row = worksheet.addRow(["Alter Lagerort", "Alter Artikel", "Alter Typ", "ALT-001", "01.01.2020", "xx", "Freigabe", "alte Bemerkung"]);
-    row.getCell(7).font = { bold: true };
-    row.getCell(7).border = { top: { style: "thin" } };
+    row.getCell(ERGEBNIS_SPALTE).font = { bold: true };
   }
 
   if (options.mitBedingterFormatierung) {
     worksheet.addConditionalFormatting({
-      ref: "A3:H5",
+      ref: `G3:G5`,
       rules: [
         {
           type: "containsText",
           operator: "containsText",
           text: "Freigabe",
           priority: 1,
-          style: { fill: { type: "pattern", pattern: "solid", bgColor: { argb: "FF00FF00" } } },
+          style: { fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FF00FF00" } } },
+        },
+        {
+          type: "containsText",
+          operator: "containsText",
+          text: "keine Freigabe",
+          priority: 2,
+          style: { fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FFFF0000" } } },
         },
       ],
     });
@@ -78,10 +90,15 @@ async function buildVorlage(
   return (await workbook.xlsx.writeBuffer()) as ArrayBuffer;
 }
 
-async function loadWorksheet(buffer: ArrayBuffer) {
+async function loadWorksheet(buffer: ArrayBuffer, name = "Bericht") {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
-  return workbook.worksheets[0];
+  return workbook.getWorksheet(name) ?? workbook.worksheets[0];
+}
+
+function conditionalFormattings(worksheet: ExcelJS.Worksheet) {
+  return (worksheet as unknown as { conditionalFormattings: { ref: string; rules: { text?: string; style?: { fill?: { fgColor?: { argb?: string } } } }[] }[] })
+    .conditionalFormattings;
 }
 
 describe("erzeugeArbeitskopie", () => {
@@ -102,20 +119,7 @@ describe("erzeugeArbeitskopie", () => {
     expect(worksheet.rowCount).toBe(4);
   });
 
-  // Live-Fund (2026-10-06): exceljs erhält eingebettete Bilder beim Laden→
-  // Ändern→Speichern nicht zuverlässig — das Ergebnis wurde von Microsofts
-  // Office-Online-Konvertierungsdienst als beschädigt abgelehnt
-  // (XLSCorruptFile). Bilder werden deshalb vorsorglich verworfen.
-  it("strips embedded images from the template instead of risking a corrupted result", async () => {
-    const vorlage = await buildVorlage({ mitBeispielzeile: true, mitLogo: true });
-
-    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ lagerort: "X" })]);
-    const worksheet = await loadWorksheet(ergebnis);
-
-    expect(worksheet.getImages()).toHaveLength(0);
-  });
-
-  it("discards any pre-existing data rows from the real template instead of appending after them", async () => {
+  it("discards any pre-existing data rows from the real template instead of copying them over", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true });
 
     const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ lagerort: "Neu" })]);
@@ -126,37 +130,49 @@ describe("erzeugeArbeitskopie", () => {
     expect(worksheet.getRow(3).getCell(2).text).toBeFalsy(); // "Alter Artikel" darf nicht mehr vorhanden sein
   });
 
-  it("copies the original data row's cell style (e.g. bold font) onto the newly written rows", async () => {
+  it("makes the header row bold", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true });
 
-    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ pruefergebnis: "Freigabe" })]);
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()]);
     const worksheet = await loadWorksheet(ergebnis);
 
-    expect(worksheet.getRow(3).getCell(7).font?.bold).toBe(true);
+    expect(worksheet.getRow(2).getCell(1).font?.bold).toBe(true);
   });
 
-  it("extends a conditional formatting range that would otherwise not cover the new rows", async () => {
+  it("re-creates the Prüfergebnis color rules found in the template, scoped to just that column and the written rows", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true, mitBedingterFormatierung: true });
 
     const zeilen = Array.from({ length: 10 }, (_, i) => leereZeile({ lagerort: `Zeile ${i}` }));
     const ergebnis = await erzeugeArbeitskopie(vorlage, zeilen);
     const worksheet = await loadWorksheet(ergebnis);
 
-    const cfModel = (worksheet as unknown as { conditionalFormattings: { ref: string }[] }).conditionalFormattings;
-    expect(cfModel[0].ref).toBe("A3:H12");
+    const cfs = conditionalFormattings(worksheet);
+    expect(cfs).toHaveLength(2);
+    expect(cfs.map((cf) => cf.ref)).toEqual(["G3:G12", "G3:G12"]);
+    expect(cfs.map((cf) => cf.rules[0].style?.fill?.fgColor?.argb).sort()).toEqual(["FF00FF00", "FFFF0000"].sort());
   });
 
-  it("does not shrink a conditional formatting range that already covers enough rows", async () => {
-    const vorlage = await buildVorlage({ mitBeispielzeile: true, mitBedingterFormatierung: true });
+  it("falls back to a standard Freigabe/keine-Freigabe color scheme when the template has no conditional formatting of its own", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true }); // ohne mitBedingterFormatierung
 
-    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()]);
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ pruefergebnis: "Freigabe" })]);
     const worksheet = await loadWorksheet(ergebnis);
 
-    const cfModel = (worksheet as unknown as { conditionalFormattings: { ref: string }[] }).conditionalFormattings;
-    expect(cfModel[0].ref).toBe("A3:H5");
+    const cfs = conditionalFormattings(worksheet);
+    expect(cfs.length).toBeGreaterThan(0);
+    expect(cfs.every((cf) => cf.ref === "G3:G3")).toBe(true);
   });
 
-  it("handles an empty Geräte list by leaving only the header row", async () => {
+  it("adds no conditional formatting at all when there are no rows to color", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true, mitBedingterFormatierung: true });
+
+    const ergebnis = await erzeugeArbeitskopie(vorlage, []);
+    const worksheet = await loadWorksheet(ergebnis);
+
+    expect(conditionalFormattings(worksheet)).toHaveLength(0);
+  });
+
+  it("handles an empty Geräte list by leaving only the title and header rows", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true });
 
     const ergebnis = await erzeugeArbeitskopie(vorlage, []);
@@ -173,9 +189,9 @@ describe("erzeugeArbeitskopie", () => {
     await expect(erzeugeArbeitskopie(vorlage, [leereZeile()])).rejects.toBeInstanceOf(VorlagenFehler);
   });
 
-  it("prefers a worksheet named 'Bericht' over other worksheets in the same workbook", async () => {
+  it("reads the header/structure from the worksheet named 'Bericht', not simply the first one in the workbook", async () => {
     const workbook = new ExcelJS.Workbook();
-    workbook.addWorksheet("Therapie").addRow(["sollte nicht verwendet werden"]);
+    workbook.addWorksheet("Therapie").addRow(["Ganz andere Kopfzeile ohne Prüfergebnis"]);
     const bericht = workbook.addWorksheet("Bericht");
     bericht.addRow(["Branding"]);
     bericht.addRow(HEADER);
@@ -185,10 +201,20 @@ describe("erzeugeArbeitskopie", () => {
 
     const resultWorkbook = new ExcelJS.Workbook();
     await resultWorkbook.xlsx.load(ergebnis);
-    const berichtResult = resultWorkbook.getWorksheet("Bericht")!;
-    const therapieResult = resultWorkbook.getWorksheet("Therapie")!;
 
-    expect(berichtResult.getRow(3).getCell(1).text).toBe("X");
-    expect(therapieResult.getRow(1).getCell(1).text).toBe("sollte nicht verwendet werden"); // unverändert
+    // Die Ausgabe enthält nur das frisch erzeugte "Bericht"-Blatt — die
+    // Quelldatei selbst (inkl. ihres "Therapie"-Blatts) wird nie wieder
+    // gespeichert, nur zum Lesen der Struktur verwendet.
+    expect(resultWorkbook.worksheets).toHaveLength(1);
+    expect(resultWorkbook.worksheets[0].getRow(3).getCell(1).text).toBe("X");
+  });
+
+  it("never carries embedded images from the template into the result (new workbook, built from scratch)", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true, mitLogo: true });
+
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ lagerort: "X" })]);
+    const worksheet = await loadWorksheet(ergebnis);
+
+    expect(worksheet.getImages()).toHaveLength(0);
   });
 });

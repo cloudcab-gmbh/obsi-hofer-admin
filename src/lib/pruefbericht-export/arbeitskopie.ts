@@ -2,6 +2,8 @@ import ExcelJS from "exceljs";
 import { resolveSpaltenMapping, type ExportFeld, type ExportZeile } from "./feld-mapping";
 
 const HEADER_SUCH_BEREICH = 10;
+const STANDARD_FARBE_FREIGABE = "FF92D050";
+const STANDARD_FARBE_KEINE_FREIGABE = "FFFF0000";
 
 export class VorlagenFehler extends Error {
   constructor(message: string) {
@@ -10,32 +12,27 @@ export class VorlagenFehler extends Error {
   }
 }
 
-/** Liest Zellen einer Zeile als Text (1-indiziert wie in Excel, Lücken als `null`). */
-function zeilenTexte(row: ExcelJS.Row): (string | null)[] {
-  const zellen: (string | null)[] = [];
-  row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-    const text = cell.text?.trim();
-    zellen[colNumber - 1] = text ? text : null;
-  });
-  return zellen;
+interface ExtrahierteRegel {
+  text: string;
+  argb: string;
 }
 
-/**
- * Sucht innerhalb der ersten Zeilen des Arbeitsblatts die Kopfzeile — erkannt
- * am Vorhandensein einer "Prüfergebnis"-Spalte, die in jeder bekannten
- * Vorlagen-Variante vorkommt (siehe PROJ-7-Spec, Open Questions).
- */
-function findeKopfzeile(worksheet: ExcelJS.Worksheet): { rowNumber: number; mapping: Map<number, ExportFeld> } {
-  const grenze = Math.min(worksheet.rowCount, HEADER_SUCH_BEREICH);
-  for (let rowNumber = 1; rowNumber <= grenze; rowNumber++) {
-    const mapping = resolveSpaltenMapping(zeilenTexte(worksheet.getRow(rowNumber)));
-    if (Array.from(mapping.values()).includes("pruefergebnis")) {
-      return { rowNumber, mapping };
-    }
+interface ExtrahierteVorlage {
+  titelZeilen: (string | null)[][];
+  headerZeile: (string | null)[];
+  mapping: Map<number, ExportFeld>;
+  spaltenAnzahl: number;
+  farbRegeln: ExtrahierteRegel[];
+}
+
+/** Liest Zellen einer Zeile als Text (1-indiziert wie in Excel, Lücken als `null`). */
+function zeilenTexte(row: ExcelJS.Row, spaltenAnzahl: number): (string | null)[] {
+  const zellen: (string | null)[] = [];
+  for (let col = 1; col <= spaltenAnzahl; col++) {
+    const text = row.getCell(col).text?.trim();
+    zellen[col - 1] = text ? text : null;
   }
-  throw new VorlagenFehler(
-    "Kopfzeile der Vorlage konnte nicht erkannt werden (keine Spalte mit 'Prüfergebnis' gefunden)."
-  );
+  return zellen;
 }
 
 function waehleArbeitsblatt(workbook: ExcelJS.Workbook): ExcelJS.Worksheet {
@@ -54,82 +51,162 @@ function spalteZuBuchstabe(spalte: number): string {
   return ergebnis;
 }
 
-/** Erweitert eine bestehende bedingte-Formatierungs-Referenz (z.B. "A2:P50"), falls sie nicht bis `letzteZeile` reicht — behält Spaltenbereich und Startzeile bei. */
-function erweitereRefFallsNoetig(ref: string, letzteZeile: number): string {
-  const match = ref.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
-  if (!match) return ref;
-  const [, startSpalte, startZeileStr, endSpalte, endZeileStr] = match;
-  const endZeile = Number(endZeileStr);
-  if (endZeile >= letzteZeile) return ref;
-  return `${startSpalte}${startZeileStr}:${endSpalte}${letzteZeile}`;
+/**
+ * Liest aus der realen Vorlage ausschliesslich reine Inhalte (Texte, Spalten-
+ * Zuordnung, Farbregeln) heraus — niemals deren Binärstruktur selbst. Die
+ * Vorlage wird dafür nur gelesen, nie verändert oder wieder gespeichert (das
+ * ist die eigentliche Ursache des Live-Funds: exceljs erhält komplexe echte
+ * Dateien — Bilder, verbundene Zellen, u.a. — beim Laden→Ändern→Speichern
+ * nicht zuverlässig; das Ergebnis bleibt für exceljs selbst lesbar, wird vom
+ * strengeren Office-Online-Konvertierungsdienst aber als beschädigt
+ * abgelehnt, HttpCode=UnsupportedMediaType/ErrorCode=XLSCorruptFile).
+ */
+function extrahiereAusVorlage(vorlageWorkbook: ExcelJS.Workbook): ExtrahierteVorlage {
+  const worksheet = waehleArbeitsblatt(vorlageWorkbook);
+  const spaltenAnzahl = worksheet.columnCount;
+
+  let headerZeile: (string | null)[] | null = null;
+  let mapping: Map<number, ExportFeld> | null = null;
+  let headerRowNumber = 0;
+  const grenze = Math.min(worksheet.rowCount, HEADER_SUCH_BEREICH);
+  for (let rowNumber = 1; rowNumber <= grenze; rowNumber++) {
+    const zellen = zeilenTexte(worksheet.getRow(rowNumber), spaltenAnzahl);
+    const kandidat = resolveSpaltenMapping(zellen);
+    if (Array.from(kandidat.values()).includes("pruefergebnis")) {
+      headerZeile = zellen;
+      mapping = kandidat;
+      headerRowNumber = rowNumber;
+      break;
+    }
+  }
+  if (!headerZeile || !mapping) {
+    throw new VorlagenFehler(
+      "Kopfzeile der Vorlage konnte nicht erkannt werden (keine Spalte mit 'Prüfergebnis' gefunden)."
+    );
+  }
+
+  const titelZeilen: (string | null)[][] = [];
+  for (let rowNumber = 1; rowNumber < headerRowNumber; rowNumber++) {
+    titelZeilen.push(zeilenTexte(worksheet.getRow(rowNumber), spaltenAnzahl));
+  }
+
+  const farbRegeln = extrahiereFarbRegeln(worksheet);
+
+  return { titelZeilen, headerZeile, mapping, spaltenAnzahl, farbRegeln };
 }
 
 /**
- * Erstellt aus einer Vorlage (Spaltenköpfe, Formatierung, bedingte
- * Formatierung, Branding-Zeilen oberhalb der Kopfzeile) eine neue
- * Arbeitskopie, die ausschliesslich die übergebenen Zeilen enthält — alle
- * bereits in der Vorlage vorhandenen Datenzeilen werden verworfen, die
- * Vorlage selbst bleibt dabei unverändert (sie wird nur gelesen).
+ * Liest die in der Vorlage bereits definierten bedingten Formatierungsregeln
+ * als reine Daten aus (Textwert + Füllfarbe) — damit behält jede Firma ihre
+ * eigene Farbkonvention (unterschiedlich beobachtet, siehe PROJ-7 Product
+ * Decisions), ohne dass wir die Originaldatei selbst erneut speichern
+ * müssten.
  */
-export async function erzeugeArbeitskopie(vorlageBuffer: ArrayBuffer, zeilen: ExportZeile[]): Promise<ArrayBuffer> {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(vorlageBuffer);
+// Nach einem echten Datei-Rundgang (schreiben → laden) übersteht `rule.text`
+// selbst den Roundtrip NICHT — exceljs wandelt eine "containsText"-Regel beim
+// Schreiben in eine Formel um (`NOT(ISERROR(SEARCH("Freigabe",A3)))`) und
+// liest beim Parsen auch nur noch diese Formel zurück, nicht mehr das
+// ursprüngliche `text`-Feld (empirisch verifiziert — nicht in der exceljs-
+// Dokumentation beschrieben). Der gesuchte Text muss deshalb aus der Formel
+// zurückgewonnen werden.
+const SEARCH_FORMEL_MUSTER = /SEARCH\("([^"]*)"/;
 
-  // Live-Fund (2026-10-06): exceljs erhält eingebettete Bilder/Zeichnungen
-  // beim Laden→Ändern→Speichern einer echten Vorlage nicht zuverlässig —
-  // das Ergebnis bleibt für exceljs selbst lesbar, wird von Microsofts
-  // Office-Online-Konvertierungsdienst aber als beschädigt abgelehnt
-  // (HttpCode=UnsupportedMediaType, ErrorCode=XLSCorruptFile). Bilder werden
-  // deshalb vorerst verworfen, statt ein kaputtes Ergebnis zu riskieren —
-  // Text-Branding (Firmenname, Titel) bleibt erhalten. `_media` ist intern,
-  // aber die einzige verfügbare Stelle, um vorhandene Bilder zu entfernen
-  // (keine öffentliche removeImage-API in exceljs).
-  workbook.worksheets.forEach((ws) => {
-    (ws as unknown as { _media: unknown[] })._media = [];
-  });
+function extrahiereRegelText(rule: { text?: string; formulae?: string[] }): string | null {
+  if (rule.text) return rule.text;
+  const formel = rule.formulae?.[0];
+  const treffer = formel?.match(SEARCH_FORMEL_MUSTER);
+  return treffer?.[1] ?? null;
+}
 
-  const worksheet = waehleArbeitsblatt(workbook);
-  const { rowNumber: kopfzeile, mapping } = findeKopfzeile(worksheet);
-  const ersteDatenzeile = kopfzeile + 1;
-
-  // Stil der ersten (ursprünglichen) Datenzeile je gemappter Spalte sichern,
-  // bevor die vorhandenen Datenzeilen entfernt werden — neue Zeilen
-  // übernehmen so dieselbe Formatierung (Rahmen, Schriftart etc.).
-  const vorlagenStil = new Map<number, Partial<ExcelJS.Style>>();
-  const stilZeile = worksheet.getRow(ersteDatenzeile);
-  mapping.forEach((_feld, spalte) => {
-    vorlagenStil.set(spalte, { ...stilZeile.getCell(spalte).style });
-  });
-
-  const vorhandeneDatenzeilen = worksheet.rowCount - kopfzeile;
-  if (vorhandeneDatenzeilen > 0) {
-    worksheet.spliceRows(ersteDatenzeile, vorhandeneDatenzeilen);
-  }
-
-  zeilen.forEach((zeile, index) => {
-    const row = worksheet.getRow(ersteDatenzeile + index);
-    mapping.forEach((feld, spalte) => {
-      const cell = row.getCell(spalte);
-      cell.value = zeile[feld];
-      const stil = vorlagenStil.get(spalte);
-      if (stil) cell.style = stil;
-    });
-    row.commit();
-  });
-
+function extrahiereFarbRegeln(worksheet: ExcelJS.Worksheet): ExtrahierteRegel[] {
   // `conditionalFormattings` ist zur Laufzeit vorhanden (von exceljs beim
   // Einlesen einer .xlsx-Datei gesetzt), aber nicht Teil der öffentlichen
   // Typdefinitionen — daher der gezielte Cast statt `any`.
-  const worksheetMitCf = worksheet as unknown as { conditionalFormattings: { ref: string }[] };
-  const letzteZeile = ersteDatenzeile + zeilen.length - 1;
-  if (zeilen.length > 0) {
-    worksheetMitCf.conditionalFormattings.forEach((cf) => {
-      cf.ref = erweitereRefFallsNoetig(cf.ref, letzteZeile);
+  const worksheetMitCf = worksheet as unknown as {
+    conditionalFormattings: {
+      rules: { text?: string; formulae?: string[]; style?: { fill?: { fgColor?: { argb?: string } } } }[];
+    }[];
+  };
+
+  const regeln: ExtrahierteRegel[] = [];
+  for (const cf of worksheetMitCf.conditionalFormattings ?? []) {
+    for (const rule of cf.rules ?? []) {
+      const text = extrahiereRegelText(rule);
+      const argb = rule.style?.fill?.fgColor?.argb;
+      if (text && argb) {
+        regeln.push({ text, argb });
+      }
+    }
+  }
+  return regeln;
+}
+
+function standardFarbRegeln(): ExtrahierteRegel[] {
+  return [
+    { text: "keine Freigabe", argb: STANDARD_FARBE_KEINE_FREIGABE },
+    { text: "Freigabe", argb: STANDARD_FARBE_FREIGABE },
+  ];
+}
+
+/**
+ * Erstellt aus einer Vorlage (Spaltenköpfe, Titel-/Branding-Texte, Farbregeln
+ * je Prüfergebnis) eine komplett neue, von exceljs frisch erzeugte
+ * Arbeitsmappe mit den übergebenen Zeilen — die Vorlage selbst wird dabei
+ * ausschliesslich gelesen, nie verändert oder wieder gespeichert.
+ */
+export async function erzeugeArbeitskopie(vorlageBuffer: ArrayBuffer, zeilen: ExportZeile[]): Promise<ArrayBuffer> {
+  const vorlageWorkbook = new ExcelJS.Workbook();
+  await vorlageWorkbook.xlsx.load(vorlageBuffer);
+  const { titelZeilen, headerZeile, mapping, spaltenAnzahl, farbRegeln } = extrahiereAusVorlage(vorlageWorkbook);
+
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Bericht");
+
+  titelZeilen.forEach((zelleWerte) => {
+    const row = worksheet.addRow(zelleWerte);
+    row.font = { bold: true };
+  });
+
+  const headerRowNumber = titelZeilen.length + 1;
+  const headerRow = worksheet.addRow(headerZeile);
+  headerRow.font = { bold: true };
+  headerRow.eachCell({ includeEmpty: true }, (cell) => {
+    cell.border = { bottom: { style: "thin" } };
+  });
+
+  const ersteDatenzeile = headerRowNumber + 1;
+  zeilen.forEach((zeile) => {
+    const werte: (string | null)[] = new Array(spaltenAnzahl).fill(null);
+    mapping.forEach((feld, spalte) => {
+      werte[spalte - 1] = zeile[feld];
     });
+    worksheet.addRow(werte);
+  });
+
+  if (zeilen.length > 0) {
+    const letzteZeile = ersteDatenzeile + zeilen.length - 1;
+    const ergebnisSpalte = Array.from(mapping.entries()).find(([, feld]) => feld === "pruefergebnis")?.[0];
+    if (ergebnisSpalte) {
+      const spalteBuchstabe = spalteZuBuchstabe(ergebnisSpalte);
+      const ref = `${spalteBuchstabe}${ersteDatenzeile}:${spalteBuchstabe}${letzteZeile}`;
+      const regeln = farbRegeln.length > 0 ? farbRegeln : standardFarbRegeln();
+      regeln.forEach((regel, index) => {
+        worksheet.addConditionalFormatting({
+          ref,
+          rules: [
+            {
+              type: "containsText",
+              operator: "containsText",
+              text: regel.text,
+              priority: index + 1,
+              style: { fill: { type: "pattern", pattern: "solid", fgColor: { argb: regel.argb } } },
+            },
+          ],
+        });
+      });
+    }
   }
 
   const buffer = await workbook.xlsx.writeBuffer();
   return buffer as ArrayBuffer;
 }
-
-export { spalteZuBuchstabe };
