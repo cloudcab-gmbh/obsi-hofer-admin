@@ -223,6 +223,15 @@ export async function erzeugeArbeitskopie(
       werte[spalte - 1] = zeile[feld];
     });
     const row = worksheet.addRow(werte);
+    // Live-Fund (2026-10-06): mehrzeilige Werte (z.B. Zubehör, Bemerkungen
+    // mit eingebetteten Zeilenumbrüchen) erschienen ohne jede Trennung
+    // aneinandergereiht ("Zubehör Zeile1Zubehör Zeile2..."), da Excel
+    // eingebettete Zeilenumbrüche in einer Zelle nur anzeigt, wenn
+    // `wrapText` aktiviert ist — ohne das wird der Umbruch beim Rendern
+    // praktisch unsichtbar statt als Zeilenwechsel dargestellt.
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      cell.alignment = { wrapText: true, vertical: "top" };
+    });
 
     const treffer = ergebnisSpalte ? regeln.find((regel) => regel.text === zeile.pruefergebnis) : undefined;
     if (ergebnisSpalte && treffer) {

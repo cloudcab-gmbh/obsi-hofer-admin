@@ -337,4 +337,22 @@ describe("erzeugeArbeitskopie", () => {
     expect(worksheet.pageSetup.orientation).toBe("landscape");
     expect(worksheet.pageSetup.fitToWidth).toBe(1);
   });
+
+  // Live-Fund (2026-10-06): mehrzeilige Werte (z.B. Zubehör mit eingebetteten
+  // Zeilenumbrüchen) erschienen ohne jede Trennung aneinandergereiht
+  // ("Zubehör Zeile1Zubehör Zeile2...") — Excel zeigt eingebettete
+  // Zeilenumbrüche in einer Zelle nur an, wenn `wrapText` aktiviert ist.
+  it("enables wrapText on data cells so embedded line breaks (e.g. in Zubehör) are actually shown", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true });
+
+    const ergebnis = await erzeugeArbeitskopie(
+      vorlage,
+      [leereZeile({ zubehoer: "Zeile1\nZeile2" })],
+      FIRMA_NAME
+    );
+    const worksheet = await loadWorksheet(ergebnis);
+
+    const beliebigeSpalte = HEADER.indexOf("Bemerkungen") + 1; // 1-indiziert wie Excel; beliebige Datenzelle genügt zur Prüfung
+    expect(worksheet.getRow(ERSTE_DATENZEILE).getCell(beliebigeSpalte).alignment?.wrapText).toBe(true);
+  });
 });
