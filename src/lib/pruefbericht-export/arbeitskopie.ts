@@ -4,6 +4,11 @@ import { resolveSpaltenMapping, type ExportFeld, type ExportZeile } from "./feld
 const HEADER_SUCH_BEREICH = 10;
 const STANDARD_FARBE_FREIGABE = "FF92D050";
 const STANDARD_FARBE_KEINE_FREIGABE = "FFFF0000";
+// Firmenkonstant, in jeder bisher gesichteten echten Vorlage identisch
+// vorgefunden — bewusst fest hinterlegt statt aus der Vorlage gelesen, siehe
+// Live-Fund weiter unten (Titelzeile der echten Datei zeigte einen
+// Projekt-/Ortsnamen statt der Firma).
+const OBSI_HOFER_KONTAKTZEILE = "Obsi Hofer GmbH I 4805 Brittnau I +41 78 401 54 36 I info@obsi-hofer.ch I www.obsi-hofer.ch";
 
 export class VorlagenFehler extends Error {
   constructor(message: string) {
@@ -18,7 +23,6 @@ interface ExtrahierteRegel {
 }
 
 interface ExtrahierteVorlage {
-  titelZeilen: (string | null)[][];
   headerZeile: (string | null)[];
   mapping: Map<number, ExportFeld>;
   spaltenAnzahl: number;
@@ -91,7 +95,6 @@ function extrahiereAusVorlage(vorlageWorkbook: ExcelJS.Workbook): ExtrahierteVor
 
   let headerZeile: (string | null)[] | null = null;
   let mapping: Map<number, ExportFeld> | null = null;
-  let headerRowNumber = 0;
   const grenze = Math.min(worksheet.rowCount, HEADER_SUCH_BEREICH);
   for (let rowNumber = 1; rowNumber <= grenze; rowNumber++) {
     const zellen = zeilenTexte(worksheet.getRow(rowNumber), spaltenAnzahl);
@@ -99,7 +102,6 @@ function extrahiereAusVorlage(vorlageWorkbook: ExcelJS.Workbook): ExtrahierteVor
     if (Array.from(kandidat.values()).includes("pruefergebnis")) {
       headerZeile = zellen;
       mapping = kandidat;
-      headerRowNumber = rowNumber;
       break;
     }
   }
@@ -109,14 +111,9 @@ function extrahiereAusVorlage(vorlageWorkbook: ExcelJS.Workbook): ExtrahierteVor
     );
   }
 
-  const titelZeilen: (string | null)[][] = [];
-  for (let rowNumber = 1; rowNumber < headerRowNumber; rowNumber++) {
-    titelZeilen.push(zeilenTexte(worksheet.getRow(rowNumber), spaltenAnzahl));
-  }
-
   const farbRegeln = extrahiereFarbRegeln(worksheet);
 
-  return { titelZeilen, headerZeile, mapping, spaltenAnzahl, farbRegeln };
+  return { headerZeile, mapping, spaltenAnzahl, farbRegeln };
 }
 
 /**
@@ -173,15 +170,23 @@ function standardFarbRegeln(): ExtrahierteRegel[] {
 }
 
 /**
- * Erstellt aus einer Vorlage (Spaltenköpfe, Titel-/Branding-Texte, Farbregeln
- * je Prüfergebnis) eine komplett neue, von exceljs frisch erzeugte
- * Arbeitsmappe mit den übergebenen Zeilen — die Vorlage selbst wird dabei
- * ausschliesslich gelesen, nie verändert oder wieder gespeichert.
+ * Erstellt aus einer Vorlage (Spaltenköpfe, Farbregeln je Prüfergebnis) eine
+ * komplett neue, von exceljs frisch erzeugte Arbeitsmappe mit den
+ * übergebenen Zeilen — die Vorlage selbst wird dabei ausschliesslich
+ * gelesen, nie verändert oder wieder gespeichert. Die Titelzeile wird NICHT
+ * aus der Vorlage übernommen (Live-Fund 2026-10-06: der reale Titeltext
+ * einer Firma zeigte einen Projekt-/Ortsnamen statt des eigentlichen
+ * Firmennamens — die Vorlage ist dafür keine verlässliche Quelle), sondern
+ * aus dem übergebenen, aus Dataverse stammenden `firmaName` gebaut.
  */
-export async function erzeugeArbeitskopie(vorlageBuffer: ArrayBuffer, zeilen: ExportZeile[]): Promise<ArrayBuffer> {
+export async function erzeugeArbeitskopie(
+  vorlageBuffer: ArrayBuffer,
+  zeilen: ExportZeile[],
+  firmaName: string
+): Promise<ArrayBuffer> {
   const vorlageWorkbook = new ExcelJS.Workbook();
   await vorlageWorkbook.xlsx.load(vorlageBuffer);
-  const { titelZeilen, headerZeile, mapping, spaltenAnzahl, farbRegeln } = extrahiereAusVorlage(vorlageWorkbook);
+  const { headerZeile, mapping, spaltenAnzahl, farbRegeln } = extrahiereAusVorlage(vorlageWorkbook);
 
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("Bericht");
@@ -192,10 +197,8 @@ export async function erzeugeArbeitskopie(vorlageBuffer: ArrayBuffer, zeilen: Ex
   // entspricht dem bisherigen, manuell erstellten Referenzformat.
   worksheet.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
 
-  titelZeilen.forEach((zelleWerte) => {
-    const row = worksheet.addRow(zelleWerte);
-    row.font = { bold: true };
-  });
+  worksheet.addRow(["Prüfbericht Absturzsicherungen", null, firmaName]).font = { bold: true };
+  worksheet.addRow([OBSI_HOFER_KONTAKTZEILE]).font = { italic: true };
 
   const headerRow = worksheet.addRow(headerZeile);
   headerRow.font = { bold: true };

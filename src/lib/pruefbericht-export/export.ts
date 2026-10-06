@@ -133,7 +133,7 @@ export async function generatePruefberichtPdf(params: GeneratePdfParams): Promis
   const ordnerPfad = `${bereinigeFuerDateinamen(firmaName)}/Prüfberichte/${jahr}`;
 
   const vorlageBuffer = await ladeVorlage(ordnerPfad);
-  const arbeitskopieBuffer = await erzeugeArbeitskopie(vorlageBuffer, zeilen);
+  const arbeitskopieBuffer = await erzeugeArbeitskopie(vorlageBuffer, zeilen, firmaName);
 
   const tempPfad = `${ordnerPfad}/_temp-${crypto.randomUUID()}.xlsx`;
   const tempItemId = await uploadKundenDatei(tempPfad, arbeitskopieBuffer);

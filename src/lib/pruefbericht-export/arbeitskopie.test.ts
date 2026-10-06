@@ -14,6 +14,7 @@ const HEADER = [
   "Bemerkungen",
 ];
 const ERGEBNIS_SPALTE = 7; // "G" — 1-indiziert wie HEADER oben
+const FIRMA_NAME = "Beispiel-Firma";
 
 function leereZeile(overrides: Partial<ExportZeile> = {}): ExportZeile {
   return {
@@ -46,24 +47,27 @@ async function buildVorlage(
     mitBeispielzeile?: boolean;
     mitBedingterFormatierung?: boolean;
     mitLogo?: boolean;
-    mitHyperlinkInTitel?: boolean;
-    mitVerbundenerAdresszeile?: boolean;
+    mitHyperlinkInHeader?: boolean;
+    mitVerbundenerHeaderZelle?: boolean;
+    titelFirma?: string;
     sheetName?: string;
   } = {}
 ): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet(options.sheetName ?? "Bericht");
 
-  const titelRow = worksheet.addRow(["Prüfbericht Absturzsicherungen", "", "Beispiel-Firma"]);
-  if (options.mitHyperlinkInTitel) {
-    titelRow.getCell(4).value = { text: "info@obsi-hofer.ch", hyperlink: "mailto:info@obsi-hofer.ch" };
+  // Die Titelzeile der Vorlage selbst wird von erzeugeArbeitskopie bewusst
+  // NICHT übernommen (siehe Live-Fund in arbeitskopie.ts) — hier trotzdem
+  // vorhanden, um zu belegen, dass sie wirklich ignoriert wird.
+  worksheet.addRow(["Prüfbericht Absturzsicherungen", "", options.titelFirma ?? "Falscher Orts-/Projektname"]);
+
+  const headerRow = worksheet.addRow(HEADER);
+  if (options.mitHyperlinkInHeader) {
+    headerRow.getCell(1).value = { text: "Einbau- / Lagerort", hyperlink: "https://example.com" };
   }
-  if (options.mitVerbundenerAdresszeile) {
-    const adressRow = worksheet.addRow([]);
-    worksheet.mergeCells(adressRow.number, 1, adressRow.number, 3);
-    adressRow.getCell(1).value = "Obsi Hofer GmbH I 4805 Brittnau";
+  if (options.mitVerbundenerHeaderZelle) {
+    worksheet.mergeCells(headerRow.number, 1, headerRow.number, 2);
   }
-  worksheet.addRow(HEADER);
 
   if (options.mitLogo) {
     const imageId = workbook.addImage({ base64: `data:image/png;base64,${EIN_PIXEL_PNG_BASE64}`, extension: "png" });
@@ -111,42 +115,75 @@ function ergebnisFarbe(worksheet: ExcelJS.Worksheet, zeile: number): string | un
   return fill?.type === "pattern" ? fill.fgColor?.argb : undefined;
 }
 
+// Feste Zeilenstruktur der Ausgabe, unabhängig vom Inhalt der Vorlage:
+// Zeile 1 = Titel ("Prüfbericht Absturzsicherungen" + Firma), Zeile 2 =
+// OBSI-Hofer-Kontaktzeile, Zeile 3 = Kopfzeile, ab Zeile 4 Daten.
+const ERSTE_DATENZEILE = 4;
+
 describe("erzeugeArbeitskopie", () => {
   it("writes one row per Gerät below the detected header, mapped by column header", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true });
 
-    const ergebnis = await erzeugeArbeitskopie(vorlage, [
-      leereZeile({ lagerort: "Trakt 1", artikel: "Anschlagpunkt", typ: "AM 211", serienummer: "SN-1", geprueft: "27.04.2026", pruefer: "sabi", pruefergebnis: "Freigabe" }),
-      leereZeile({ lagerort: "Trakt 2", artikel: "Seilsystem", typ: "Lock SYS IV", serienummer: "SN-2", geprueft: "28.04.2026", pruefer: "daze", pruefergebnis: "keine Freigabe" }),
-    ]);
+    const ergebnis = await erzeugeArbeitskopie(
+      vorlage,
+      [
+        leereZeile({ lagerort: "Trakt 1", artikel: "Anschlagpunkt", typ: "AM 211", serienummer: "SN-1", geprueft: "27.04.2026", pruefer: "sabi", pruefergebnis: "Freigabe" }),
+        leereZeile({ lagerort: "Trakt 2", artikel: "Seilsystem", typ: "Lock SYS IV", serienummer: "SN-2", geprueft: "28.04.2026", pruefer: "daze", pruefergebnis: "keine Freigabe" }),
+      ],
+      FIRMA_NAME
+    );
 
     const worksheet = await loadWorksheet(ergebnis);
 
-    // Zeile 1 = Branding, Zeile 2 = Kopfzeile, ab Zeile 3 unsere Daten.
-    expect(worksheet.getRow(3).getCell(1).text).toBe("Trakt 1");
-    expect(worksheet.getRow(3).getCell(7).text).toBe("Freigabe");
-    expect(worksheet.getRow(4).getCell(1).text).toBe("Trakt 2");
-    expect(worksheet.rowCount).toBe(4);
+    expect(worksheet.getRow(ERSTE_DATENZEILE).getCell(1).text).toBe("Trakt 1");
+    expect(worksheet.getRow(ERSTE_DATENZEILE).getCell(7).text).toBe("Freigabe");
+    expect(worksheet.getRow(ERSTE_DATENZEILE + 1).getCell(1).text).toBe("Trakt 2");
+    expect(worksheet.rowCount).toBe(ERSTE_DATENZEILE + 1);
   });
 
   it("discards any pre-existing data rows from the real template instead of copying them over", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true });
 
-    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ lagerort: "Neu" })]);
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ lagerort: "Neu" })], FIRMA_NAME);
     const worksheet = await loadWorksheet(ergebnis);
 
-    expect(worksheet.rowCount).toBe(3);
-    expect(worksheet.getRow(3).getCell(1).text).toBe("Neu");
-    expect(worksheet.getRow(3).getCell(2).text).toBeFalsy(); // "Alter Artikel" darf nicht mehr vorhanden sein
+    expect(worksheet.rowCount).toBe(ERSTE_DATENZEILE);
+    expect(worksheet.getRow(ERSTE_DATENZEILE).getCell(1).text).toBe("Neu");
+    expect(worksheet.getRow(ERSTE_DATENZEILE).getCell(2).text).toBeFalsy(); // "Alter Artikel" darf nicht mehr vorhanden sein
+  });
+
+  // Live-Fund (2026-10-06): die Titelzeile einer echten Vorlagen-Datei zeigte
+  // einen Projekt-/Ortsnamen ("Weissfluhgipfel 2 844 m ü. M.") statt des
+  // tatsächlichen Firmennamens — die Vorlage selbst ist dafür keine
+  // verlässliche Quelle. Der Titel wird deshalb nicht mehr aus ihr
+  // übernommen, sondern aus dem server-seitig aus Dataverse bekannten
+  // Firmennamen gebaut.
+  it("builds the title from the given firmaName, ignoring whatever text is in the template's own title row", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true, titelFirma: "Weissfluhgipfel 2 844 m ü. M." });
+
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()], "9.81 Arbeitssicherheit AG");
+    const worksheet = await loadWorksheet(ergebnis);
+
+    expect(worksheet.getRow(1).getCell(3).text).toBe("9.81 Arbeitssicherheit AG");
+    expect(worksheet.getRow(1).getCell(1).text).toBe("Prüfbericht Absturzsicherungen");
+  });
+
+  it("includes the OBSI Hofer contact line regardless of what the template's title row contained", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true });
+
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()], FIRMA_NAME);
+    const worksheet = await loadWorksheet(ergebnis);
+
+    expect(worksheet.getRow(2).getCell(1).text).toContain("Obsi Hofer GmbH");
   });
 
   it("makes the header row bold", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true });
 
-    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()]);
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()], FIRMA_NAME);
     const worksheet = await loadWorksheet(ergebnis);
 
-    expect(worksheet.getRow(2).getCell(1).font?.bold).toBe(true);
+    expect(worksheet.getRow(3).getCell(1).font?.bold).toBe(true);
   });
 
   // Live-Fund (2026-10-06): bedingte Formatierung (addConditionalFormatting)
@@ -156,41 +193,42 @@ describe("erzeugeArbeitskopie", () => {
   it("applies the Prüfergebnis color found in the template as a static fill, matched by the exact value", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true, mitBedingterFormatierung: true });
 
-    const ergebnis = await erzeugeArbeitskopie(vorlage, [
-      leereZeile({ pruefergebnis: "Freigabe" }),
-      leereZeile({ pruefergebnis: "keine Freigabe" }),
-    ]);
+    const ergebnis = await erzeugeArbeitskopie(
+      vorlage,
+      [leereZeile({ pruefergebnis: "Freigabe" }), leereZeile({ pruefergebnis: "keine Freigabe" })],
+      FIRMA_NAME
+    );
     const worksheet = await loadWorksheet(ergebnis);
 
-    expect(ergebnisFarbe(worksheet, 3)).toBe("FF00FF00");
-    expect(ergebnisFarbe(worksheet, 4)).toBe("FFFF0000");
+    expect(ergebnisFarbe(worksheet, ERSTE_DATENZEILE)).toBe("FF00FF00");
+    expect(ergebnisFarbe(worksheet, ERSTE_DATENZEILE + 1)).toBe("FFFF0000");
   });
 
   it("falls back to a standard Freigabe/keine-Freigabe color scheme when the template has no conditional formatting of its own", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true }); // ohne mitBedingterFormatierung
 
-    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ pruefergebnis: "Freigabe" })]);
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ pruefergebnis: "Freigabe" })], FIRMA_NAME);
     const worksheet = await loadWorksheet(ergebnis);
 
-    expect(ergebnisFarbe(worksheet, 3)).toBeTruthy();
+    expect(ergebnisFarbe(worksheet, ERSTE_DATENZEILE)).toBeTruthy();
   });
 
   it("leaves a Prüfergebnis value with no matching color rule uncolored instead of guessing", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true, mitBedingterFormatierung: true });
 
-    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ pruefergebnis: "letzte Freigabe" })]);
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ pruefergebnis: "letzte Freigabe" })], FIRMA_NAME);
     const worksheet = await loadWorksheet(ergebnis);
 
-    expect(ergebnisFarbe(worksheet, 3)).toBeUndefined();
+    expect(ergebnisFarbe(worksheet, ERSTE_DATENZEILE)).toBeUndefined();
   });
 
   it("handles an empty Geräte list by leaving only the title and header rows", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true });
 
-    const ergebnis = await erzeugeArbeitskopie(vorlage, []);
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [], FIRMA_NAME);
     const worksheet = await loadWorksheet(ergebnis);
 
-    expect(worksheet.rowCount).toBe(2);
+    expect(worksheet.rowCount).toBe(ERSTE_DATENZEILE - 1);
   });
 
   it("throws a VorlagenFehler when no header row with a Prüfergebnis column can be found", async () => {
@@ -198,7 +236,7 @@ describe("erzeugeArbeitskopie", () => {
     workbook.addWorksheet("Bericht").addRow(["Nur", "Branding", "Ohne", "Kopfzeile"]);
     const vorlage = (await workbook.xlsx.writeBuffer()) as ArrayBuffer;
 
-    await expect(erzeugeArbeitskopie(vorlage, [leereZeile()])).rejects.toBeInstanceOf(VorlagenFehler);
+    await expect(erzeugeArbeitskopie(vorlage, [leereZeile()], FIRMA_NAME)).rejects.toBeInstanceOf(VorlagenFehler);
   });
 
   it("reads the header/structure from the worksheet named 'Bericht', not simply the first one in the workbook", async () => {
@@ -209,7 +247,7 @@ describe("erzeugeArbeitskopie", () => {
     bericht.addRow(HEADER);
     const vorlage = (await workbook.xlsx.writeBuffer()) as ArrayBuffer;
 
-    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ lagerort: "X" })]);
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ lagerort: "X" })], FIRMA_NAME);
 
     const resultWorkbook = new ExcelJS.Workbook();
     await resultWorkbook.xlsx.load(ergebnis);
@@ -218,34 +256,37 @@ describe("erzeugeArbeitskopie", () => {
     // Quelldatei selbst (inkl. ihres "Therapie"-Blatts) wird nie wieder
     // gespeichert, nur zum Lesen der Struktur verwendet.
     expect(resultWorkbook.worksheets).toHaveLength(1);
-    expect(resultWorkbook.worksheets[0].getRow(3).getCell(1).text).toBe("X");
+    expect(resultWorkbook.worksheets[0].getRow(ERSTE_DATENZEILE).getCell(1).text).toBe("X");
   });
 
   it("never carries embedded images from the template into the result (new workbook, built from scratch)", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true, mitLogo: true });
 
-    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ lagerort: "X" })]);
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ lagerort: "X" })], FIRMA_NAME);
     const worksheet = await loadWorksheet(ergebnis);
 
     expect(worksheet.getImages()).toHaveLength(0);
   });
 
-  // Live-Fund (2026-10-06): eine Hyperlink-Zelle (z.B. eine als Link
-  // formatierte E-Mail-Adresse) in der Titelzeile erschien im Export als
-  // buchstäblich "[object Object]" statt als Text.
-  it("extracts the plain text from a hyperlink cell in a title row instead of '[object Object]'", async () => {
-    const vorlage = await buildVorlage({ mitBeispielzeile: true, mitHyperlinkInTitel: true });
+  // Live-Fund (2026-10-06): `cell.text` liefert für Hyperlink-Zellen
+  // buchstäblich "[object Object]" statt des sichtbaren Textes (exceljs ruft
+  // intern toString() auf dem Wert-Wrapper auf, HyperlinkValue überschreibt
+  // das nicht) — hier anhand einer (unüblichen, aber denkbaren)
+  // Hyperlink-formatierten Kopfzellen-Spalte geprüft, da die Kopfzeile die
+  // einzige Vorlagen-Zeile ist, die noch inhaltlich gelesen wird.
+  it("extracts the plain text from a hyperlink cell in the header row instead of '[object Object]'", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true, mitHyperlinkInHeader: true });
 
-    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()]);
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()], FIRMA_NAME);
     const worksheet = await loadWorksheet(ergebnis);
 
-    expect(worksheet.getRow(1).getCell(4).text).toBe("info@obsi-hofer.ch");
+    expect(worksheet.getRow(3).getCell(1).text).toBe("Einbau- / Lagerort");
   });
 
   it("sets a usable column width based on the header text instead of the exceljs default", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true });
 
-    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()]);
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()], FIRMA_NAME);
     const worksheet = await loadWorksheet(ergebnis);
 
     // "Einbau- / Lagerort" (19 Zeichen) muss deutlich breiter sein als die
@@ -255,25 +296,25 @@ describe("erzeugeArbeitskopie", () => {
   });
 
   // Live-Fund (2026-10-06): exceljs liefert für JEDE Zelle innerhalb eines
-  // Merge-Bereichs denselben Wert (nicht nur für die Anker-Zelle) — ohne
-  // Behandlung erschien derselbe Adresstext live mehrfach in benachbarten
-  // Spalten der neuen Kopfzeile ("Obsi Hofer Gm Obsi Hofer GmbH I ...").
-  it("only takes a merged title-row cell's value from its anchor cell, not from every cell in the merge", async () => {
-    const vorlage = await buildVorlage({ mitBeispielzeile: true, mitVerbundenerAdresszeile: true });
+  // Merge-Bereichs denselben Wert (nicht nur für die Anker-Zelle) — geprüft
+  // anhand einer (unüblichen, aber denkbaren) verbundenen Kopfzeilen-Zelle,
+  // da die Kopfzeile die einzige Vorlagen-Zeile ist, die noch inhaltlich
+  // gelesen wird.
+  it("only takes a merged header cell's value from its anchor cell, not from every cell in the merge", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true, mitVerbundenerHeaderZelle: true });
 
-    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ lagerort: "X" })]);
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ lagerort: "X" })], FIRMA_NAME);
     const worksheet = await loadWorksheet(ergebnis);
 
-    const adressZeile = worksheet.getRow(2); // Zeile 1 = Titel, Zeile 2 = verbundene Adresszeile, Zeile 3 = Kopfzeile
-    expect(adressZeile.getCell(1).text).toBe("Obsi Hofer GmbH I 4805 Brittnau");
-    expect(adressZeile.getCell(2).text).toBeFalsy();
-    expect(adressZeile.getCell(3).text).toBeFalsy();
+    const headerZeile = worksheet.getRow(3);
+    expect(headerZeile.getCell(1).text).toBe("Einbau- / Lagerort");
+    expect(headerZeile.getCell(2).text).toBeFalsy();
   });
 
   it("sets up the page for landscape printing, scaled to fit one page wide", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true });
 
-    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()]);
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()], FIRMA_NAME);
     const worksheet = await loadWorksheet(ergebnis);
 
     expect(worksheet.pageSetup.orientation).toBe("landscape");
