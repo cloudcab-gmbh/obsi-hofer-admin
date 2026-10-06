@@ -1,6 +1,6 @@
 # PROJ-7: PDF-Export Prüfberichte (kundenspezifisches Template)
 
-## Status: In Review
+## Status: Approved
 **Created:** 2026-10-05
 **Last Updated:** 2026-10-06
 
@@ -181,14 +181,15 @@ Siehe Decision Log → Technical Decisions oben.
 - [x] Authentifizierung: `generatePdfAction` liegt unter `(protected)/geraete`, die Proxy-Middleware (`src/proxy.ts`) greift für denselben Pfad auch bei Server-Action-POSTs (kein `/api`-Ausschluss für diese Route) — ein nicht eingeloggter Aufruf wird vor Erreichen der Action umgeleitet
 - [x] Autorisierung/Firma-Isolation beim SharePoint-Pfad: `firmaName` wird ausschliesslich serverseitig über `getCurrentFirmaId()` → `getFirma()` aufgelöst, nie vom Client übernommen — ein Client kann also nicht gezielt in den Jahresordner einer anderen Firma schreiben/lesen lassen
 - [x] OData-/Pfad-Injection: `artikelId`-Liste läuft weiterhin durch `requireValidGuid` (unverändert aus den bestehenden Modulen); SharePoint-Pfadsegmente werden über `bereinigeFuerDateinamen` von den klassischen Sonderzeichen (`\ / : * ? " < > |`) befreit. Ein Firmenname, der ausschliesslich aus `..` besteht, wurde geprüft: Microsoft Graphs pfadbasierte Adressierung (`/root:/{pfad}:/`) löst Segmente als exakte Kind-Elementnamen auf, nicht als generischen Dateisystempfad — ein Segment `..` würde als (nicht existierendes) Element gesucht, nicht als Verzeichnis-Aufstieg interpretiert; keine praktikable Traversal-Möglichkeit gefunden
-- [ ] **BUG-1 (High):** Server Action vertraut vollständigen, vom Client mitgegebenen `Geraet`-Objekten statt die Stammdaten serverseitig neu zu laden
-- [ ] BUG-2 (Medium): siehe oben
-- [ ] BUG-3 (Low): siehe oben
+- [x] BUG-1 (High) behoben — siehe Retest
+- [x] BUG-2 (Medium) behoben — siehe Retest
+- [x] BUG-3 (Low) behoben — siehe Retest
 
 ### Bugs Found
 
 #### BUG-1: Client-seitig mitgegebene Gerätedaten werden ungeprüft in das offizielle PDF übernommen
 - **Severity:** High
+- **Status:** ✅ Fixed
 - **Steps to Reproduce:**
   1. `generatePdfAction(geraete, lagerortFilter)` (`src/app/(protected)/geraete/actions.ts`) nimmt ein vollständiges Array von `Geraet`-Objekten vom Client entgegen — das sind exakt die Objekte, die der Browser im Zustand der `GeraeteListe`-Komponente hält
   2. Next.js Server Actions sind als eigenständige, direkt aufrufbare Endpoints exponiert (POST auf denselben Routen-Pfad mit einem `Next-Action`-Header) — ein eingeloggter Bearbeiter/Freigeber kann diesen Aufruf direkt (z.B. per curl/DevTools) mit selbst zusammengestellten `Geraet`-Objekten ausführen, nicht nur über die UI
@@ -200,6 +201,7 @@ Siehe Decision Log → Technical Decisions oben.
 
 #### BUG-2: Fehler beim Löschen der temporären Arbeitskopie maskiert eine erfolgreiche PDF-Generierung
 - **Severity:** Medium
+- **Status:** ✅ Fixed
 - **Steps to Reproduce:**
   1. In `generatePruefberichtPdf` steht die Konvertierung in einem `try`, das Löschen der temporären Datei im zugehörigen `finally`
   2. Schlägt `konvertiereZuPdf` erfolgreich durch, aber `loescheKundenDatei` im `finally`-Block wirft (z.B. kurzzeitiger Netzwerkfehler bei Graph), überschreibt diese Exception laut JavaScript-Semantik das erfolgreiche Ergebnis des `try`-Blocks
@@ -208,21 +210,32 @@ Siehe Decision Log → Technical Decisions oben.
 
 #### BUG-3: Fehler beim finalen Archiv-Upload verhindert auch den Download
 - **Severity:** Low
+- **Status:** ✅ Fixed
 - **Steps to Reproduce:**
   1. Nach erfolgreicher PDF-Konvertierung wird das Ergebnis zusätzlich per `uploadKundenDatei` archiviert — schlägt dieser letzte Schritt fehl (z.B. transiente SharePoint-Störung), wirft `generatePruefberichtPdf` komplett, bevor es das bereits fertige PDF zurückgibt
   2. Der Bearbeiter bekommt weder Download noch Archiv-Kopie, obwohl das PDF korrekt im Speicher vorlag
 - **Priority:** Nice to have
 
-### Automatisierte Tests
+### Automatisierte Tests (vor den Fixes)
 - **Unit-/Integrationstests (Vitest):** 156/156 grün gesamt (37 neu für PROJ-7: `feld-mapping.test.ts`, `arbeitskopie.test.ts`, `export.test.ts`, `sharepoint/client.test.ts`, `sharepoint/kunden-drive.test.ts`)
 - **Regression:** Alle bisherigen PROJ-1/2/3/4-Tests weiterhin grün. `npx tsc --noEmit`, `npm run lint` und `npm run build` laufen fehlerfrei durch
 
+### Retest (2026-10-06)
+
+- **Fix BUG-1:** `generatePdfAction` (`src/app/(protected)/geraete/actions.ts`) nimmt jetzt `geraetIds: string[]` statt vollständiger `Geraet`-Objekte entgegen. Die IDs dienen nur noch als Auswahl: die Action lädt serverseitig über `listStandorteForFirma(firmaId)` → `listGeraeteForStandorte(...)` die authoritative, auf die aktuelle Session-Firma beschränkte Geräteliste neu und filtert sie auf die angefragten IDs (`idSet.has(g.id)`). Ein Client kann damit weder Gerätedaten fälschen noch gezielt ein Gerät einer anderen Firma einschleusen — eine unbekannte/fremde ID wird einfach stillschweigend ignoriert. `src/components/geraete-liste.tsx` schickt entsprechend nur noch `gefiltert.map(g => g.id)`.
+- **Fix BUG-2:** Das Löschen der temporären Arbeitskopie (`src/lib/pruefbericht-export/export.ts`) steht jetzt in einem eigenen inneren `try`/`catch` innerhalb des äusseren `finally` — ein Fehler dort wird nur noch geloggt (`console.error`), überschreibt aber nicht mehr das Ergebnis einer erfolgreichen Konvertierung.
+- **Fix BUG-3:** Der abschliessende Archiv-Upload ist ebenfalls in ein eigenes `try`/`catch` gefasst — schlägt er fehl, wird das nur geloggt; das bereits fertig generierte PDF wird trotzdem zum Download zurückgegeben.
+- **Neue Regressionstests:**
+  - `actions.test.ts` → `describe("generatePdfAction", ...)`: kein Firma-Kontext → Fehler ohne jeden Datenzugriff; Geräte werden immer frisch via `listGeraeteForStandorte` geladen und auf die angefragten IDs gefiltert; eine angefragte ID, die nicht zur Firma gehört, wird stillschweigend verworfen; Erfolgsfall liefert Base64-PDF; `ExportFehler`- und generische Fehlerpfade
+  - `export.test.ts`: ein Fehler beim Löschen der temporären Datei bzw. beim Archiv-Upload führt weiterhin zu einem erfolgreichen Rückgabewert mit dem generierten PDF
+- **Verifiziert:** `npm test` (164/164 grün, 8 neu), `npm run lint` (clean), `npx tsc --noEmit` (clean), `npm run build` (clean)
+
 ### Summary
-- **Acceptance Criteria:** 8/8 funktional erfüllt, 1 davon (Farbcodierung) nur per Unit-Test gegen eine synthetische Vorlage verifiziert, nicht gegen die echte Datei
-- **Bugs Found:** 3 total (0 critical, 1 high, 1 medium, 1 low)
-- **Security:** 1 High-Finding — Datenintegrität des erzeugten Nachweisdokuments, keine Zugriffskontrolllücke (Firma-Isolation und Authentifizierung sind sauber)
-- **Production Ready:** NO
-- **Recommendation:** BUG-1 vor dem Deploy beheben (Server Action auf `geraetIds: string[]` umstellen, Gerätestammdaten serverseitig per Dataverse neu laden statt vom Client zu übernehmen, dabei zusätzlich prüfen, dass jedes geladene Gerät tatsächlich zur aktuellen Session-Firma gehört). BUG-2 sollte im selben Zug behoben werden (Fehler beim Löschen der temporären Datei separat abfangen/loggen statt den Erfolg zu überschreiben). BUG-3 kann bei Gelegenheit, muss aber nicht vor dem ersten Deploy behoben werden.
+- **Acceptance Criteria:** 8/8 funktional erfüllt, 1 davon (Farbcodierung) weiterhin nur per Unit-Test gegen eine synthetische Vorlage verifiziert, nicht gegen die echte Datei (siehe Implementation Notes)
+- **Bugs Found:** 3 total (0 critical, 1 high, 1 medium, 1 low) — alle behoben, siehe Retest
+- **Security:** Kein offenes Finding mehr — Firma-Isolation und Authentifizierung waren bereits sauber, die Datenintegrität des generierten Nachweisdokuments ist jetzt ebenfalls serverseitig abgesichert
+- **Production Ready:** JA (code-seitig) — die Farbcodierung sowie das Verhalten gegen die echte SharePoint-Instanz (Logo-Erhalt, echte bedingte Formatierung, Azure-Graph-Consent) sollten beim ersten echten Live-Einsatz vom Nutzer bestätigt werden, da das aus der Code-Umgebung heraus nicht testbar ist
+- **Recommendation:** Status auf "Approved" setzen und deployen. Erste Live-Generierung für eine Firma mit eigener Vorlage UND eine ohne (Standard-Vorlage-Fallback) vom Nutzer prüfen lassen.
 
 ## Deployment
 _To be added by /deploy_

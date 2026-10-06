@@ -140,6 +140,32 @@ describe("generatePruefberichtPdf", () => {
     expect(loescheKundenDateiMock).toHaveBeenCalledWith("temp-item-id");
   });
 
+  // QA BUG-2: ein Fehler beim Aufräumen darf einen ansonsten erfolgreichen Export nicht maskieren.
+  it("still returns the generated PDF when deleting the temporary working copy fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
+    findeNeuesteExcelDateiMock.mockResolvedValue(null);
+    downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
+    loescheKundenDateiMock.mockRejectedValue(new Error("Löschen fehlgeschlagen"));
+
+    await expect(
+      generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: null })
+    ).resolves.toMatchObject({ dateiname: expect.stringContaining("Firma") });
+  });
+
+  // QA BUG-3: ein Fehler bei der zusätzlichen Archiv-Ablage darf den Download nicht verhindern.
+  it("still returns the generated PDF when archiving the final file in SharePoint fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
+    findeNeuesteExcelDateiMock.mockResolvedValue(null);
+    downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
+    uploadKundenDateiMock.mockResolvedValueOnce("temp-item-id").mockRejectedValueOnce(new Error("Archiv-Upload fehlgeschlagen"));
+
+    const result = await generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: null });
+
+    expect(result.pdfBuffer).toBeInstanceOf(ArrayBuffer);
+  });
+
   it("includes the active Lagerort filter in the final filename, and saves it in the year folder", async () => {
     getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
     findeNeuesteExcelDateiMock.mockResolvedValue(null);

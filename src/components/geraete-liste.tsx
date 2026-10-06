@@ -75,7 +75,10 @@ export function GeraeteListe({
   function handleGeneratePdf() {
     setPdfError(null);
     startPdfTransition(async () => {
-      const result = await generatePdfAction(gefiltert, lagerort === ALLE ? null : lagerort);
+      const result = await generatePdfAction(
+        gefiltert.map((g) => g.id),
+        lagerort === ALLE ? null : lagerort
+      );
       if (!result.success) {
         setPdfError(result.message);
         return;

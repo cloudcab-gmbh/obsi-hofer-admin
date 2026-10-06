@@ -121,11 +121,25 @@ export async function generatePruefberichtPdf(params: GeneratePdfParams): Promis
   try {
     pdfBuffer = await konvertiereZuPdf(tempItemId);
   } finally {
-    await loescheKundenDatei(tempItemId);
+    // QA BUG-2: ein Fehler beim Aufräumen darf eine ansonsten erfolgreiche
+    // Konvertierung nicht maskieren (ein `throw` hier würde den Erfolg des
+    // try-Blocks überschreiben) — im schlimmsten Fall bleibt nur eine
+    // harmlose, erkennbar benannte _temp-*.xlsx-Datei liegen.
+    try {
+      await loescheKundenDatei(tempItemId);
+    } catch (error) {
+      console.error(`Temporäre Arbeitskopie konnte nicht gelöscht werden (${tempPfad}):`, error);
+    }
   }
 
   const dateiname = buildDateiname(firmaName, lagerortFilter);
-  await uploadKundenDatei(`${ordnerPfad}/${dateiname}`, pdfBuffer);
+  try {
+    // QA BUG-3: Ein Fehler bei der zusätzlichen Archiv-Ablage darf dem
+    // Bearbeiter nicht den bereits fertig generierten Download verwehren.
+    await uploadKundenDatei(`${ordnerPfad}/${dateiname}`, pdfBuffer);
+  } catch (error) {
+    console.error(`PDF konnte nicht im Archiv abgelegt werden (${ordnerPfad}/${dateiname}):`, error);
+  }
 
   return { pdfBuffer, dateiname };
 }

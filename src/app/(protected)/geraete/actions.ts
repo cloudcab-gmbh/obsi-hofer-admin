@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { getFirma, updateGeraetStammdaten, type Geraet } from "@/lib/dataverse/geraete";
+import { getFirma, listGeraeteForStandorte, listStandorteForFirma, updateGeraetStammdaten } from "@/lib/dataverse/geraete";
 import { DataverseError } from "@/lib/dataverse/errors";
 import { getCurrentFirmaId } from "@/lib/firma-session";
 import { generatePruefberichtPdf, ExportFehler } from "@/lib/pruefbericht-export/export";
@@ -60,12 +60,14 @@ export type GeneratePdfResult =
   | { success: false; message: string };
 
 /**
- * `geraete` kommt von der bereits beim Seitenaufruf geladenen, client-seitig
- * gefilterten Liste — kein zusätzlicher Dataverse-Roundtrip nötig und keine
- * Sicherheitsfrage, da rein lesend und ohnehin bereits für diesen Nutzer
- * geladene Daten (siehe PROJ-7 Tech Design).
+ * QA BUG-1 (Fix): `geraetIds` kommt vom Client (der bereits gefilterten
+ * Anzeige), bestimmt aber nur noch AUSWAHL — die tatsächlichen Gerätedaten
+ * werden hier immer frisch aus Dataverse geladen und zusätzlich auf die
+ * Standorte der aktuellen Session-Firma eingeschränkt. Ein manipulierter
+ * Aufruf (Server Actions sind direkt aufrufbar) kann damit weder Daten
+ * fälschen noch Geräte einer anderen Firma einschleusen.
  */
-export async function generatePdfAction(geraete: Geraet[], lagerortFilter: string | null): Promise<GeneratePdfResult> {
+export async function generatePdfAction(geraetIds: string[], lagerortFilter: string | null): Promise<GeneratePdfResult> {
   const firmaId = await getCurrentFirmaId();
   if (!firmaId) {
     return { success: false, message: "Keine Firma ausgewählt." };
@@ -73,6 +75,11 @@ export async function generatePdfAction(geraete: Geraet[], lagerortFilter: strin
 
   try {
     const firma = await getFirma(firmaId);
+    const standorte = await listStandorteForFirma(firmaId);
+    const geraeteDerFirma = await listGeraeteForStandorte(standorte.map((s) => s.id));
+    const idSet = new Set(geraetIds);
+    const geraete = geraeteDerFirma.filter((g) => idSet.has(g.id));
+
     const { pdfBuffer, dateiname } = await generatePruefberichtPdf({
       firmaName: firma.name,
       geraete,
