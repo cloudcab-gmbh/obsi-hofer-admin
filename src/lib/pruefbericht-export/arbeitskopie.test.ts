@@ -49,6 +49,7 @@ async function buildVorlage(
     mitLogo?: boolean;
     mitHyperlinkInHeader?: boolean;
     mitVerbundenerHeaderZelle?: boolean;
+    mitZusaetzlicherLeerspalte?: boolean;
     titelFirma?: string;
     sheetName?: string;
   } = {}
@@ -62,6 +63,13 @@ async function buildVorlage(
   worksheet.addRow(["Prüfbericht Absturzsicherungen", "", options.titelFirma ?? "Falscher Orts-/Projektname"]);
 
   const headerRow = worksheet.addRow(HEADER);
+  if (options.mitZusaetzlicherLeerspalte) {
+    // Simuliert echte Vorlagen, bei denen worksheet.columnCount mehr Spalten
+    // zählt, als die Kopfzeile tatsächlich beschriftete Spalten hat (z.B.
+    // eine irgendwo weiter rechts einmal formatierte, aber inhaltsleere
+    // Restspalte) — live beobachtet, siehe Fund in arbeitskopie.ts.
+    worksheet.getCell(headerRow.number + 1, HEADER.length + 10).border = { top: { style: "thin" } };
+  }
   if (options.mitHyperlinkInHeader) {
     headerRow.getCell(1).value = { text: "Einbau- / Lagerort", hyperlink: "https://example.com" };
   }
@@ -184,6 +192,20 @@ describe("erzeugeArbeitskopie", () => {
     expect(kontaktZelle.text).toContain("www.obsi-hofer.ch");
     expect(kontaktZelle.alignment?.wrapText).toBe(true);
     expect(kontaktZelle.font?.bold).toBe(true);
+  });
+
+  // Live-Fund (2026-10-06): echte Vorlagen zählten über `worksheet.columnCount`
+  // offenbar mehr Spalten, als die Kopfzeile tatsächlich beschriftet — der
+  // Kontaktblock landete dadurch weit rechts von der echten Tabelle entfernt.
+  it("places the contact block right after the real header columns, ignoring stray trailing formatting that inflates columnCount", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true, mitZusaetzlicherLeerspalte: true });
+
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()], FIRMA_NAME);
+    const worksheet = await loadWorksheet(ergebnis);
+
+    // Unverändert gegenüber dem Fall ohne Leerspalte: Spalte 6 = max(5, 8-2).
+    const kontaktZelle = worksheet.getRow(1).getCell(6);
+    expect(kontaktZelle.text).toContain("Obsi Hofer GmbH");
   });
 
   it("anchors the logo at the start of the title row (column A), not overlapping the title text", async () => {

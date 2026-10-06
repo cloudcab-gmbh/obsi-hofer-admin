@@ -199,7 +199,16 @@ export async function erzeugeArbeitskopie(
 ): Promise<ArrayBuffer> {
   const vorlageWorkbook = new ExcelJS.Workbook();
   await vorlageWorkbook.xlsx.load(vorlageBuffer);
-  const { headerZeile, mapping, spaltenAnzahl, farbRegeln } = extrahiereAusVorlage(vorlageWorkbook);
+  const { headerZeile, mapping, farbRegeln } = extrahiereAusVorlage(vorlageWorkbook);
+  // Live-Fund (2026-10-06): `worksheet.columnCount` (Spaltenzahl) der
+  // Vorlage) zählte in echten Dateien offenbar mehr Spalten, als tatsächlich
+  // echte Kopfzeilen-Überschriften vorhanden sind (vermutlich leere, aber
+  // irgendwie formatierte Restspalten) — für alles, was sich an der
+  // "letzten echten Spalte" orientieren muss (Kontaktblock-Platzierung,
+  // Spaltenbreiten), wird deshalb stattdessen die letzte Spalte mit
+  // tatsächlichem Kopfzeilen-Text verwendet.
+  let letzteHeaderSpalte = headerZeile.length;
+  while (letzteHeaderSpalte > 0 && !headerZeile[letzteHeaderSpalte - 1]) letzteHeaderSpalte--;
 
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("Bericht");
@@ -226,9 +235,12 @@ export async function erzeugeArbeitskopie(
 
   // Live-Fund (2026-10-06): die Kontaktzeile liegt im Original rechts (nicht
   // links neben dem Titel), als eigener, über beide Titelzeilen verschmolzener
-  // Block mit vier Zeilen im Blocksatz, fett statt kursiv.
-  const kontaktStartSpalte = Math.max(5, spaltenAnzahl - 2);
-  worksheet.mergeCells(1, kontaktStartSpalte, 2, spaltenAnzahl);
+  // Block mit vier Zeilen im Blocksatz, fett statt kursiv. An der rohen
+  // `spaltenAnzahl` orientiert landete der Block viel zu weit rechts (siehe
+  // `letzteHeaderSpalte` oben) — stattdessen an der letzten echten
+  // Kopfzeilen-Spalte orientieren.
+  const kontaktStartSpalte = Math.max(5, letzteHeaderSpalte - 2);
+  worksheet.mergeCells(1, kontaktStartSpalte, 2, letzteHeaderSpalte);
   const kontaktZelle = titelRow.getCell(kontaktStartSpalte);
   kontaktZelle.value = OBSI_HOFER_KONTAKTZEILEN;
   kontaktZelle.font = { bold: true };
@@ -275,7 +287,7 @@ export async function erzeugeArbeitskopie(
   const regeln = farbRegeln.length > 0 ? farbRegeln : standardFarbRegeln();
 
   zeilen.forEach((zeile) => {
-    const werte: (string | null)[] = new Array(spaltenAnzahl).fill(null);
+    const werte: (string | null)[] = new Array(letzteHeaderSpalte).fill(null);
     mapping.forEach((feld, spalte) => {
       werte[spalte - 1] = zeile[feld];
     });
@@ -303,7 +315,7 @@ export async function erzeugeArbeitskopie(
   // dadurch im PDF abgeschnitten wurden. Breite richtet sich jetzt nach dem
   // längsten tatsächlich vorkommenden Inhalt je Spalte (Kopfzeile oder
   // Datenwert), mit Mindest-/Höchstmass.
-  for (let spalte = 1; spalte <= spaltenAnzahl; spalte++) {
+  for (let spalte = 1; spalte <= letzteHeaderSpalte; spalte++) {
     const feld = mapping.get(spalte);
     const headerLaenge = headerZeile[spalte - 1]?.length ?? 10;
     // Bei mehrzeiligen Werten (wrapText, siehe oben) ist für die Breite nur
