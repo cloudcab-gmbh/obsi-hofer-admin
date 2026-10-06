@@ -1,7 +1,8 @@
 import type { ArtikelInfo, Geraet } from "@/lib/dataverse/geraete";
 import { listArtikelByIds } from "@/lib/dataverse/geraete";
 import { getAktuellstePruefberichteForGeraete, type Pruefbericht } from "@/lib/dataverse/pruefberichte";
-import { downloadKundenDatei, findeNeuesteExcelDatei, uploadKundenDatei } from "@/lib/sharepoint/kunden-drive";
+import { SharePointError } from "@/lib/sharepoint/errors";
+import { downloadKundenDatei, uploadKundenDatei } from "@/lib/sharepoint/kunden-drive";
 import { erzeugePdf } from "./pdf-generator";
 import type { ExportZeile } from "./feld-mapping";
 
@@ -82,13 +83,23 @@ function zuExportZeile(geraet: Geraet, pruefbericht: Pruefbericht, artikel: Arti
   };
 }
 
-async function ladeVorlage(ordnerPfad: string): Promise<ArrayBuffer> {
-  const vorlagenDatei = await findeNeuesteExcelDatei(ordnerPfad);
-  if (vorlagenDatei) {
-    return downloadKundenDatei(`${ordnerPfad}/${vorlagenDatei.name}`);
+/**
+ * Fester Dateiname der firmenspezifischen Vorlage, direkt im Ordner
+ * `<Firma>/Prüfberichte/` (Nutzer-Entscheidung 2026-10-06): kein Jahresordner,
+ * damit nicht jedes Jahr eine neue Vorlage abgelegt werden muss, und ein
+ * fester Name statt "neueste .xlsx im Ordner", damit eine andere dort
+ * gespeicherte Excel-Datei nicht versehentlich zur Vorlage wird.
+ */
+export const VORLAGEN_DATEINAME = "vorlage_pruefberichtraport.xlsx";
+
+async function ladeVorlage(firmaOrdner: string): Promise<ArrayBuffer> {
+  try {
+    return await downloadKundenDatei(`${firmaOrdner}/Prüfberichte/${VORLAGEN_DATEINAME}`);
+  } catch (error) {
+    if (!(error instanceof SharePointError && error.category === "not_found")) throw error;
   }
-  // Keine firmenspezifische Vorlage im aktuellen Jahresordner gefunden —
-  // zentrale Standard-Vorlage verwenden (siehe PROJ-7 Product Decisions).
+  // Keine firmenspezifische Vorlage vorhanden — zentrale Standard-Vorlage
+  // verwenden (siehe PROJ-7 Product Decisions).
   return downloadKundenDatei(requireEnv("SHAREPOINT_STANDARD_VORLAGE_PFAD"));
 }
 
@@ -127,10 +138,11 @@ export async function generatePruefberichtPdf(params: GeneratePdfParams): Promis
     )
   );
 
-  const jahr = new Date().getFullYear();
-  const ordnerPfad = `${bereinigeFuerDateinamen(firmaName)}/Prüfberichte/${jahr}`;
+  const firmaOrdner = bereinigeFuerDateinamen(firmaName);
+  // Archiv der erzeugten PDFs weiterhin im Jahresordner.
+  const ordnerPfad = `${firmaOrdner}/Prüfberichte/${new Date().getFullYear()}`;
 
-  const vorlageBuffer = await ladeVorlage(ordnerPfad);
+  const vorlageBuffer = await ladeVorlage(firmaOrdner);
   const pdfBuffer = await erzeugePdf(vorlageBuffer, zeilen, firmaName);
 
   const dateiname = buildDateiname(firmaName, lagerortFilter);

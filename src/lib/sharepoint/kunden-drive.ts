@@ -82,14 +82,3 @@ export async function uploadKundenDatei(path: string, content: ArrayBuffer): Pro
   const item: { id: string } = await res.json();
   return item.id;
 }
-
-/** Findet die zuletzt geänderte Excel-Datei in einem Ordner, oder `null`, falls keine existiert. */
-export async function findeNeuesteExcelDatei(path: string): Promise<DriveItem | null> {
-  const children = await listKundenOrdner(path);
-  const excelDateien = children.filter((c) => !c.folder && c.name.toLowerCase().endsWith(".xlsx"));
-  if (excelDateien.length === 0) return null;
-
-  return excelDateien.reduce((newest, current) =>
-    current.lastModifiedDateTime > newest.lastModifiedDateTime ? current : newest
-  );
-}

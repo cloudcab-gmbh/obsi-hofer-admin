@@ -5,7 +5,6 @@ vi.mock("./client", () => ({ graphFetch: (...args: unknown[]) => graphFetchMock(
 
 import {
   listKundenOrdner,
-  findeNeuesteExcelDatei,
   downloadKundenDatei,
   uploadKundenDatei,
   resetKundenDriveCache,
@@ -59,34 +58,6 @@ describe("listKundenOrdner", () => {
     graphFetchMock.mockRejectedValueOnce(new SharePointError("not_found", "nicht gefunden"));
 
     await expect(listKundenOrdner("Unbekannte Firma/Prüfberichte/2026")).resolves.toEqual([]);
-  });
-});
-
-describe("findeNeuesteExcelDatei", () => {
-  it("returns null when the folder contains no .xlsx file", async () => {
-    stubSiteAndDriveLookup();
-    graphFetchMock.mockResolvedValueOnce(
-      jsonResponse({ value: [{ id: "f1", name: "bericht.pdf", lastModifiedDateTime: "2026-01-01T00:00:00Z" }] })
-    );
-
-    await expect(findeNeuesteExcelDatei("Firma/Prüfberichte/2026")).resolves.toBeNull();
-  });
-
-  it("picks the most recently modified .xlsx file when several exist", async () => {
-    stubSiteAndDriveLookup();
-    graphFetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        value: [
-          { id: "alt", name: "Pruefberichtraport.xlsx", lastModifiedDateTime: "2026-01-01T00:00:00Z" },
-          { id: "neu", name: "Pruefberichtraport - Kopie.xlsx", lastModifiedDateTime: "2026-06-01T00:00:00Z" },
-          { id: "ordner", name: "Fotos", lastModifiedDateTime: "2026-09-01T00:00:00Z", folder: {} },
-        ],
-      })
-    );
-
-    const result = await findeNeuesteExcelDatei("Firma/Prüfberichte/2026");
-
-    expect(result?.id).toBe("neu");
   });
 });
 

@@ -10,11 +10,9 @@ vi.mock("@/lib/dataverse/pruefberichte", () => ({
   getAktuellstePruefberichteForGeraete: (...args: unknown[]) => getAktuellstePruefberichteForGeraeteMock(...args),
 }));
 
-const findeNeuesteExcelDateiMock = vi.fn();
 const downloadKundenDateiMock = vi.fn();
 const uploadKundenDateiMock = vi.fn();
 vi.mock("@/lib/sharepoint/kunden-drive", () => ({
-  findeNeuesteExcelDatei: (...args: unknown[]) => findeNeuesteExcelDateiMock(...args),
   downloadKundenDatei: (...args: unknown[]) => downloadKundenDateiMock(...args),
   uploadKundenDatei: (...args: unknown[]) => uploadKundenDateiMock(...args),
 }));
@@ -23,6 +21,7 @@ const erzeugePdfMock = vi.fn();
 vi.mock("./pdf-generator", () => ({ erzeugePdf: (...args: unknown[]) => erzeugePdfMock(...args) }));
 
 import { generatePruefberichtPdf, ExportFehler } from "./export";
+import { SharePointError } from "@/lib/sharepoint/errors";
 
 function geraet(overrides: Partial<Geraet> = {}): Geraet {
   return {
@@ -76,7 +75,7 @@ describe("generatePruefberichtPdf", () => {
     await expect(generatePruefberichtPdf({ firmaName: "Firma", geraete: [], lagerortFilter: null })).rejects.toBeInstanceOf(
       ExportFehler
     );
-    expect(findeNeuesteExcelDateiMock).not.toHaveBeenCalled();
+    expect(downloadKundenDateiMock).not.toHaveBeenCalled();
   });
 
   it("excludes a Gerät without an active Prüfbericht and throws when none remain", async () => {
@@ -87,31 +86,43 @@ describe("generatePruefberichtPdf", () => {
     ).rejects.toBeInstanceOf(ExportFehler);
   });
 
-  it("uses the firma-specific template found in the current year's folder", async () => {
+  it("uses the firma's vorlage_pruefberichtraport.xlsx directly in its Prüfberichte folder (no year folder)", async () => {
     getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
-    findeNeuesteExcelDateiMock.mockResolvedValue({ id: "v1", name: "Pruefberichtraport.xlsx", lastModifiedDateTime: "2026-01-01" });
-    downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
+    const firmaVorlage = new ArrayBuffer(3);
+    downloadKundenDateiMock.mockResolvedValue(firmaVorlage);
 
-    const jahr = new Date().getFullYear();
     await generatePruefberichtPdf({ firmaName: "Rehaklinik Bellikon", geraete: [geraet()], lagerortFilter: null });
 
-    expect(findeNeuesteExcelDateiMock).toHaveBeenCalledWith(`Rehaklinik Bellikon/Prüfberichte/${jahr}`);
-    expect(downloadKundenDateiMock).toHaveBeenCalledWith(`Rehaklinik Bellikon/Prüfberichte/${jahr}/Pruefberichtraport.xlsx`);
+    expect(downloadKundenDateiMock).toHaveBeenCalledTimes(1);
+    expect(downloadKundenDateiMock).toHaveBeenCalledWith("Rehaklinik Bellikon/Prüfberichte/vorlage_pruefberichtraport.xlsx");
+    expect(erzeugePdfMock).toHaveBeenCalledWith(firmaVorlage, expect.any(Array), "Rehaklinik Bellikon");
   });
 
-  it("falls back to the central Standard-Vorlage when the firma has no template in the current year's folder", async () => {
+  it("falls back to the central Standard-Vorlage when the firma has no vorlage_pruefberichtraport.xlsx", async () => {
     getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
-    findeNeuesteExcelDateiMock.mockResolvedValue(null);
-    downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
+    const standardVorlage = new ArrayBuffer(5);
+    downloadKundenDateiMock
+      .mockRejectedValueOnce(new SharePointError("not_found", "nicht gefunden"))
+      .mockResolvedValueOnce(standardVorlage);
 
     await generatePruefberichtPdf({ firmaName: "Neue Firma", geraete: [geraet()], lagerortFilter: null });
 
-    expect(downloadKundenDateiMock).toHaveBeenCalledWith("_Standardvorlage/Pruefberichtraport.xlsx");
+    expect(downloadKundenDateiMock).toHaveBeenLastCalledWith("_Standardvorlage/Pruefberichtraport.xlsx");
+    expect(erzeugePdfMock).toHaveBeenCalledWith(standardVorlage, expect.any(Array), "Neue Firma");
+  });
+
+  it("does not silently fall back to the Standard-Vorlage on other SharePoint errors (e.g. missing permission)", async () => {
+    getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
+    downloadKundenDateiMock.mockRejectedValueOnce(new SharePointError("permission_denied", "kein Zugriff"));
+
+    await expect(
+      generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: null })
+    ).rejects.toBeInstanceOf(SharePointError);
+    expect(downloadKundenDateiMock).toHaveBeenCalledTimes(1);
   });
 
   it("generates the PDF directly from the template buffer and archives it in SharePoint", async () => {
     getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
-    findeNeuesteExcelDateiMock.mockResolvedValue(null);
     const vorlageBuffer = new ArrayBuffer(3);
     downloadKundenDateiMock.mockResolvedValue(vorlageBuffer);
 
@@ -127,7 +138,6 @@ describe("generatePruefberichtPdf", () => {
 
   it("propagates an error from PDF generation without archiving anything", async () => {
     getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
-    findeNeuesteExcelDateiMock.mockResolvedValue(null);
     downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
     erzeugePdfMock.mockRejectedValue(new Error("PDF-Generierung fehlgeschlagen"));
 
@@ -140,7 +150,6 @@ describe("generatePruefberichtPdf", () => {
   it("still returns the generated PDF when archiving the final file in SharePoint fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
-    findeNeuesteExcelDateiMock.mockResolvedValue(null);
     downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
     uploadKundenDateiMock.mockRejectedValue(new Error("Archiv-Upload fehlgeschlagen"));
 
@@ -151,7 +160,6 @@ describe("generatePruefberichtPdf", () => {
 
   it("includes the active Lagerort filter in the final filename, and saves it in the year folder", async () => {
     getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
-    findeNeuesteExcelDateiMock.mockResolvedValue(null);
     downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
 
     const result = await generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: "Trakt 4" });
@@ -163,7 +171,6 @@ describe("generatePruefberichtPdf", () => {
 
   it("omits the filename suffix entirely when no Lagerort filter is active", async () => {
     getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
-    findeNeuesteExcelDateiMock.mockResolvedValue(null);
     downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
 
     const result = await generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: null });
@@ -178,7 +185,6 @@ describe("generatePruefberichtPdf", () => {
     getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(
       new Map([["g1", pruefbericht({ pruefdatum: "2026-03-03T00:00:00Z" })]])
     );
-    findeNeuesteExcelDateiMock.mockResolvedValue(null);
     downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
 
     await generatePruefberichtPdf({
@@ -198,7 +204,6 @@ describe("generatePruefberichtPdf", () => {
 
   it("leaves a non-ISO legacy date value (e.g. 'month.year' only) unchanged instead of discarding it", async () => {
     getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
-    findeNeuesteExcelDateiMock.mockResolvedValue(null);
     downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
 
     await generatePruefberichtPdf({
