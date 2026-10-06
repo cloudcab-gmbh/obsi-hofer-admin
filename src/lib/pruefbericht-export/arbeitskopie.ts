@@ -211,8 +211,17 @@ export async function erzeugeArbeitskopie(
   // Logo links in der Titelzeile (Spalte A), davor platziert — so liegt es
   // im Original laut Nutzer. Titel-/Kontakttext rückt dafür eine Spalte nach
   // rechts, damit er das Bild nicht überlagert.
-  worksheet.addRow([null, "Prüfbericht Absturzsicherungen", null, firmaName]).font = { bold: true };
-  worksheet.addRow([null, OBSI_HOFER_KONTAKTZEILE]).font = { italic: true };
+  const titelRow = worksheet.addRow([null, "Prüfbericht Absturzsicherungen", null, firmaName]);
+  titelRow.font = { bold: true };
+  const kontaktRow = worksheet.addRow([null, OBSI_HOFER_KONTAKTZEILE]);
+  kontaktRow.font = { italic: true };
+  // Live-Fund (2026-10-06): mit der Excel-Standard-Zeilenhöhe wirkte das Logo
+  // gestaucht (sein Seitenverhältnis 386:500 braucht mehr Höhe, als die
+  // beiden Titelzeilen zusammen standardmässig bieten). Grosszügigere, feste
+  // Höhe für beide Titelzeilen, damit das Bild proportional korrekt
+  // dargestellt wird.
+  titelRow.height = 45;
+  kontaktRow.height = 30;
 
   const headerRow = worksheet.addRow(headerZeile);
   headerRow.font = { bold: true };

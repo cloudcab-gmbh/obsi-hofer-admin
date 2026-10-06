@@ -190,6 +190,19 @@ describe("erzeugeArbeitskopie", () => {
     expect(worksheet.getRow(1).getCell(1).text).toBeFalsy();
   });
 
+  // Live-Fund (2026-10-06): mit der Excel-Standard-Zeilenhöhe (~15pt) wirkte
+  // das Logo gestaucht, da sein Seitenverhältnis (386:500, höher als breit)
+  // mehr vertikalen Platz braucht.
+  it("gives the title rows enough height so the logo isn't squished", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true });
+
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()], FIRMA_NAME);
+    const worksheet = await loadWorksheet(ergebnis);
+
+    expect(worksheet.getRow(1).height).toBeGreaterThan(20);
+    expect(worksheet.getRow(2).height).toBeGreaterThan(20);
+  });
+
   it("makes the header row bold", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true });
 
