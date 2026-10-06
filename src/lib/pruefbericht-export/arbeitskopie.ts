@@ -75,17 +75,6 @@ function waehleArbeitsblatt(workbook: ExcelJS.Workbook): ExcelJS.Worksheet {
   return benannt ?? workbook.worksheets[0];
 }
 
-function spalteZuBuchstabe(spalte: number): string {
-  let rest = spalte;
-  let ergebnis = "";
-  while (rest > 0) {
-    const mod = (rest - 1) % 26;
-    ergebnis = String.fromCharCode(65 + mod) + ergebnis;
-    rest = Math.floor((rest - 1) / 26);
-  }
-  return ergebnis;
-}
-
 /**
  * Liest aus der realen Vorlage ausschliesslich reine Inhalte (Texte, Spalten-
  * Zuordnung, Farbregeln) heraus — niemals deren Binärstruktur selbst. Die
@@ -208,7 +197,6 @@ export async function erzeugeArbeitskopie(vorlageBuffer: ArrayBuffer, zeilen: Ex
     row.font = { bold: true };
   });
 
-  const headerRowNumber = titelZeilen.length + 1;
   const headerRow = worksheet.addRow(headerZeile);
   headerRow.font = { bold: true };
   headerRow.eachCell({ includeEmpty: true }, (cell) => {
@@ -223,38 +211,29 @@ export async function erzeugeArbeitskopie(vorlageBuffer: ArrayBuffer, zeilen: Ex
     worksheet.getColumn(index + 1).width = Math.min(40, Math.max(12, (text?.length ?? 10) + 4));
   });
 
-  const ersteDatenzeile = headerRowNumber + 1;
+  // Live-Fund (2026-10-06): bedingte Formatierung (addConditionalFormatting,
+  // intern eine SEARCH()-Formel) wurde von der Graph-PDF-Konvertierung
+  // offenbar nicht ausgewertet — das Prüfergebnis blieb im exportierten PDF
+  // farblos, obwohl exceljs/Excel selbst die Regel korrekt anzeigen. Deshalb
+  // wird die Füllfarbe jetzt direkt und statisch pro Zelle gesetzt, sobald der
+  // tatsächliche Wert bereits bekannt ist — kein Formel-Rendering mehr nötig,
+  // exakter Textvergleich statt der bisherigen "enthält"-Semantik (wir kennen
+  // den vollständigen Wert, eine Teilstring-Suche ist nicht mehr nötig).
+  const ergebnisSpalte = Array.from(mapping.entries()).find(([, feld]) => feld === "pruefergebnis")?.[0];
+  const regeln = farbRegeln.length > 0 ? farbRegeln : standardFarbRegeln();
+
   zeilen.forEach((zeile) => {
     const werte: (string | null)[] = new Array(spaltenAnzahl).fill(null);
     mapping.forEach((feld, spalte) => {
       werte[spalte - 1] = zeile[feld];
     });
-    worksheet.addRow(werte);
-  });
+    const row = worksheet.addRow(werte);
 
-  if (zeilen.length > 0) {
-    const letzteZeile = ersteDatenzeile + zeilen.length - 1;
-    const ergebnisSpalte = Array.from(mapping.entries()).find(([, feld]) => feld === "pruefergebnis")?.[0];
-    if (ergebnisSpalte) {
-      const spalteBuchstabe = spalteZuBuchstabe(ergebnisSpalte);
-      const ref = `${spalteBuchstabe}${ersteDatenzeile}:${spalteBuchstabe}${letzteZeile}`;
-      const regeln = farbRegeln.length > 0 ? farbRegeln : standardFarbRegeln();
-      regeln.forEach((regel, index) => {
-        worksheet.addConditionalFormatting({
-          ref,
-          rules: [
-            {
-              type: "containsText",
-              operator: "containsText",
-              text: regel.text,
-              priority: index + 1,
-              style: { fill: { type: "pattern", pattern: "solid", fgColor: { argb: regel.argb } } },
-            },
-          ],
-        });
-      });
+    const treffer = ergebnisSpalte ? regeln.find((regel) => regel.text === zeile.pruefergebnis) : undefined;
+    if (ergebnisSpalte && treffer) {
+      row.getCell(ergebnisSpalte).fill = { type: "pattern", pattern: "solid", fgColor: { argb: treffer.argb } };
     }
-  }
+  });
 
   const buffer = await workbook.xlsx.writeBuffer();
   return buffer as ArrayBuffer;

@@ -106,9 +106,9 @@ async function loadWorksheet(buffer: ArrayBuffer, name = "Bericht") {
   return workbook.getWorksheet(name) ?? workbook.worksheets[0];
 }
 
-function conditionalFormattings(worksheet: ExcelJS.Worksheet) {
-  return (worksheet as unknown as { conditionalFormattings: { ref: string; rules: { text?: string; style?: { fill?: { fgColor?: { argb?: string } } } }[] }[] })
-    .conditionalFormattings;
+function ergebnisFarbe(worksheet: ExcelJS.Worksheet, zeile: number): string | undefined {
+  const fill = worksheet.getRow(zeile).getCell(ERGEBNIS_SPALTE).fill;
+  return fill?.type === "pattern" ? fill.fgColor?.argb : undefined;
 }
 
 describe("erzeugeArbeitskopie", () => {
@@ -149,17 +149,21 @@ describe("erzeugeArbeitskopie", () => {
     expect(worksheet.getRow(2).getCell(1).font?.bold).toBe(true);
   });
 
-  it("re-creates the Prüfergebnis color rules found in the template, scoped to just that column and the written rows", async () => {
+  // Live-Fund (2026-10-06): bedingte Formatierung (addConditionalFormatting)
+  // wurde von der Graph-PDF-Konvertierung nicht ausgewertet — das
+  // Prüfergebnis blieb im exportierten PDF farblos. Die Füllfarbe wird daher
+  // direkt und statisch pro Zelle gesetzt, sobald der Wert bekannt ist.
+  it("applies the Prüfergebnis color found in the template as a static fill, matched by the exact value", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true, mitBedingterFormatierung: true });
 
-    const zeilen = Array.from({ length: 10 }, (_, i) => leereZeile({ lagerort: `Zeile ${i}` }));
-    const ergebnis = await erzeugeArbeitskopie(vorlage, zeilen);
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [
+      leereZeile({ pruefergebnis: "Freigabe" }),
+      leereZeile({ pruefergebnis: "keine Freigabe" }),
+    ]);
     const worksheet = await loadWorksheet(ergebnis);
 
-    const cfs = conditionalFormattings(worksheet);
-    expect(cfs).toHaveLength(2);
-    expect(cfs.map((cf) => cf.ref)).toEqual(["G3:G12", "G3:G12"]);
-    expect(cfs.map((cf) => cf.rules[0].style?.fill?.fgColor?.argb).sort()).toEqual(["FF00FF00", "FFFF0000"].sort());
+    expect(ergebnisFarbe(worksheet, 3)).toBe("FF00FF00");
+    expect(ergebnisFarbe(worksheet, 4)).toBe("FFFF0000");
   });
 
   it("falls back to a standard Freigabe/keine-Freigabe color scheme when the template has no conditional formatting of its own", async () => {
@@ -168,18 +172,16 @@ describe("erzeugeArbeitskopie", () => {
     const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ pruefergebnis: "Freigabe" })]);
     const worksheet = await loadWorksheet(ergebnis);
 
-    const cfs = conditionalFormattings(worksheet);
-    expect(cfs.length).toBeGreaterThan(0);
-    expect(cfs.every((cf) => cf.ref === "G3:G3")).toBe(true);
+    expect(ergebnisFarbe(worksheet, 3)).toBeTruthy();
   });
 
-  it("adds no conditional formatting at all when there are no rows to color", async () => {
+  it("leaves a Prüfergebnis value with no matching color rule uncolored instead of guessing", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true, mitBedingterFormatierung: true });
 
-    const ergebnis = await erzeugeArbeitskopie(vorlage, []);
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ pruefergebnis: "letzte Freigabe" })]);
     const worksheet = await loadWorksheet(ergebnis);
 
-    expect(conditionalFormattings(worksheet)).toHaveLength(0);
+    expect(ergebnisFarbe(worksheet, 3)).toBeUndefined();
   });
 
   it("handles an empty Geräte list by leaving only the title and header rows", async () => {
