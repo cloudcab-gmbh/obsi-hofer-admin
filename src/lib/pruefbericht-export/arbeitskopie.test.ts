@@ -312,6 +312,24 @@ describe("erzeugeArbeitskopie", () => {
     expect(worksheet.getColumn(2).width).toBeGreaterThan(30); // Spalte 2 = "Artikel"
   });
 
+  // Live-Fund (2026-10-06): die Breite wurde anhand der GESAMTlänge eines
+  // mehrzeiligen Werts berechnet (alle Zeilen zusammengezählt) statt anhand
+  // der längsten EINZELNEN Zeile — eine Spalte mit mehreren kurzen, aber
+  // zahlreichen Zeilen wurde dadurch unnötig breit.
+  it("bases column width on the longest individual line of a multi-line value, not the combined length of all lines", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true });
+
+    const ergebnis = await erzeugeArbeitskopie(
+      vorlage,
+      [leereZeile({ bemerkungen: "Zeile1\nZeile2\nZeile3\nZeile4" })], // einzeln kurz, zusammen > 25 Zeichen
+      FIRMA_NAME
+    );
+    const worksheet = await loadWorksheet(ergebnis);
+
+    const bemerkungenSpalte = HEADER.indexOf("Bemerkungen") + 1; // 1-indiziert wie Excel
+    expect(worksheet.getColumn(bemerkungenSpalte).width).toBeLessThan(15);
+  });
+
   // Live-Fund (2026-10-06): exceljs liefert für JEDE Zelle innerhalb eines
   // Merge-Bereichs denselben Wert (nicht nur für die Anker-Zelle) — geprüft
   // anhand einer (unüblichen, aber denkbaren) verbundenen Kopfzeilen-Zelle,

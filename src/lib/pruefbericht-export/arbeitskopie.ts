@@ -249,7 +249,13 @@ export async function erzeugeArbeitskopie(
   for (let spalte = 1; spalte <= spaltenAnzahl; spalte++) {
     const feld = mapping.get(spalte);
     const headerLaenge = headerZeile[spalte - 1]?.length ?? 10;
-    const maxDatenLaenge = feld ? Math.max(0, ...zeilen.map((zeile) => zeile[feld]?.length ?? 0)) : 0;
+    // Bei mehrzeiligen Werten (wrapText, siehe oben) ist für die Breite nur
+    // die längste EINZELNE Zeile relevant, nicht die Gesamtlänge über alle
+    // Zeilen hinweg — sonst wird die Spalte für einen 4-zeiligen, aber pro
+    // Zeile kurzen Wert unnötig breit (live beobachtet bei "Zubehör").
+    const maxDatenLaenge = feld
+      ? Math.max(0, ...zeilen.map((zeile) => Math.max(0, ...(zeile[feld]?.split("\n").map((z) => z.length) ?? [0]))))
+      : 0;
     worksheet.getColumn(spalte).width = Math.min(50, Math.max(12, Math.max(headerLaenge, maxDatenLaenge) + 2));
   }
 
