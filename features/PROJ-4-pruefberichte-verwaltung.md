@@ -1,8 +1,8 @@
 # PROJ-4: Prüfberichte-Verwaltung
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-10-05
-**Last Updated:** 2026-10-05
+**Last Updated:** 2026-10-06
 
 ## Dependencies
 - Requires: PROJ-1 (Entra-ID-Login mit Rollen) — für eingeloggte Nutzer mit Rolle Bearbeiter/Freigeber
@@ -237,6 +237,74 @@ Alle drei Bugs behoben, Testsuite um 5 neue Fälle erweitert (35 → 40 in diese
 - **Neue Unit-Tests:** 40 insgesamt für dieses Feature (`pruefer-kuerzel.test.ts`, `pruefberichte.test.ts`, `actions.test.ts`) — Testsuite insgesamt jetzt 102/102 grün
 - **Production Ready:** Bedingt — der Code ist bereit (keine offenen Bugs), aber der Schreibpfad (Anlegen/Bearbeiten/Stornieren gegen echtes Dataverse, insbesondere der unverifizierte `@odata.bind`-Navigationsname) ist laut Nutzeransage noch nicht live getestet.
 - **Recommendation:** Nutzer verifiziert jetzt den Schreibpfad live im Browser. Falls das Anlegen eines Prüfberichts an der Navigationseigenschaft scheitert, zuerst das beheben, dann erneut kurz testen, bevor auf `/deploy` gegangen wird.
+
+## QA Test Results — Runde 2 (Live-Verifikation)
+
+**Tested:** 2026-10-06
+**Tester:** QA Engineer (AI)
+**Testmethode:** Der Nutzer hat Anlegen, Bearbeiten und Stornieren im Browser mit echtem Login gegen die produktive Dataverse-Umgebung durchgeführt. Diese Runde verifiziert das Ergebnis **rein lesend** direkt in Dataverse (Metadaten-Abfragen + Abgleich der resultierenden Datensätze, keine eigenen Schreibzugriffe), plus Unit-/E2E-Testsuiten.
+
+### Vorab behobener Blocker (Konfiguration, kein Code-Bug)
+- Erstes Anlegen scheiterte mit `missing prvAppendTobmvcc_equipmentrecord`: Das Setzen des Gerät-Lookups beim Anlegen erfordert in Dataverse das Recht **"Anfügen an" (Append To) auf der Tabelle Geraete** (zusätzlich zu Erstellen + Anfügen auf Prüfbericht). Vom Nutzer in der Sicherheitsrolle des App-Benutzers "# OBSI Hofer Admin" ergänzt — danach funktionierte das Anlegen. **Für künftige Umgebungen/Rollen-Setups dokumentiert.**
+
+### Verifikation gegen die echten Dataverse-Metadaten
+- [x] Navigationseigenschaft des Gerät-Lookups ist exakt `bmvcc_Gearaet` (`ReferencingEntityNavigationPropertyName` von `bmvcc_gearaet → bmvcc_equipmentrecord`) — der bisher unverifizierte Best-Guess in `createPruefbericht()` ist **korrekt**
+- [x] Alle beschriebenen Spalten existieren mit passendem Typ: `bmvcc_inspectionresult`/`bmvcc_inspector`/`bmvcc_remark` String, `bmvcc_isarchived` Boolean, `bmvcc_inspectiondate` und Gerät `bmvcc_letztepruefung` DateTime **DateOnly/TimeZoneIndependent** (Schreiben als `YYYY-MM-DD` daher ohne Zeitzonen-Verschiebung), `bmvcc_betriebsmittelstatus`/`bmvcc_pruefer` String
+- [x] Mehrfeld-`$orderby` `bmvcc_inspectiondate desc,createdon desc` wird von Dataverse akzeptiert (Tie-Breaking-Regel funktioniert syntaktisch)
+
+### Live-Nachweis aus den Datensätzen (Gerät GRT-07918, 2026-10-06)
+| Zeit (UTC) | Aktion durch "# OBSI Hofer Admin" | Ergebnis |
+|---|---|---|
+| 14:24 | Prüfbericht vom 23.07.2026 storniert | `bmvcc_isarchived = true` |
+| 14:37 | Neuer Prüfbericht angelegt | Prüfer `robi` (korrekt aus "Robert Bienz"), Lookup auf das Gerät gesetzt |
+| 14:39 | Neuer Prüfbericht bearbeitet | Ergebnis → "letzte Freigabe" |
+| danach | Gerät-Status | Letzte Prüfung 06.10.2026 / Status "letzte Freigabe" / Prüfer `robi` — **identisch mit dem aktuellsten aktiven Prüfbericht** |
+
+Zusätzlich für alle 20 in den letzten 2 Tagen geänderten Prüfberichte geprüft: Gerät-Status-Felder überall konsistent mit dem jeweils aktuellsten aktiven Bericht.
+
+### Acceptance Criteria Status (Stand Runde 2)
+- [x] Historie auf der Gerät-Detailseite (Runde 1, vom Nutzer im Browser genutzt)
+- [x] Leer-Hinweis ohne Prüfbericht (Runde 1)
+- [x] **Neuanlage + Kaskade auf Gerät-Status — live verifiziert** (GRT-07918)
+- [x] Prüfdatum vorausgefüllt, Prüfer automatisch/read-only — **live verifiziert** (Kürzel `robi`)
+- [x] Validierung bei leerem Prüfdatum/Ergebnis (Unit-Test)
+- [x] **Bearbeiten des aktuellsten Berichts aktualisiert Gerät-Status — live verifiziert**
+- [ ] Bearbeiten eines nicht-aktuellsten Berichts lässt Gerät-Status unverändert — weiterhin nur unit-getestet, nicht live vorgeführt
+- [x] **Stornieren — live verifiziert** (Schreibpfad funktioniert, Gerät-Status danach konsistent)
+- [ ] Stornieren eines nicht-aktuellsten Berichts — nur Code-Review/Unit-Test, nicht live vorgeführt
+- [x] Storniert = read-only (UI + serverseitig, BUG-1 aus Runde 1 behoben, Regressionstest vorhanden)
+- [x] Hinweis + Link zu `/start` ohne Firma (Runde 1)
+- [x] Firmenweite Übersicht mit Suche + Ergebnis-Filter — siehe aber BUG-4 (Filter verfehlt Altdaten-Schreibweise)
+- [x] Fehlermeldung + Datenerhalt bei Speicherfehler — **live beobachtet**: der Berechtigungsfehler wurde verständlich angezeigt (inkl. Dataverse-Detail), keine abgestürzte Seite
+
+### Bugs Found (Runde 2)
+
+#### BUG-4: Altdaten mit Ergebnis "Letzte Freigabe" (grosses L) werden nicht überall erkannt
+- **Severity:** Low
+- **Befund:** In Dataverse existieren neben "letzte Freigabe" auch Werte "Letzte Freigabe" (Stichprobe: 4 von 2000 Prüfberichten, 2 Geräte-Status). Das Badge (`status-badge.ts`) normalisiert Gross-/Kleinschreibung bereits korrekt, andere Stellen vergleichen exakt.
+- **Steps to Reproduce:**
+  1. Einen Prüfbericht mit Ergebnis "Letzte Freigabe" (Altdaten, grosses L) öffnen
+  2. Erwartet: Ergebnis-Auswahl zeigt "letzte Freigabe"; Speichern ohne Änderung funktioniert
+  3. Tatsächlich: Die Auswahl findet keinen passenden Eintrag (leer/ungültig); Speichern wird serverseitig mit "Bitte ein gültiges Ergebnis auswählen." abgelehnt, bis man den Wert neu wählt
+  4. Ebenso: In `/pruefberichte` findet der Ergebnis-Filter "letzte Freigabe" diese Berichte nicht; im PDF-Export (PROJ-7) bleibt die Ergebnis-Zelle ungefärbt
+- **Workaround:** Wert im Formular einmal neu auswählen und speichern (korrigiert den Datensatz dauerhaft)
+- **Priority:** Nice to have — sehr wenige betroffene Datensätze, Workaround vorhanden. Mögliche Behebung: Ergebnis beim Lesen (`mapPruefbericht`) case-insensitiv auf die kanonischen `ERGEBNIS_OPTIONEN` abbilden, oder die 4+2 Datensätze einmalig in Dataverse korrigieren
+
+### Automatisierte Tests
+- `npm test`: 182/182 grün
+- `npm run test:e2e`: grün, inkl. neuer Suite `tests/PROJ-4-pruefberichte-verwaltung.spec.ts` (Zugriffsschutz für `/pruefberichte`, `/pruefberichte/neu`, `/pruefberichte/[id]`, `/geraete/[id]` — Chromium + Mobile Safari). Die Schreibfunktionen selbst sind bewusst nicht als E2E automatisiert: sie würden in die produktive Dataverse-Umgebung schreiben, und der Microsoft-Login ist nicht automatisierbar
+- Nicht durchgeführt: Cross-Browser-/Responsive-Test der eingeloggten Seiten (benötigt echten Login)
+
+### Security (Runde 2)
+- [x] Server Actions sind durch das Proxy-Rollen-Gate (`bearbeiter`/`freigeber`) geschützt; neue E2E-Tests bestätigen den Redirect zu `/login` ohne Session
+- [x] Prüfer-Kürzel wird serverseitig aus der Session abgeleitet, nicht vom Client übernommen
+- [x] Keine neuen Findings
+
+### Summary (Runde 2)
+- **Acceptance Criteria:** 11/13 erfüllt und überwiegend live verifiziert; 2/13 (Bearbeiten/Stornieren eines *nicht*-aktuellsten Berichts) nur unit-getestet
+- **Bugs:** 1 neu (0 critical, 0 high, 0 medium, 1 low — BUG-4); alle Bugs aus Runde 1 bleiben behoben
+- **Production Ready:** **JA** — keine Critical/High-Bugs; der zuvor kritische Unsicherheitspunkt (`@odata.bind`-Name) ist gegen die Metadaten verifiziert und live bestätigt
+- **Recommendation:** Freigeben. BUG-4 kann vorher oder später behoben werden.
 
 ## Deployment
 _To be added by /deploy_
