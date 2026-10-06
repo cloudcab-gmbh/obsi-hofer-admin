@@ -19,6 +19,7 @@ import {
   getPruefbericht,
   listPruefberichteForGeraet,
   listPruefberichteForGeraete,
+  normalisiereErgebnis,
   stornierePruefbericht,
   updatePruefbericht,
 } from "./pruefberichte";
@@ -143,6 +144,27 @@ describe("getPruefbericht", () => {
     getRecord.mockResolvedValue(rawBericht({ bmvcc_isarchived: true }));
     const bericht = await getPruefbericht(BERICHT_ID);
     expect(bericht.storniert).toBe(true);
+  });
+
+  // QA BUG-4: Altdaten "Letzte Freigabe" (grosses L) waren im Formular nicht
+  // auswählbar, im Ergebnis-Filter unsichtbar und im PDF ungefärbt.
+  it("maps a legacy Ergebnis with different casing to the canonical option", async () => {
+    getRecord.mockResolvedValue(rawBericht({ bmvcc_inspectionresult: "Letzte Freigabe" }));
+    const bericht = await getPruefbericht(BERICHT_ID);
+    expect(bericht.ergebnis).toBe("letzte Freigabe");
+  });
+});
+
+describe("normalisiereErgebnis", () => {
+  it("maps every casing/whitespace variant onto the canonical ERGEBNIS_OPTIONEN spelling", () => {
+    expect(normalisiereErgebnis("Letzte Freigabe")).toBe("letzte Freigabe");
+    expect(normalisiereErgebnis("KEINE FREIGABE ")).toBe("keine Freigabe");
+    expect(normalisiereErgebnis("freigabe")).toBe("Freigabe");
+  });
+
+  it("keeps unknown values and empty input unchanged instead of guessing", () => {
+    expect(normalisiereErgebnis("in Reparatur")).toBe("in Reparatur");
+    expect(normalisiereErgebnis(null)).toBeNull();
   });
 });
 

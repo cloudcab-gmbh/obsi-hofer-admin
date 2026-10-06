@@ -1,6 +1,6 @@
 # PROJ-4: Prüfberichte-Verwaltung
 
-## Status: In Review
+## Status: Approved
 **Created:** 2026-10-05
 **Last Updated:** 2026-10-06
 
@@ -289,6 +289,7 @@ Zusätzlich für alle 20 in den letzten 2 Tagen geänderten Prüfberichte geprü
   4. Ebenso: In `/pruefberichte` findet der Ergebnis-Filter "letzte Freigabe" diese Berichte nicht; im PDF-Export (PROJ-7) bleibt die Ergebnis-Zelle ungefärbt
 - **Workaround:** Wert im Formular einmal neu auswählen und speichern (korrigiert den Datensatz dauerhaft)
 - **Priority:** Nice to have — sehr wenige betroffene Datensätze, Workaround vorhanden. Mögliche Behebung: Ergebnis beim Lesen (`mapPruefbericht`) case-insensitiv auf die kanonischen `ERGEBNIS_OPTIONEN` abbilden, oder die 4+2 Datensätze einmalig in Dataverse korrigieren
+- **Status:** ✅ Fixed (2026-10-06, Nutzer-Entscheidung: im Code beheben) — neue Funktion `normalisiereErgebnis()` (`pruefberichte.ts`) bildet jeden gelesenen Ergebnis-Wert case-/whitespace-insensitiv auf die kanonische Schreibweise ab; unbekannte Werte bleiben unverändert. Wirkt an einer Stelle (`mapPruefbericht`) für Formular, Übersichtsfilter und PDF-Export. Die Gerät-Status-Felder werden bei der nächsten Prüfbericht-Änderung des Geräts ebenfalls in kanonischer Schreibweise geschrieben (Kaskade übernimmt den normalisierten Wert); das Gerät-Badge normalisierte bereits zuvor. Regressionstests in `pruefberichte.test.ts` ("maps a legacy Ergebnis with different casing…", `describe("normalisiereErgebnis")`). `npm test` 185/185, Lint, TypeScript und Build grün.
 
 ### Automatisierte Tests
 - `npm test`: 182/182 grün
@@ -302,9 +303,9 @@ Zusätzlich für alle 20 in den letzten 2 Tagen geänderten Prüfberichte geprü
 
 ### Summary (Runde 2)
 - **Acceptance Criteria:** 11/13 erfüllt und überwiegend live verifiziert; 2/13 (Bearbeiten/Stornieren eines *nicht*-aktuellsten Berichts) nur unit-getestet
-- **Bugs:** 1 neu (0 critical, 0 high, 0 medium, 1 low — BUG-4); alle Bugs aus Runde 1 bleiben behoben
-- **Production Ready:** **JA** — keine Critical/High-Bugs; der zuvor kritische Unsicherheitspunkt (`@odata.bind`-Name) ist gegen die Metadaten verifiziert und live bestätigt
-- **Recommendation:** Freigeben. BUG-4 kann vorher oder später behoben werden.
+- **Bugs:** 1 neu (0 critical, 0 high, 0 medium, 1 low — BUG-4, **behoben**); alle Bugs aus Runde 1 bleiben behoben — keine offenen Bugs
+- **Production Ready:** **JA** — keine offenen Bugs; der zuvor kritische Unsicherheitspunkt (`@odata.bind`-Name) ist gegen die Metadaten verifiziert und live bestätigt
+- **Recommendation:** Freigegeben (Status **Approved**), bereit für `/deploy`.
 
 ## Deployment
 _To be added by /deploy_

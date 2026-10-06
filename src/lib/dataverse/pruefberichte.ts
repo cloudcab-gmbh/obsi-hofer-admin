@@ -49,12 +49,25 @@ function asString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+/**
+ * Bildet einen gelesenen Ergebnis-Wert auf die kanonische Schreibweise aus
+ * `ERGEBNIS_OPTIONEN` ab (QA BUG-4, 2026-10-06): Dataverse enthält Altdaten
+ * wie "Letzte Freigabe" (grosses L), die sonst im Formular nicht auswählbar
+ * wären, vom Ergebnis-Filter nicht gefunden und im PDF nicht eingefärbt
+ * würden. Unbekannte Werte bleiben unverändert erhalten.
+ */
+export function normalisiereErgebnis(wert: string | null): string | null {
+  if (!wert) return wert;
+  const vergleich = wert.trim().toLowerCase();
+  return ERGEBNIS_OPTIONEN.find((option) => option.toLowerCase() === vergleich) ?? wert;
+}
+
 function mapPruefbericht(raw: Record<string, unknown>): Pruefbericht {
   return {
     id: raw.bmvcc_pruefberichtid as string,
     geraetId: raw._bmvcc_gearaet_value as string,
     pruefdatum: asString(raw.bmvcc_inspectiondate),
-    ergebnis: asString(raw.bmvcc_inspectionresult),
+    ergebnis: normalisiereErgebnis(asString(raw.bmvcc_inspectionresult)),
     pruefer: asString(raw.bmvcc_inspector),
     bemerkungen: asString(raw.bmvcc_remark),
     storniert: raw.bmvcc_isarchived === true,
