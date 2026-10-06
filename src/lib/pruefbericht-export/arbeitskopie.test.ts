@@ -164,8 +164,11 @@ describe("erzeugeArbeitskopie", () => {
     const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()], "9.81 Arbeitssicherheit AG");
     const worksheet = await loadWorksheet(ergebnis);
 
-    expect(worksheet.getRow(1).getCell(3).text).toBe("9.81 Arbeitssicherheit AG");
-    expect(worksheet.getRow(1).getCell(1).text).toBe("Prüfbericht Absturzsicherungen");
+    // Spalte 1 bleibt für das links platzierte Logo frei (siehe Live-Fund:
+    // Logo liegt laut Original in Spalte A der Titelzeile), Titel-Text rückt
+    // deshalb eine Spalte nach rechts.
+    expect(worksheet.getRow(1).getCell(4).text).toBe("9.81 Arbeitssicherheit AG");
+    expect(worksheet.getRow(1).getCell(2).text).toBe("Prüfbericht Absturzsicherungen");
   });
 
   it("includes the OBSI Hofer contact line regardless of what the template's title row contained", async () => {
@@ -174,7 +177,17 @@ describe("erzeugeArbeitskopie", () => {
     const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()], FIRMA_NAME);
     const worksheet = await loadWorksheet(ergebnis);
 
-    expect(worksheet.getRow(2).getCell(1).text).toContain("Obsi Hofer GmbH");
+    expect(worksheet.getRow(2).getCell(2).text).toContain("Obsi Hofer GmbH");
+  });
+
+  it("anchors the logo at the start of the title row (column A), not overlapping the title text", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true });
+
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()], FIRMA_NAME);
+    const worksheet = await loadWorksheet(ergebnis);
+
+    expect(worksheet.getImages()).toHaveLength(1);
+    expect(worksheet.getRow(1).getCell(1).text).toBeFalsy();
   });
 
   it("makes the header row bold", async () => {

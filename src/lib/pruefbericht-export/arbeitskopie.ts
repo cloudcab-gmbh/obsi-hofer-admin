@@ -208,8 +208,11 @@ export async function erzeugeArbeitskopie(
   // entspricht dem bisherigen, manuell erstellten Referenzformat.
   worksheet.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
 
-  worksheet.addRow(["Prüfbericht Absturzsicherungen", null, firmaName]).font = { bold: true };
-  worksheet.addRow([OBSI_HOFER_KONTAKTZEILE]).font = { italic: true };
+  // Logo links in der Titelzeile (Spalte A), davor platziert — so liegt es
+  // im Original laut Nutzer. Titel-/Kontakttext rückt dafür eine Spalte nach
+  // rechts, damit er das Bild nicht überlagert.
+  worksheet.addRow([null, "Prüfbericht Absturzsicherungen", null, firmaName]).font = { bold: true };
+  worksheet.addRow([null, OBSI_HOFER_KONTAKTZEILE]).font = { italic: true };
 
   const headerRow = worksheet.addRow(headerZeile);
   headerRow.font = { bold: true };
@@ -217,21 +220,18 @@ export async function erzeugeArbeitskopie(
     cell.border = { bottom: { style: "thin" } };
   });
 
-  // Logo oben rechts im Titelbereich, analog zur Platzierung in den bisher
-  // gesichteten echten Vorlagen. Live-Fund (2026-10-06, erster Versuch): ein
-  // positionsbasierter Anker (`tl`+`ext`, feste Pixelgrösse) wurde von der
-  // Graph-PDF-Konvertierung nicht wie erwartet behandelt — das Logo erschien
-  // über die gesamte Seitenbreite gestreckt. Live-Fund (2026-10-06, zweiter
-  // Versuch): ein Zellbereich-Anker, dessen untere Ecke auf eine zu diesem
-  // Zeitpunkt noch NICHT existierende Zeile zeigte (die Kopfzeile, erst
-  // danach hinzugefügt), liess exceljs intern eine leere Phantom-Zeile an
-  // genau dieser Stelle anlegen — alles Nachfolgende (Kopfzeile, Daten)
-  // rutschte dadurch eine Zeile nach unten. Deshalb: Bild erst NACH der
-  // Kopfzeile einfügen (die untere Anker-Ecke referenziert dann eine
-  // bereits existierende Zeile) und über eine eigene, bewusst schmale
-  // Spalte ganz rechts ausserhalb der Datenspalten positionieren.
-  const logoSpalte = spaltenAnzahl + 1;
-  worksheet.getColumn(logoSpalte).width = 10;
+  // Live-Fund (2026-10-06, erster/zweiter Versuch): Logo zunächst oben
+  // rechts in einer eigens reservierten, schmalen Spalte platziert — in
+  // beiden Fällen (positionsbasierter Anker, dann Zellbereich-Anker)
+  // erschien das Bild bei der Graph-PDF-Konvertierung über die gesamte
+  // Seitenbreite gestreckt, unabhängig von der Anker-Syntax. Dritter
+  // Versuch: Platzierung links in Spalte A (deren Breite sich wie jede
+  // andere Datenspalte aus dem tatsächlichen Inhalt ergibt, nicht aus einer
+  // von uns künstlich auf 10 gesetzten Sonderbreite) — entspricht ausserdem
+  // der vom Nutzer bestätigten Position im Original. Bild wird weiterhin
+  // erst NACH der Kopfzeile eingefügt (siehe vorheriger Live-Fund: eine
+  // untere Anker-Ecke, die auf eine noch nicht existierende Zeile zeigt,
+  // lässt exceljs dort eine leere Phantom-Zeile anlegen).
   // Typ-Cast: exceljs' mitgelieferte Typdefinitionen für `Image.buffer`
   // stammen offenbar von einer älteren @types/node-Fassung und sind
   // strukturell nicht kompatibel mit dem aktuellen, generischen `Buffer`-Typ
@@ -239,8 +239,8 @@ export async function erzeugeArbeitskopie(
   // betroffen.
   const logoImageId = workbook.addImage({ buffer: ladeLogoBuffer(), extension: "png" } as unknown as ExcelJS.Image);
   worksheet.addImage(logoImageId, {
-    tl: { col: logoSpalte - 1, row: 0 },
-    br: { col: logoSpalte, row: 2 },
+    tl: { col: 0, row: 0 },
+    br: { col: 1, row: 2 },
   } as unknown as { tl: ExcelJS.Anchor; br: ExcelJS.Anchor });
 
   // Live-Fund (2026-10-06): bedingte Formatierung (addConditionalFormatting,
