@@ -42,7 +42,10 @@ function buildDateiname(firmaName: string, lagerortFilter: string | null): strin
 // gleiche Konvention wie formatDatum() im übrigen Tool); alles andere
 // (z.B. ein bereits anders formatierter Legacy-Wert wie "01.2017")
 // unverändert übernehmen, statt es fälschlich zu verwerfen.
-function formatiereDatum(wert: string | null): string | null {
+//
+// Herstelljahr/Erstgebrauch/Ablegereife sind fachlich nur monatsgenau
+// (Nutzer-Vorgabe 2026-10-06) → nurMonat: "MM.YYYY" statt "TT.MM.YYYY".
+function formatiereDatum(wert: string | null, nurMonat = false): string | null {
   if (!wert) return null;
   const datum = new Date(wert);
   if (Number.isNaN(datum.getTime())) return wert;
@@ -53,6 +56,7 @@ function formatiereDatum(wert: string | null): string | null {
   // inkonsistent nicht mit führender Null auf ("3.3.2026" statt "03.03.2026").
   const tag = String(datum.getUTCDate()).padStart(2, "0");
   const monat = String(datum.getUTCMonth() + 1).padStart(2, "0");
+  if (nurMonat) return `${monat}.${datum.getUTCFullYear()}`;
   return `${tag}.${monat}.${datum.getUTCFullYear()}`;
 }
 
@@ -66,9 +70,9 @@ function zuExportZeile(geraet: Geraet, pruefbericht: Pruefbericht, artikel: Arti
     serienummer: geraet.serienummer,
     barcode: geraet.barcode,
     hersteller: artikel?.hersteller ?? null,
-    herstelljahr: formatiereDatum(geraet.herstelljahr),
-    erstgebrauch: formatiereDatum(geraet.erstgebrauch),
-    ablegereife: formatiereDatum(geraet.ablegereife),
+    herstelljahr: formatiereDatum(geraet.herstelljahr, true),
+    erstgebrauch: formatiereDatum(geraet.erstgebrauch, true),
+    ablegereife: formatiereDatum(geraet.ablegereife, true),
     zubehoer: geraet.zubehoer,
     kundenId: geraet.kundenId,
     geprueft: formatiereDatum(pruefbericht.pruefdatum),

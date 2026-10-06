@@ -193,6 +193,7 @@ Siehe Decision Log → Technical Decisions oben.
   - `arbeitskopie.test.ts` (184 Tests, exceljs-Objektmodell-basiert) wurde ersetzt durch `vorlage-extraktion.test.ts` (reine Extraktionslogik) und `pdf-generator.test.ts` (prüft die von `buildDocumentDefinition()` zurückgegebene `TDocumentDefinitions`-Objektstruktur direkt, plus ein End-to-End-Test, der tatsächlich ein PDF erzeugt und dessen `%PDF-`-Signatur verifiziert).
   - `npm test` (176/176 grün), `npx eslint .` (clean), `npx tsc --noEmit` (clean) und `npm run build` laufen nach der Umstellung fehlerfrei durch.
   - **Noch nicht live verifiziert:** das tatsächliche Erscheinungsbild des direkt gerenderten PDFs gegen eine echte Firmen-Vorlage (Spaltenbreiten, Farben, Logo-Platzierung, der jetzt über `margin` erzeugte Abstand) — strukturell sollte diese Lösung die gesamte Klasse von "Graph-Konvertierung wertet X nicht aus"-Bugs eliminieren, die den grössten Teil der bisherigen Live-Fund-Liste ausmachten, muss aber dennoch vom Nutzer gegen die Produktionsumgebung bestätigt werden.
+- **Live-Verifikation pdfmake (2026-10-06):** Nutzer hat das erste direkt gerenderte PDF (2 Seiten, Logo, Kontaktblock, Farben, wiederholte Tabellen-Kopfzeile) geprüft und nur eine Anpassung verlangt: **Herstelljahr, Erstgebrauch und Ablegereife werden jetzt als `MM.YYYY` ausgegeben** (fachlich nur monatsgenau, Nutzer-Vorgabe); das Prüfdatum ("Geprüft") bleibt `DD.MM.YYYY`. Umgesetzt über einen `nurMonat`-Parameter in `formatiereDatum()` (`export.ts`), Test in `export.test.ts` angepasst.
 
 ## QA Test Results
 

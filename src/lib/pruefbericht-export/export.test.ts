@@ -174,7 +174,7 @@ describe("generatePruefberichtPdf", () => {
   // Live-Fund (2026-10-06): Dataverse liefert Datumsfelder als volle ISO-
   // Zeitstempel ("2014-10-31T00:00:00Z"), die unformatiert roh im PDF
   // erschienen statt als lesbares Datum.
-  it("formats ISO date fields as de-CH dates before handing rows to the PDF generator", async () => {
+  it("formats ISO date fields (device dates as MM.YYYY, Prüfdatum as DD.MM.YYYY) before handing rows to the PDF generator", async () => {
     getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(
       new Map([["g1", pruefbericht({ pruefdatum: "2026-03-03T00:00:00Z" })]])
     );
@@ -189,9 +189,9 @@ describe("generatePruefberichtPdf", () => {
 
     const [, zeilen] = erzeugePdfMock.mock.calls[0];
     expect(zeilen[0]).toMatchObject({
-      herstelljahr: "31.10.2014",
-      erstgebrauch: "31.10.2014",
-      ablegereife: "31.10.2024",
+      herstelljahr: "10.2014",
+      erstgebrauch: "10.2014",
+      ablegereife: "10.2024",
       geprueft: "03.03.2026",
     });
   });
