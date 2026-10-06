@@ -211,10 +211,27 @@ export async function erzeugeArbeitskopie(
   worksheet.addRow(["Prüfbericht Absturzsicherungen", null, firmaName]).font = { bold: true };
   worksheet.addRow([OBSI_HOFER_KONTAKTZEILE]).font = { italic: true };
 
+  const headerRow = worksheet.addRow(headerZeile);
+  headerRow.font = { bold: true };
+  headerRow.eachCell({ includeEmpty: true }, (cell) => {
+    cell.border = { bottom: { style: "thin" } };
+  });
+
   // Logo oben rechts im Titelbereich, analog zur Platzierung in den bisher
-  // gesichteten echten Vorlagen. Positionsbasierter Anker (statt Zellbereich)
-  // vermeidet eine Kollision mit dem Firmennamen-Text weiter links, egal wie
-  // viele Spalten die jeweilige Vorlage hat.
+  // gesichteten echten Vorlagen. Live-Fund (2026-10-06, erster Versuch): ein
+  // positionsbasierter Anker (`tl`+`ext`, feste Pixelgrösse) wurde von der
+  // Graph-PDF-Konvertierung nicht wie erwartet behandelt — das Logo erschien
+  // über die gesamte Seitenbreite gestreckt. Live-Fund (2026-10-06, zweiter
+  // Versuch): ein Zellbereich-Anker, dessen untere Ecke auf eine zu diesem
+  // Zeitpunkt noch NICHT existierende Zeile zeigte (die Kopfzeile, erst
+  // danach hinzugefügt), liess exceljs intern eine leere Phantom-Zeile an
+  // genau dieser Stelle anlegen — alles Nachfolgende (Kopfzeile, Daten)
+  // rutschte dadurch eine Zeile nach unten. Deshalb: Bild erst NACH der
+  // Kopfzeile einfügen (die untere Anker-Ecke referenziert dann eine
+  // bereits existierende Zeile) und über eine eigene, bewusst schmale
+  // Spalte ganz rechts ausserhalb der Datenspalten positionieren.
+  const logoSpalte = spaltenAnzahl + 1;
+  worksheet.getColumn(logoSpalte).width = 10;
   // Typ-Cast: exceljs' mitgelieferte Typdefinitionen für `Image.buffer`
   // stammen offenbar von einer älteren @types/node-Fassung und sind
   // strukturell nicht kompatibel mit dem aktuellen, generischen `Buffer`-Typ
@@ -222,15 +239,9 @@ export async function erzeugeArbeitskopie(
   // betroffen.
   const logoImageId = workbook.addImage({ buffer: ladeLogoBuffer(), extension: "png" } as unknown as ExcelJS.Image);
   worksheet.addImage(logoImageId, {
-    tl: { col: Math.max(4, spaltenAnzahl - 2), row: 0 },
-    ext: { width: 46, height: 60 },
-  });
-
-  const headerRow = worksheet.addRow(headerZeile);
-  headerRow.font = { bold: true };
-  headerRow.eachCell({ includeEmpty: true }, (cell) => {
-    cell.border = { bottom: { style: "thin" } };
-  });
+    tl: { col: logoSpalte - 1, row: 0 },
+    br: { col: logoSpalte, row: 2 },
+  } as unknown as { tl: ExcelJS.Anchor; br: ExcelJS.Anchor });
 
   // Live-Fund (2026-10-06): bedingte Formatierung (addConditionalFormatting,
   // intern eine SEARCH()-Formel) wurde von der Graph-PDF-Konvertierung
