@@ -75,6 +75,19 @@ export async function erzeugeArbeitskopie(vorlageBuffer: ArrayBuffer, zeilen: Ex
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(vorlageBuffer);
 
+  // Live-Fund (2026-10-06): exceljs erhält eingebettete Bilder/Zeichnungen
+  // beim Laden→Ändern→Speichern einer echten Vorlage nicht zuverlässig —
+  // das Ergebnis bleibt für exceljs selbst lesbar, wird von Microsofts
+  // Office-Online-Konvertierungsdienst aber als beschädigt abgelehnt
+  // (HttpCode=UnsupportedMediaType, ErrorCode=XLSCorruptFile). Bilder werden
+  // deshalb vorerst verworfen, statt ein kaputtes Ergebnis zu riskieren —
+  // Text-Branding (Firmenname, Titel) bleibt erhalten. `_media` ist intern,
+  // aber die einzige verfügbare Stelle, um vorhandene Bilder zu entfernen
+  // (keine öffentliche removeImage-API in exceljs).
+  workbook.worksheets.forEach((ws) => {
+    (ws as unknown as { _media: unknown[] })._media = [];
+  });
+
   const worksheet = waehleArbeitsblatt(workbook);
   const { rowNumber: kopfzeile, mapping } = findeKopfzeile(worksheet);
   const ersteDatenzeile = kopfzeile + 1;

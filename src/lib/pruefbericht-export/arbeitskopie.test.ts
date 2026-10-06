@@ -37,12 +37,22 @@ function leereZeile(overrides: Partial<ExportZeile> = {}): ExportZeile {
   };
 }
 
-async function buildVorlage(options: { mitBeispielzeile?: boolean; mitBedingterFormatierung?: boolean } = {}): Promise<ArrayBuffer> {
+const EIN_PIXEL_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+async function buildVorlage(
+  options: { mitBeispielzeile?: boolean; mitBedingterFormatierung?: boolean; mitLogo?: boolean } = {}
+): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("Bericht");
 
   worksheet.addRow(["Prüfbericht Absturzsicherungen", "", "Beispiel-Firma"]);
   worksheet.addRow(HEADER);
+
+  if (options.mitLogo) {
+    const imageId = workbook.addImage({ base64: `data:image/png;base64,${EIN_PIXEL_PNG_BASE64}`, extension: "png" });
+    worksheet.addImage(imageId, "A1:B1");
+  }
 
   if (options.mitBeispielzeile) {
     const row = worksheet.addRow(["Alter Lagerort", "Alter Artikel", "Alter Typ", "ALT-001", "01.01.2020", "xx", "Freigabe", "alte Bemerkung"]);
@@ -90,6 +100,19 @@ describe("erzeugeArbeitskopie", () => {
     expect(worksheet.getRow(3).getCell(7).text).toBe("Freigabe");
     expect(worksheet.getRow(4).getCell(1).text).toBe("Trakt 2");
     expect(worksheet.rowCount).toBe(4);
+  });
+
+  // Live-Fund (2026-10-06): exceljs erhält eingebettete Bilder beim Laden→
+  // Ändern→Speichern nicht zuverlässig — das Ergebnis wurde von Microsofts
+  // Office-Online-Konvertierungsdienst als beschädigt abgelehnt
+  // (XLSCorruptFile). Bilder werden deshalb vorsorglich verworfen.
+  it("strips embedded images from the template instead of risking a corrupted result", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true, mitLogo: true });
+
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ lagerort: "X" })]);
+    const worksheet = await loadWorksheet(ergebnis);
+
+    expect(worksheet.getImages()).toHaveLength(0);
   });
 
   it("discards any pre-existing data rows from the real template instead of appending after them", async () => {
