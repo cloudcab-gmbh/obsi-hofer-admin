@@ -91,6 +91,11 @@ export async function generatePdfAction(geraetIds: string[], lagerortFilter: str
     if (error instanceof DataverseError || error instanceof SharePointError) {
       return { success: false, message: error.message };
     }
-    return { success: false, message: "Unbekannter Fehler beim Generieren des PDFs." };
+    // Interne Admin-Tool-Zielgruppe (keine externen Kunden) — die konkrete
+    // Fehlermeldung ist für die Fehlersuche wichtiger als die zusätzliche
+    // Abstraktion einer generischen Meldung ohne jedes Detail.
+    console.error("generatePdfAction: unerwarteter Fehler", error);
+    const detail = error instanceof Error ? error.message : String(error);
+    return { success: false, message: `Unbekannter Fehler beim Generieren des PDFs: ${detail}` };
   }
 }

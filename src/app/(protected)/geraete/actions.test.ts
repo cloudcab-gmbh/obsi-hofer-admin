@@ -196,7 +196,8 @@ describe("generatePdfAction", () => {
     expect(result).toEqual({ success: false, message: "Keine Geräte für diesen Export gefunden." });
   });
 
-  it("falls back to a generic message for an unexpected failure", async () => {
+  it("includes the underlying error message for an unexpected failure instead of a bare generic message", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     getCurrentFirmaId.mockResolvedValue(FIRMA_ID);
     getFirma.mockResolvedValue({ id: FIRMA_ID, name: "Firma A" });
     listStandorteForFirma.mockResolvedValue([]);
@@ -205,6 +206,6 @@ describe("generatePdfAction", () => {
 
     const result = await generatePdfAction([], null);
 
-    expect(result).toEqual({ success: false, message: "Unbekannter Fehler beim Generieren des PDFs." });
+    expect(result).toEqual({ success: false, message: "Unbekannter Fehler beim Generieren des PDFs: boom" });
   });
 });
