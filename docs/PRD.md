@@ -19,7 +19,7 @@ Anmeldung über das bestehende Microsoft-365-/Entra-ID-Konto (interner Firmen-Te
 | P0 (MVP) | Geräte-Verwaltung (Anzeigen, Bearbeiten, live gegen Dataverse — keine Neuanlage, siehe PROJ-3 Product Decisions) | Deployed |
 | P0 (MVP) | Prüfberichte-Verwaltung (Erfassen, Bearbeiten, Stornieren statt Löschen) | Deployed |
 | P0 (MVP) | Sync-Freigabe pro Firma (löst den angepassten Kundenportal-Sync-Endpoint gezielt für eine Firma aus) | Planned |
-| P0 (MVP) | Kundenportal-Zugang pro Kontakt (Freigeber setzt pro Kontakt der Firma das Häkchen „Kundenportal“; Voraussetzung für den Sync) | Planned |
+| P0 (MVP) | Kundenportal-Zugang pro Kontakt (Freigeber setzt pro Kontakt der Firma das Häkchen „Kundenportal“; Voraussetzung für den Sync) | Deployed |
 | P1 | Sync-Status/-Verlauf einsehen (letzter Lauf pro Firma, Erfolg/Fehler, Zeitpunkt) | Roadmap |
 | P1 | PDF-Export Prüfberichte (kundenspezifisches Excel-Template pro Firma, via SharePoint) | Deployed |
 

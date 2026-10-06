@@ -1,6 +1,6 @@
 # PROJ-8: Kundenportal-Zugang pro Kontakt
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-10-06
 **Last Updated:** 2026-10-06
 
@@ -225,4 +225,13 @@ Umgesetzt in einem Durchlauf (UI + Server Action + Datenzugriff), wie bei PROJ-3
 - **Production Ready:** **JA** — Status **Approved**, bereit für `/deploy`
 
 ## Deployment
-_To be added by /deploy_
+- **Production URL:** https://obsi-hofer-admin.vercel.app/sync-freigabe
+- **Deployed:** 2026-10-06 (automatisch via Vercel bei Push auf `main`, letzter Code-Commit `b71fc6b`)
+- **Tag:** `v1.5.0-PROJ-8`
+- **Voraussetzungen (vom Nutzer erledigt, verifiziert):** Dataverse-Rechte des App-Benutzers "# OBSI Hofer Admin": Lesen auf `bmvcc_relation`, Lesen + Schreiben auf `bmvcc_kontakt` (Organisation). Keine neuen Umgebungsvariablen.
+- **Verifiziert:**
+  - Pre-Deployment: `npm run build`, `npm run lint`, `npx tsc --noEmit`, `npm test` (206/206), `npm run test:e2e` (18/18) grün; keine Secrets im Repo
+  - Produktion: `/login` HTTP 200; `/sync-freigabe` ohne Session per 307 auf `/login`
+  - Funktion live in Produktion durch den Nutzer: Freigeben + Entziehen, in Dataverse bestätigt (siehe QA)
+  - Nicht separat live geprüft: der BUG-1-Fix (Rücksetzen bei fehlgeschlagenem Aufruf) — per Komponententest abgedeckt
+- **Hinweis für den Betrieb:** Noch kein Kontakt ist fürs Kundenportal freigegeben (Ausnahme: Testkontakt wieder entzogen). Wirksam im Portal wird die Freigabe erst mit PROJ-5 und der Cross-Repo-Anpassung des Kundenportal-Syncs.
