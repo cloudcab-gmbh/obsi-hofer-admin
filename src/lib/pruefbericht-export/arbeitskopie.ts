@@ -255,8 +255,10 @@ export async function erzeugeArbeitskopie(
   // Leerzeile als optischer Abstand zwischen Kopfzeile und Datentabelle
   // (Nutzerwunsch) — in der Vorlage selbst könnte das nicht nachgebildet
   // werden, da wir von dort ohnehin nur die Kopfzeilen-Texte übernehmen,
-  // keine Zeilenstruktur darunter.
-  worksheet.addRow([]);
+  // keine Zeilenstruktur darunter. Live-Fund: eine komplett unberührte Zeile
+  // (kein Wert, keine Formatierung) bekam beim Rendern keine eigene Höhe und
+  // war dadurch unsichtbar — explizite Höhe erzwingt den sichtbaren Abstand.
+  worksheet.addRow([]).height = 10;
 
   // Live-Fund (2026-10-06, erster/zweiter Versuch): Logo zunächst oben
   // rechts in einer eigens reservierten, schmalen Spalte platziert — in

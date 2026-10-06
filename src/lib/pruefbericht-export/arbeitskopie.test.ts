@@ -277,18 +277,27 @@ describe("erzeugeArbeitskopie", () => {
     expect(ergebnisFarbe(worksheet, ERSTE_DATENZEILE)).toBeUndefined();
   });
 
+  // Live-Fund (2026-10-06): eine komplett unberührte Leerzeile (kein Wert,
+  // keine Formatierung) bekam beim Rendern keine eigene Höhe und blieb
+  // dadurch unsichtbar — der gewünschte optische Abstand zur Kopfzeile fehlte.
+  it("gives the spacer row between header and data an explicit height so it's actually visible", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true });
+
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()], FIRMA_NAME);
+    const worksheet = await loadWorksheet(ergebnis);
+
+    expect(worksheet.getRow(4).height).toBeGreaterThan(0); // Zeile 4 = Leerzeile zwischen Kopfzeile (3) und Daten (5)
+  });
+
   it("handles an empty Geräte list by leaving only the title and header rows", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true });
 
     const ergebnis = await erzeugeArbeitskopie(vorlage, [], FIRMA_NAME);
     const worksheet = await loadWorksheet(ergebnis);
 
-    // Die Leerzeile (Zeile 4) zählt nicht zu `rowCount`, wenn ihr keine
-    // Zeile mit echtem Inhalt mehr folgt (exceljs zählt nur bis zur letzten
-    // nicht-leeren Zeile) — in der Praxis unkritisch, da ein Export ohne
-    // Geräte bereits vorher mit ExportFehler abgebrochen wird (siehe
-    // export.ts), dieser Fall hier ist rein die isolierte Funktionsgrenze.
-    expect(worksheet.rowCount).toBe(ERSTE_DATENZEILE - 2);
+    // Die Leerzeile (Zeile 4) hat seit dem Höhen-Fix eine explizite Höhe und
+    // zählt dadurch zu `rowCount`, auch ohne nachfolgende Datenzeile.
+    expect(worksheet.rowCount).toBe(ERSTE_DATENZEILE - 1);
   });
 
   it("throws a VorlagenFehler when no header row with a Prüfergebnis column can be found", async () => {
