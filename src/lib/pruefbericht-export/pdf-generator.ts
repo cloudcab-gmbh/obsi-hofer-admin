@@ -382,7 +382,11 @@ export function buildDocumentDefinition(input: PdfBuildInput): TDocumentDefiniti
         // dazwischen.
         margin: [0, 20, 0, 0] as [number, number, number, number],
         fontSize: schriftgroesse,
-        table: { headerRows: 1, widths, body },
+        // dontBreakRows: Live-Fund (2026-10-06) — eine Zeile, die über den
+        // Seitenumbruch geteilt wurde, zerfiel (Rest auf der Folgeseite ohne
+        // Bezug, mit verticalAlignment teils falsch positioniert). Eine
+        // Zeile wandert jetzt als Ganzes auf die nächste Seite.
+        table: { headerRows: 1, dontBreakRows: true, widths, body },
         layout: {
           hLineWidth: () => LINIENBREITE,
           vLineWidth: () => 0,

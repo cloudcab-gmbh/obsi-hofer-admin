@@ -73,6 +73,8 @@ describe("buildDocumentDefinition", () => {
 
     const table = tableFromContent(doc);
     expect(table.headerRows).toBe(1);
+    // Live-Fund (2026-10-06): eine über den Seitenumbruch geteilte Zeile zerfiel.
+    expect(table.dontBreakRows).toBe(true);
     const headerRow = table.body[0] as { text: string }[];
     expect(headerRow.map((cell) => cell.text)).toEqual(HEADER);
   });
