@@ -1,6 +1,6 @@
 # PROJ-7: PDF-Export Prüfberichte (kundenspezifisches Template)
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-10-05
 **Last Updated:** 2026-10-06
 
@@ -238,4 +238,8 @@ Siehe Decision Log → Technical Decisions oben.
 - **Recommendation:** Status auf "Approved" setzen und deployen. Erste Live-Generierung für eine Firma mit eigener Vorlage UND eine ohne (Standard-Vorlage-Fallback) vom Nutzer prüfen lassen.
 
 ## Deployment
-_To be added by /deploy_
+- **Production URL:** https://obsi-hofer-admin.vercel.app
+- **Deployed:** 2026-10-06 (automatisch via Vercel bei Push auf `main`)
+- **Tag:** `v1.3.0-PROJ-7`
+- **Voraussetzungen vom Nutzer bereits erledigt:** Microsoft-Graph-Berechtigung (`Sites.Selected`, `write`) für die App "OBSI Hofer Admin" auf die Site `obsihofer.sharepoint.com` gewährt; Standard-Vorlage unter `Kunden/_PBVorlage/pruefberichtraport.xlsx` abgelegt; `SHAREPOINT_STANDARD_VORLAGE_PFAD=_PBVorlage/pruefberichtraport.xlsx` in Vercel (Production) gesetzt
+- **Verifiziert:** Produktions-Build erfolgreich, `https://obsi-hofer-admin.vercel.app/login` antwortet mit HTTP 200 (keine Regression). Der eigentliche Export gegen die echte SharePoint-Instanz (Logo-Erhalt in der Arbeitskopie, tatsächliches Verhalten der Graph-PDF-Konvertierung, echte bedingte Formatierung) ist aus der Code-Umgebung heraus nicht testbar — **steht als Live-Verifikation durch den Nutzer noch aus**, idealerweise einmal für eine Firma mit eigener Jahres-Vorlage und einmal für eine ohne (Standard-Vorlage-Fallback)
