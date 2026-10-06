@@ -119,7 +119,17 @@ const geschaetzteTextBreite: TextMesser = (text, fett, schriftgroesse) =>
 /** Misst Texte mit den echten Roboto-Fonts über pdfkit (dieselbe Engine, die pdfmake intern zum Rendern nutzt). */
 function erstelleTextMesser(): TextMesser {
   const fonts = ladeFontBuffer();
-  const doc = new PDFDocument({ autoFirstPage: false });
+  // Live-Fund (2026-10-06): ohne `font`-Option lädt pdfkit im Konstruktor
+  // seine Standardschrift Helvetica aus node_modules/pdfkit/js/data/
+  // Helvetica.afm — eine Datei, die Next.js' Build-Tracer nicht in die
+  // Vercel-Funktion übernimmt (ENOENT in Produktion, lokal unauffällig).
+  // Stattdessen direkt Roboto als Startschrift: zur Laufzeit akzeptiert
+  // pdfkit dafür jede PDFFontSource (auch einen Buffer), die @types/pdfkit
+  // deklarieren nur `string` — daher der Cast.
+  const doc = new PDFDocument({
+    autoFirstPage: false,
+    font: fonts.get(ROBOTO_DATEIEN.normal) as unknown as string,
+  });
   doc.registerFont("normal", fonts.get(ROBOTO_DATEIEN.normal)!);
   doc.registerFont("fett", fonts.get(ROBOTO_DATEIEN.bold)!);
   return (text, fett, schriftgroesse) => doc.font(fett ? "fett" : "normal").fontSize(schriftgroesse).widthOfString(text);
