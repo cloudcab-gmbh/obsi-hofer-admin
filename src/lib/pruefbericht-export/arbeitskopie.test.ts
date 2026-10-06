@@ -125,8 +125,9 @@ function ergebnisFarbe(worksheet: ExcelJS.Worksheet, zeile: number): string | un
 
 // Feste Zeilenstruktur der Ausgabe, unabhängig vom Inhalt der Vorlage:
 // Zeile 1 = Titel ("Prüfbericht Absturzsicherungen" + Firma), Zeile 2 =
-// OBSI-Hofer-Kontaktzeile, Zeile 3 = Kopfzeile, ab Zeile 4 Daten.
-const ERSTE_DATENZEILE = 4;
+// OBSI-Hofer-Kontaktzeile, Zeile 3 = Kopfzeile, Zeile 4 = Leerzeile
+// (optischer Abstand), ab Zeile 5 Daten.
+const ERSTE_DATENZEILE = 5;
 
 describe("erzeugeArbeitskopie", () => {
   it("writes one row per Gerät below the detected header, mapped by column header", async () => {
@@ -282,7 +283,12 @@ describe("erzeugeArbeitskopie", () => {
     const ergebnis = await erzeugeArbeitskopie(vorlage, [], FIRMA_NAME);
     const worksheet = await loadWorksheet(ergebnis);
 
-    expect(worksheet.rowCount).toBe(ERSTE_DATENZEILE - 1);
+    // Die Leerzeile (Zeile 4) zählt nicht zu `rowCount`, wenn ihr keine
+    // Zeile mit echtem Inhalt mehr folgt (exceljs zählt nur bis zur letzten
+    // nicht-leeren Zeile) — in der Praxis unkritisch, da ein Export ohne
+    // Geräte bereits vorher mit ExportFehler abgebrochen wird (siehe
+    // export.ts), dieser Fall hier ist rein die isolierte Funktionsgrenze.
+    expect(worksheet.rowCount).toBe(ERSTE_DATENZEILE - 2);
   });
 
   it("throws a VorlagenFehler when no header row with a Prüfergebnis column can be found", async () => {

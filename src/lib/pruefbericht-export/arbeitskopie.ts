@@ -252,6 +252,12 @@ export async function erzeugeArbeitskopie(
     cell.border = { bottom: { style: "thin" } };
   });
 
+  // Leerzeile als optischer Abstand zwischen Kopfzeile und Datentabelle
+  // (Nutzerwunsch) — in der Vorlage selbst könnte das nicht nachgebildet
+  // werden, da wir von dort ohnehin nur die Kopfzeilen-Texte übernehmen,
+  // keine Zeilenstruktur darunter.
+  worksheet.addRow([]);
+
   // Live-Fund (2026-10-06, erster/zweiter Versuch): Logo zunächst oben
   // rechts in einer eigens reservierten, schmalen Spalte platziert — in
   // beiden Fällen (positionsbasierter Anker, dann Zellbereich-Anker)
