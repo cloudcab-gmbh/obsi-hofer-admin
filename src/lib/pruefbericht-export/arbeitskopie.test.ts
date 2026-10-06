@@ -280,13 +280,15 @@ describe("erzeugeArbeitskopie", () => {
   // Live-Fund (2026-10-06): eine komplett unberührte Leerzeile (kein Wert,
   // keine Formatierung) bekam beim Rendern keine eigene Höhe und blieb
   // dadurch unsichtbar — der gewünschte optische Abstand zur Kopfzeile fehlte.
-  it("gives the spacer row between header and data an explicit height so it's actually visible", async () => {
+  it("gives the spacer row between header and data a large explicit height and a non-empty (invisible) cell", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true });
 
     const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()], FIRMA_NAME);
     const worksheet = await loadWorksheet(ergebnis);
 
-    expect(worksheet.getRow(4).height).toBeGreaterThan(0); // Zeile 4 = Leerzeile zwischen Kopfzeile (3) und Daten (5)
+    // Zeile 4 = Leerzeile zwischen Kopfzeile (3) und Daten (5).
+    expect(worksheet.getRow(4).height).toBeGreaterThan(30);
+    expect(worksheet.getRow(4).getCell(1).value).toBeTruthy();
   });
 
   it("handles an empty Geräte list by leaving only the title and header rows", async () => {
