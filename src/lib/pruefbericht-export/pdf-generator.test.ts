@@ -9,7 +9,7 @@
 import { describe, it, expect } from "vitest";
 import ExcelJS from "exceljs";
 import type { Table, TableCell } from "pdfmake/interfaces";
-import { buildDocumentDefinition, erzeugePdf } from "./pdf-generator";
+import { buildDocumentDefinition, erzeugePdf, woerter } from "./pdf-generator";
 import type { ExportFeld, ExportZeile } from "./feld-mapping";
 
 const HEADER = ["Lagerort", "Artikel", "Prüfergebnis", "Bemerkungen"];
@@ -254,6 +254,16 @@ describe("buildDocumentDefinition", () => {
     const widths = tableFromContent(doc).widths as number[];
     expect(widths[0]).toBeGreaterThanOrEqual("Scancode".length);
     expect(widths[1]).toBeGreaterThanOrEqual("Stahlkarabiner".length);
+  });
+
+  // Live-Fund (2026-10-06): "1802147-0205" wurde zu "1802147-0/205" zerschnitten,
+  // weil die Breitenberechnung einen Umbruch nach "-" annahm, den pdfmake
+  // (Unicode UAX #14: kein Umbruch zwischen "-" und Ziffer) gar nicht macht.
+  it("splits text only where pdfmake can actually break a line (no break between '-' and a digit)", () => {
+    expect(woerter("Nr.12 / 1802147-0205")).toEqual(["Nr.12 /", "1802147-0205"]); // kein Umbruch vor "/"
+    expect(woerter("143413/0-001")).toEqual(["143413/0-001"]);
+    expect(woerter("Herstell- jahr")).toEqual(["Herstell-", "jahr"]);
+    expect(woerter("Zählerstand Eingang: 02492\nZählerstand")).toEqual(["Zählerstand", "Eingang:", "02492", "Zählerstand"]);
   });
 
   it("keeps the total table width within the landscape page and shrinks the font when even the minimum widths don't fit", () => {

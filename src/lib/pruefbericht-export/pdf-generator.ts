@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import ExcelJS from "exceljs";
 import pdfMake from "pdfmake";
+import LineBreaker from "linebreak";
 import PDFDocument from "pdfkit";
 import type { Column, Content, TableCell, TDocumentDefinitions } from "pdfmake/interfaces";
 import type { ExportFeld, ExportZeile } from "./feld-mapping";
@@ -160,14 +161,29 @@ const TABELLE = {
 const FREITEXT_SPALTEN = 2;
 
 /**
- * Wörter, an denen pdfmake (über die `linebreak`-Bibliothek) eine Zeile
- * umbrechen darf: Leerzeichen/Zeilenumbrüche und nach einem Bindestrich.
- * Ist eine Spalte schmaler als ihr längstes solches Wort, bricht pdfmake das
- * Wort mitten drin um ("Stahlkarabine/r", "Scanc/ode") — genau das soll die
- * Breitenberechnung verhindern.
+ * Zerlegt einen Text in die Stücke, zwischen denen pdfmake eine Zeile
+ * umbrechen darf. Ist eine Spalte schmaler als ihr längstes solches Stück,
+ * bricht pdfmake es zeichenweise mitten drin um ("Stahlkarabine/r",
+ * "Scanc/ode") — genau das soll die Breitenberechnung verhindern.
+ *
+ * Live-Fund (2026-10-06): eine eigene Regel "Umbruch nach jedem Bindestrich"
+ * stimmte nicht mit pdfmake überein — nach Unicode-Regel UAX #14 ist z.B.
+ * zwischen "-" und einer Ziffer KEIN Umbruch erlaubt, "1802147-0205" ist für
+ * pdfmake ein einziges Wort und wurde deshalb zu "1802147-0/205" zerschnitten.
+ * Deshalb dieselbe Bibliothek wie pdfmakes TextBreaker (`linebreak`).
  */
-function woerter(text: string): string[] {
-  return text.split(/\s+|(?<=-)/).filter((wort) => wort.length > 0);
+export function woerter(text: string): string[] {
+  const stuecke: string[] = [];
+  const breaker = new LineBreaker(text);
+  let start = 0;
+  for (let umbruch = breaker.nextBreak(); umbruch; umbruch = breaker.nextBreak()) {
+    // Abschliessende Leerzeichen/Zeilenumbrüche hängen am Stück, belegen beim
+    // Umbruch aber keine Breite.
+    const stueck = text.slice(start, umbruch.position).trimEnd();
+    if (stueck.length > 0) stuecke.push(stueck);
+    start = umbruch.position;
+  }
+  return stuecke;
 }
 
 /**
