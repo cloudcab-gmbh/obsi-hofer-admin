@@ -1,6 +1,6 @@
 # PROJ-8: Kundenportal-Zugang pro Kontakt
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-10-06
 **Last Updated:** 2026-10-06
 
@@ -160,7 +160,68 @@ Umgesetzt in einem Durchlauf (UI + Server Action + Datenzugriff), wie bei PROJ-3
 **Gegen echtes Dataverse verifiziert (rein lesend, 2026-10-06):** Die drei Abfragen (Relationen der Firma inkl. `statecode`-Filter, aktive Kontakte per ID-Block, Relationen zu *anderen* Firmen per `ne`) werden akzeptiert und liefern plausible Ergebnisse (z.B. 19 Kontakte bei "Dottikon Exclusive Synthesis AG"; Mehrfach-Zuordnung bei "4Viertel" korrekt erkannt). **Nicht** verifiziert: das eigentliche Schreiben des Häkchens und die Oberfläche mit echtem Freigeber-Login — beides steht für den Nutzer-Test aus.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-10-06
+**Tester:** QA Engineer (AI)
+**Testmethode:** Der Nutzer hat die Seite mit echtem Freigeber-Login in Produktion bedient (Häkchen gesetzt, nach Neuladen erhalten, wieder entfernt). QA hat das Ergebnis rein lesend in Dataverse verifiziert, den Code gegen alle Kriterien/Edge Cases geprüft und die Testsuiten ausgeführt. Keine eigenen Schreibzugriffe.
+
+### Live-Nachweis
+- Kontakt "Robert Bienz" (Cloudcab GmbH): Häkchen gesetzt → nach Neuladen weiterhin gesetzt ("1 von 1 Kontakten freigegeben", Screenshot Nutzer); danach entfernt → in Dataverse `bmvcc_kundenportal = false`, geändert 2026-10-06 15:30 UTC von "# OBSI Hofer Admin"
+- Keine anderen Kontakte durch die App verändert (alle übrigen kürzlich geänderten Kontakte stammen von "Robert Bienz" direkt in Dataverse, vor dem Test)
+- Produktion: `/sync-freigabe` leitet ohne Session per 307 auf `/login` um
+
+### Acceptance Criteria Status
+- [x] Liste aller aktiven Kontakte der Firma mit Name, E-Mail, Rolle, Häkchen — live (Screenshot) + Abfragen gegen echte Daten verifiziert
+- [x] Häkchen setzen speichert sofort und bleibt nach Neuladen — **live verifiziert**
+- [x] Häkchen entfernen entzieht sofort — **live verifiziert** (Dataverse-Datensatz)
+- [x] Ohne E-Mail: Häkchen deaktiviert + Hinweis — Code-Review; serverseitig zusätzlich abgelehnt (Unit-Test)
+- [x] Inaktive Kontakte nicht in der Liste — Code-Review + Unit-Test (Filter `statecode eq 0`, gegen echte Daten akzeptiert)
+- [x] Hinweis "wirksam mit dem nächsten Sync" sichtbar — live (Screenshot)
+- [x] Bearbeiter: Zugriff serverseitig verweigert (Seite + Action) — Code-Review + Unit-Test `actions.test.ts`
+- [x] Ohne Firma: Hinweis mit Link zu `/start` — Code-Review (gleiches Muster wie `/geraete`)
+- [x] Firma ohne Kontakte: Leer-Hinweis — Code-Review + Unit-Test
+- [ ] Fehler beim Speichern: Meldung + Rücksetzen — **teilweise**: bei einem von Dataverse gemeldeten Fehler korrekt (Action liefert die Meldung), bei einem Fehler des Aufrufs selbst nicht → siehe BUG-1
+
+### Edge Cases Status
+- [x] Kontakt mehrerer Firmen → Hinweis "Freigabe gilt auch für weitere Firmen" (gegen echte Daten verifiziert: "4Viertel")
+- [x] Mehrfache Relation derselben Person → ein Eintrag, Rollen zusammengefasst (Unit-Test)
+- [x] Kontakt ohne Rolle → "—" (live, Screenshot)
+- [x] Freigegebener Kontakt ohne E-Mail → entfernbar, nicht neu setzbar (Code-Review + Unit-Test "always allows revoking")
+- [x] Schnelles Mehrfachklicken → Häkchen während des Speicherns gesperrt (Code-Review)
+- [x] Firmenwechsel → Neuaufbau über `key={firmaId}` (Code-Review)
+- [x] Gleichzeitige Bearbeitung → Last-Write-Wins (wie geplant)
+
+### Security Audit (Red Team)
+- [x] Freigeber-Sperre auf Seiten- UND Action-Ebene; ein Bearbeiter kann die Action nicht direkt aufrufen (Unit-Test)
+- [x] Nur `bmvcc_kundenportal` wird geschrieben (Unit-Test prüft den exakten Payload)
+- [x] GUID-Validierung vor jedem `$filter` (Firma-ID, Kontakt-IDs) → keine OData-Injection (Unit-Test)
+- [x] E-Mail-/Aktiv-Regel serverseitig durchgesetzt, nicht nur über die deaktivierte Checkbox
+- [x] Keine XSS-Fläche (React-Escaping, kein `dangerouslySetInnerHTML`), keine Secrets im Client
+- [x] Ein Freigeber kann über die Action beliebige Kontakt-IDs ändern, auch anderer Firmen — **kein Finding**: Freigeber sind für alle Firmen berechtigt (gleiche Rechte wie über die Firmenauswahl)
+
+### Bugs Found
+
+#### BUG-1: Häkchen bleibt gesperrt und zeigt einen nicht gespeicherten Zustand, wenn der Aufruf selbst fehlschlägt
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. `/sync-freigabe` öffnen
+  2. Verbindung zum Server unterbrechen (z.B. offline) — oder: Seite offen lassen, während Vercel eine neue Version deployt (alte Server-Action-ID ist danach ungültig, kommt bei Auto-Deploy auf `main` regelmässig vor)
+  3. Ein Häkchen ändern
+  4. Erwartet: Fehlermeldung, Häkchen springt auf den gespeicherten Zustand zurück (AC "Fehler beim Speichern")
+  5. Tatsächlich: `aendereFreigabe()` in `kundenportal-kontakte.tsx` wartet ohne `try/catch` auf die Action; wirft der Aufruf, wird weder zurückgesetzt noch eine Meldung gezeigt, und der Kontakt bleibt in "speichernd" → Häkchen zeigt den neuen, **nicht gespeicherten** Zustand und ist bis zum Neuladen gesperrt. Gleiches gilt, wenn die Action vor ihrem eigenen `try` wirft (z.B. Fehler beim Lesen der Session)
+- **Workaround:** Seite neu laden — zeigt den tatsächlichen Stand
+- **Priority:** Fix before deployment (verletzt das Akzeptanzkriterium und den Grundsatz "Liste zeigt nie einen Zustand, der nicht in Dataverse steht")
+
+### Automatisierte Tests
+- `npm test`: 202/202 grün (17 für PROJ-8: `kontakte.test.ts`, `sync-freigabe/actions.test.ts`)
+- `npm run test:e2e`: 18/18 grün, inkl. neuer Suite `tests/PROJ-8-kundenportal-zugang-pro-kontakt.spec.ts` (Zugriffsschutz `/sync-freigabe`, Chromium + Mobile Safari)
+- Nicht durchgeführt: Cross-Browser-/Responsive-Test der eingeloggten Seite (benötigt echten Login); Tabelle ist per `overflow-x-auto` für schmale Bildschirme vorbereitet
+
+### Summary
+- **Acceptance Criteria:** 9/10 erfüllt (3 davon live verifiziert), 1 teilweise (BUG-1)
+- **Bugs Found:** 1 total (0 critical, 0 high, 1 medium, 0 low)
+- **Security:** keine Findings
+- **Production Ready:** JA nach Regel (keine Critical/High) — **Empfehlung: BUG-1 vor dem Deploy beheben**, da er bei jedem Auto-Deploy mit offener Seite auftreten kann und dann einen falschen Freigabestatus anzeigt
 
 ## Deployment
 _To be added by /deploy_
