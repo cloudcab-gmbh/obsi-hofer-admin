@@ -46,13 +46,17 @@ async function buildVorlage(
     mitBeispielzeile?: boolean;
     mitBedingterFormatierung?: boolean;
     mitLogo?: boolean;
+    mitHyperlinkInTitel?: boolean;
     sheetName?: string;
   } = {}
 ): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet(options.sheetName ?? "Bericht");
 
-  worksheet.addRow(["Prüfbericht Absturzsicherungen", "", "Beispiel-Firma"]);
+  const titelRow = worksheet.addRow(["Prüfbericht Absturzsicherungen", "", "Beispiel-Firma"]);
+  if (options.mitHyperlinkInTitel) {
+    titelRow.getCell(4).value = { text: "info@obsi-hofer.ch", hyperlink: "mailto:info@obsi-hofer.ch" };
+  }
   worksheet.addRow(HEADER);
 
   if (options.mitLogo) {
@@ -216,5 +220,29 @@ describe("erzeugeArbeitskopie", () => {
     const worksheet = await loadWorksheet(ergebnis);
 
     expect(worksheet.getImages()).toHaveLength(0);
+  });
+
+  // Live-Fund (2026-10-06): eine Hyperlink-Zelle (z.B. eine als Link
+  // formatierte E-Mail-Adresse) in der Titelzeile erschien im Export als
+  // buchstäblich "[object Object]" statt als Text.
+  it("extracts the plain text from a hyperlink cell in a title row instead of '[object Object]'", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true, mitHyperlinkInTitel: true });
+
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()]);
+    const worksheet = await loadWorksheet(ergebnis);
+
+    expect(worksheet.getRow(1).getCell(4).text).toBe("info@obsi-hofer.ch");
+  });
+
+  it("sets a usable column width based on the header text instead of the exceljs default", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true });
+
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()]);
+    const worksheet = await loadWorksheet(ergebnis);
+
+    // "Einbau- / Lagerort" (19 Zeichen) muss deutlich breiter sein als die
+    // exceljs-Standardbreite (8.43) — sonst wird der Inhalt beim PDF-Export
+    // abgeschnitten (live beobachtet).
+    expect(worksheet.getColumn(1).width).toBeGreaterThan(15);
   });
 });

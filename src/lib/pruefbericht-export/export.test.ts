@@ -187,4 +187,44 @@ describe("generatePruefberichtPdf", () => {
 
     expect(result.dateiname.endsWith(" - Firma.pdf")).toBe(true);
   });
+
+  // Live-Fund (2026-10-06): Dataverse liefert Datumsfelder als volle ISO-
+  // Zeitstempel ("2014-10-31T00:00:00Z"), die unformatiert roh im PDF
+  // erschienen statt als lesbares Datum.
+  it("formats ISO date fields as de-CH dates before handing rows to the Excel merge", async () => {
+    getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(
+      new Map([["g1", pruefbericht({ pruefdatum: "2026-03-03T00:00:00Z" })]])
+    );
+    findeNeuesteExcelDateiMock.mockResolvedValue(null);
+    downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
+
+    await generatePruefberichtPdf({
+      firmaName: "Firma",
+      geraete: [geraet({ herstelljahr: "2014-10-31T00:00:00Z", erstgebrauch: "2014-10-31T00:00:00Z", ablegereife: "2024-10-31T00:00:00Z" })],
+      lagerortFilter: null,
+    });
+
+    const [, zeilen] = erzeugeArbeitskopieMock.mock.calls[0];
+    expect(zeilen[0]).toMatchObject({
+      herstelljahr: "31.10.2014",
+      erstgebrauch: "31.10.2014",
+      ablegereife: "31.10.2024",
+      geprueft: "03.03.2026",
+    });
+  });
+
+  it("leaves a non-ISO legacy date value (e.g. 'month.year' only) unchanged instead of discarding it", async () => {
+    getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
+    findeNeuesteExcelDateiMock.mockResolvedValue(null);
+    downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
+
+    await generatePruefberichtPdf({
+      firmaName: "Firma",
+      geraete: [geraet({ herstelljahr: "01.2017" })],
+      lagerortFilter: null,
+    });
+
+    const [, zeilen] = erzeugeArbeitskopieMock.mock.calls[0];
+    expect(zeilen[0]).toMatchObject({ herstelljahr: "01.2017" });
+  });
 });

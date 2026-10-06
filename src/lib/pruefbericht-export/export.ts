@@ -42,6 +42,26 @@ function buildDateiname(firmaName: string, lagerortFilter: string | null): strin
   return `${heutigesDatum()} Prüfbericht Absturzsicherungen - ${bereinigeFuerDateinamen(firmaName)}${zusatz}.pdf`;
 }
 
+// Live-Fund (2026-10-06): Dataverse liefert Datumsfelder als volle ISO-
+// Zeitstempel ("2014-10-31T00:00:00Z"), die unformatiert roh im PDF
+// erschienen. Wird als gültiges Datum erkannt → de-CH-Format (31.10.2014,
+// gleiche Konvention wie formatDatum() im übrigen Tool); alles andere
+// (z.B. ein bereits anders formatierter Legacy-Wert wie "01.2017")
+// unverändert übernehmen, statt es fälschlich zu verwerfen.
+function formatiereDatum(wert: string | null): string | null {
+  if (!wert) return null;
+  const datum = new Date(wert);
+  if (Number.isNaN(datum.getTime())) return wert;
+  // UTC-Getter statt toLocaleDateString(): Dataverse liefert reine
+  // Kalenderdaten als Mitternacht-UTC-Zeitstempel — mit lokalen Gettern
+  // könnte der Servertimezone das Datum je nach Offset auf den Vor-/Folgetag
+  // verschieben, und toLocaleDateString füllte einstellige Tage/Monate
+  // inkonsistent nicht mit führender Null auf ("3.3.2026" statt "03.03.2026").
+  const tag = String(datum.getUTCDate()).padStart(2, "0");
+  const monat = String(datum.getUTCMonth() + 1).padStart(2, "0");
+  return `${tag}.${monat}.${datum.getUTCFullYear()}`;
+}
+
 function zuExportZeile(geraet: Geraet, pruefbericht: Pruefbericht, artikel: ArtikelInfo | undefined): ExportZeile {
   return {
     lagerort: geraet.lagerort,
@@ -52,12 +72,12 @@ function zuExportZeile(geraet: Geraet, pruefbericht: Pruefbericht, artikel: Arti
     serienummer: geraet.serienummer,
     barcode: geraet.barcode,
     hersteller: artikel?.hersteller ?? null,
-    herstelljahr: geraet.herstelljahr,
-    erstgebrauch: geraet.erstgebrauch,
-    ablegereife: geraet.ablegereife,
+    herstelljahr: formatiereDatum(geraet.herstelljahr),
+    erstgebrauch: formatiereDatum(geraet.erstgebrauch),
+    ablegereife: formatiereDatum(geraet.ablegereife),
     zubehoer: geraet.zubehoer,
     kundenId: geraet.kundenId,
-    geprueft: pruefbericht.pruefdatum,
+    geprueft: formatiereDatum(pruefbericht.pruefdatum),
     pruefer: pruefbericht.pruefer,
     pruefergebnis: pruefbericht.ergebnis,
     bemerkungen: pruefbericht.bemerkungen,

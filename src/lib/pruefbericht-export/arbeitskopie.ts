@@ -25,12 +25,39 @@ interface ExtrahierteVorlage {
   farbRegeln: ExtrahierteRegel[];
 }
 
+// Live-Fund (2026-10-06): `cell.text` liefert für Hyperlink-Zellen (z.B. eine
+// als Link formatierte E-Mail-/Website-Adresse in der Titelzeile) buchstäblich
+// "[object Object]" — exceljs ruft intern `toString()` auf dem internen
+// Werte-Wrapper auf, und `HyperlinkValue` überschreibt `toString()` nicht
+// (empirisch verifiziert, kein dokumentiertes Verhalten). Deshalb wird hier
+// direkt über `cell.value` gelesen und je nach Zelltyp (Text, Zahl, Datum,
+// Hyperlink, Rich-Text, Formel) der sichtbare Text selbst ermittelt.
+function zellText(cell: ExcelJS.Cell): string | null {
+  const value = cell.value;
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string") return value.trim() || null;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "object") {
+    if ("richText" in value && Array.isArray(value.richText)) {
+      const text = value.richText.map((teil) => teil.text).join("");
+      return text.trim() || null;
+    }
+    if ("text" in value && typeof value.text === "string") {
+      return value.text.trim() || null; // Hyperlink-Zelle
+    }
+    if ("result" in value) {
+      return value.result != null ? String(value.result).trim() || null : null; // Formel-Zelle
+    }
+  }
+  return null;
+}
+
 /** Liest Zellen einer Zeile als Text (1-indiziert wie in Excel, Lücken als `null`). */
 function zeilenTexte(row: ExcelJS.Row, spaltenAnzahl: number): (string | null)[] {
   const zellen: (string | null)[] = [];
   for (let col = 1; col <= spaltenAnzahl; col++) {
-    const text = row.getCell(col).text?.trim();
-    zellen[col - 1] = text ? text : null;
+    zellen[col - 1] = zellText(row.getCell(col));
   }
   return zellen;
 }
@@ -172,6 +199,14 @@ export async function erzeugeArbeitskopie(vorlageBuffer: ArrayBuffer, zeilen: Ex
   headerRow.font = { bold: true };
   headerRow.eachCell({ includeEmpty: true }, (cell) => {
     cell.border = { bottom: { style: "thin" } };
+  });
+
+  // Live-Fund (2026-10-06): eine frisch erzeugte Arbeitsmappe hat ohne
+  // explizite Breiten die exceljs-Standardbreite (sehr schmal) — Inhalte
+  // wurden dadurch beim PDF-Export abgeschnitten. Breite richtet sich nach
+  // der Länge der jeweiligen Spaltenüberschrift, mit Mindest-/Höchstmass.
+  headerZeile.forEach((text, index) => {
+    worksheet.getColumn(index + 1).width = Math.min(40, Math.max(12, (text?.length ?? 10) + 4));
   });
 
   const ersteDatenzeile = headerRowNumber + 1;
