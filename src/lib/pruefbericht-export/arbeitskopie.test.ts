@@ -259,13 +259,27 @@ describe("erzeugeArbeitskopie", () => {
     expect(resultWorkbook.worksheets[0].getRow(ERSTE_DATENZEILE).getCell(1).text).toBe("X");
   });
 
-  it("never carries embedded images from the template into the result (new workbook, built from scratch)", async () => {
+  // Das Logo der Vorlage selbst wird nie übernommen (Live-Fund: exceljs
+  // beschädigt eingebettete Bilder beim Laden→Ändern→Speichern) — stattdessen
+  // fügt erzeugeArbeitskopie sein eigenes, fest hinterlegtes Logo frisch ein
+  // (derselbe Fall, der unkritisch ist, weil nie etwas Bestehendes neu
+  // gespeichert wird).
+  it("ignores any logo embedded in the template and inserts its own instead", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true, mitLogo: true });
 
     const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile({ lagerort: "X" })], FIRMA_NAME);
     const worksheet = await loadWorksheet(ergebnis);
 
-    expect(worksheet.getImages()).toHaveLength(0);
+    expect(worksheet.getImages()).toHaveLength(1);
+  });
+
+  it("inserts exactly one logo image even when the template had none at all", async () => {
+    const vorlage = await buildVorlage({ mitBeispielzeile: true }); // ohne mitLogo
+
+    const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()], FIRMA_NAME);
+    const worksheet = await loadWorksheet(ergebnis);
+
+    expect(worksheet.getImages()).toHaveLength(1);
   });
 
   // Live-Fund (2026-10-06): `cell.text` liefert für Hyperlink-Zellen

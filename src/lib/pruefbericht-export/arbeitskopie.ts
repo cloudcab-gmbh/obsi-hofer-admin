@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import ExcelJS from "exceljs";
 import { resolveSpaltenMapping, type ExportFeld, type ExportZeile } from "./feld-mapping";
 
@@ -9,6 +11,15 @@ const STANDARD_FARBE_KEINE_FREIGABE = "FFFF0000";
 // Live-Fund weiter unten (Titelzeile der echten Datei zeigte einen
 // Projekt-/Ortsnamen statt der Firma).
 const OBSI_HOFER_KONTAKTZEILE = "Obsi Hofer GmbH I 4805 Brittnau I +41 78 401 54 36 I info@obsi-hofer.ch I www.obsi-hofer.ch";
+
+// Dasselbe Logo, das bereits im App-Header verwendet wird (src/components/
+// app-header.tsx), Seitenverhältnis 386:500. Frisch in die selbst erzeugte
+// Arbeitsmappe eingefügt (kein Laden→Ändern→Speichern eines bestehenden
+// Bildes) — das ist exakt der Fall, der zuvor den XLSCorruptFile-Fehler
+// verursachte, hier also unkritisch.
+function ladeLogoBuffer(): Buffer {
+  return readFileSync(path.join(process.cwd(), "public", "logo_small.png"));
+}
 
 export class VorlagenFehler extends Error {
   constructor(message: string) {
@@ -199,6 +210,21 @@ export async function erzeugeArbeitskopie(
 
   worksheet.addRow(["Prüfbericht Absturzsicherungen", null, firmaName]).font = { bold: true };
   worksheet.addRow([OBSI_HOFER_KONTAKTZEILE]).font = { italic: true };
+
+  // Logo oben rechts im Titelbereich, analog zur Platzierung in den bisher
+  // gesichteten echten Vorlagen. Positionsbasierter Anker (statt Zellbereich)
+  // vermeidet eine Kollision mit dem Firmennamen-Text weiter links, egal wie
+  // viele Spalten die jeweilige Vorlage hat.
+  // Typ-Cast: exceljs' mitgelieferte Typdefinitionen für `Image.buffer`
+  // stammen offenbar von einer älteren @types/node-Fassung und sind
+  // strukturell nicht kompatibel mit dem aktuellen, generischen `Buffer`-Typ
+  // — zur Laufzeit ist es derselbe Node-Buffer, nur die Typprüfung ist
+  // betroffen.
+  const logoImageId = workbook.addImage({ buffer: ladeLogoBuffer(), extension: "png" } as unknown as ExcelJS.Image);
+  worksheet.addImage(logoImageId, {
+    tl: { col: Math.max(4, spaltenAnzahl - 2), row: 0 },
+    ext: { width: 46, height: 60 },
+  });
 
   const headerRow = worksheet.addRow(headerZeile);
   headerRow.font = { bold: true };
