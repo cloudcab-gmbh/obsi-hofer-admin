@@ -171,13 +171,19 @@ describe("erzeugeArbeitskopie", () => {
     expect(worksheet.getRow(1).getCell(2).text).toBe("Prüfbericht Absturzsicherungen");
   });
 
-  it("includes the OBSI Hofer contact line regardless of what the template's title row contained", async () => {
+  // Live-Fund (2026-10-06): die Kontaktzeile liegt im Original rechts (nicht
+  // links neben dem Titel) als eigener, vierzeiliger Block.
+  it("places the OBSI Hofer contact block on the right, with its four lines, regardless of what the template's title row contained", async () => {
     const vorlage = await buildVorlage({ mitBeispielzeile: true });
 
     const ergebnis = await erzeugeArbeitskopie(vorlage, [leereZeile()], FIRMA_NAME);
     const worksheet = await loadWorksheet(ergebnis);
 
-    expect(worksheet.getRow(2).getCell(2).text).toContain("Obsi Hofer GmbH");
+    const kontaktZelle = worksheet.getRow(1).getCell(6); // Math.max(5, spaltenAnzahl(8) - 2)
+    expect(kontaktZelle.text).toContain("Obsi Hofer GmbH");
+    expect(kontaktZelle.text).toContain("www.obsi-hofer.ch");
+    expect(kontaktZelle.alignment?.wrapText).toBe(true);
+    expect(kontaktZelle.font?.bold).toBe(true);
   });
 
   it("anchors the logo at the start of the title row (column A), not overlapping the title text", async () => {

@@ -9,8 +9,10 @@ const STANDARD_FARBE_KEINE_FREIGABE = "FFFF0000";
 // Firmenkonstant, in jeder bisher gesichteten echten Vorlage identisch
 // vorgefunden — bewusst fest hinterlegt statt aus der Vorlage gelesen, siehe
 // Live-Fund weiter unten (Titelzeile der echten Datei zeigte einen
-// Projekt-/Ortsnamen statt der Firma).
-const OBSI_HOFER_KONTAKTZEILE = "Obsi Hofer GmbH I 4805 Brittnau I +41 78 401 54 36 I info@obsi-hofer.ch I www.obsi-hofer.ch";
+// Projekt-/Ortsnamen statt der Firma). Vier Zeilen statt einer durchlaufenden
+// Zeile, entsprechend der im Original per Screenshot bestätigten Darstellung
+// (eigener Block rechts, Blocksatz, vier Zeilen).
+const OBSI_HOFER_KONTAKTZEILEN = "Obsi Hofer GmbH I 4805 Brittnau\n+41 78 401 54 36\ninfo@obsi-hofer.ch\nwww.obsi-hofer.ch";
 
 // Dasselbe Logo, das bereits im App-Header verwendet wird (src/components/
 // app-header.tsx), Seitenverhältnis 386:500. Frisch in die selbst erzeugte
@@ -213,8 +215,7 @@ export async function erzeugeArbeitskopie(
   // rechts, damit er das Bild nicht überlagert.
   const titelRow = worksheet.addRow([null, "Prüfbericht Absturzsicherungen", null, firmaName]);
   titelRow.font = { bold: true };
-  const kontaktRow = worksheet.addRow([null, OBSI_HOFER_KONTAKTZEILE]);
-  kontaktRow.font = { italic: true };
+  const kontaktRow = worksheet.addRow([]);
   // Live-Fund (2026-10-06): mit der Excel-Standard-Zeilenhöhe wirkte das Logo
   // gestaucht (sein Seitenverhältnis 386:500 braucht mehr Höhe, als die
   // beiden Titelzeilen zusammen standardmässig bieten). Grosszügigere, feste
@@ -222,6 +223,16 @@ export async function erzeugeArbeitskopie(
   // dargestellt wird.
   titelRow.height = 45;
   kontaktRow.height = 30;
+
+  // Live-Fund (2026-10-06): die Kontaktzeile liegt im Original rechts (nicht
+  // links neben dem Titel), als eigener, über beide Titelzeilen verschmolzener
+  // Block mit vier Zeilen im Blocksatz, fett statt kursiv.
+  const kontaktStartSpalte = Math.max(5, spaltenAnzahl - 2);
+  worksheet.mergeCells(1, kontaktStartSpalte, 2, spaltenAnzahl);
+  const kontaktZelle = titelRow.getCell(kontaktStartSpalte);
+  kontaktZelle.value = OBSI_HOFER_KONTAKTZEILEN;
+  kontaktZelle.font = { bold: true };
+  kontaktZelle.alignment = { wrapText: true, horizontal: "justify", vertical: "middle" };
 
   const headerRow = worksheet.addRow(headerZeile);
   headerRow.font = { bold: true };
