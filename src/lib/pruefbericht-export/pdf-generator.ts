@@ -141,6 +141,21 @@ const ZELLEN_PADDING = 3;
 const LINIENBREITE = 0.5;
 const MAX_TABELLEN_SCHRIFT = 9;
 const MIN_TABELLEN_SCHRIFT = 7;
+/**
+ * Tabellen-Optik nach dem Vorbild der Excel-Vorlagen (Screenshot Nutzer,
+ * 2026-10-06): graue Kopfzeile mit weisser fetter Schrift, gebänderte
+ * Zeilen, nur waagrechte Trennlinien, Inhalte vertikal mittig. Bewusst fest
+ * hinterlegt (wie der Kontaktblock) statt aus der Vorlage gelesen: die
+ * Vorlage bleibt nur Quelle für Spalten und Prüfergebnis-Farben.
+ */
+const TABELLE = {
+  kopfHintergrund: "#A6A6A6",
+  kopfText: "#FFFFFF",
+  bandHintergrund: "#EDEDED",
+  trennlinie: "#D9D9D9",
+  paddingVertikal: 5,
+} as const;
+
 /** Anzahl Spalten, die mehrzeilig umbrechen dürfen, bevor die Schrift verkleinert wird. */
 const FREITEXT_SPALTEN = 2;
 
@@ -265,18 +280,27 @@ function buildTableBody(
 ): TableCell[][] {
   const headerRow: TableCell[] = [];
   for (let spalte = 1; spalte <= letzteHeaderSpalte; spalte++) {
-    headerRow.push({ text: headerZeile[spalte - 1] ?? "", bold: true });
+    headerRow.push({
+      text: headerZeile[spalte - 1] ?? "",
+      bold: true,
+      color: TABELLE.kopfText,
+      fillColor: TABELLE.kopfHintergrund,
+      verticalAlignment: "middle",
+    });
   }
 
   const regeln = farbRegeln.length > 0 ? farbRegeln : standardFarbRegeln();
   const ergebnisSpalte = Array.from(mapping.entries()).find(([, feld]) => feld === "pruefergebnis")?.[0];
 
-  const datenZeilen: TableCell[][] = zeilen.map((zeile) => {
+  const datenZeilen: TableCell[][] = zeilen.map((zeile, index) => {
     const row: TableCell[] = [];
+    // Erste Datenzeile gebändert (grau), dann abwechselnd — wie in der Excel-Vorlage.
+    const zeilenHintergrund = index % 2 === 0 ? TABELLE.bandHintergrund : undefined;
     for (let spalte = 1; spalte <= letzteHeaderSpalte; spalte++) {
       const feld = mapping.get(spalte);
       const wert = feld ? (zeile[feld] ?? "") : "";
-      const cell: TableCell = { text: wert };
+      const cell: TableCell = { text: wert, verticalAlignment: "middle" };
+      if (zeilenHintergrund) cell.fillColor = zeilenHintergrund;
       if (ergebnisSpalte === spalte) {
         const treffer = regeln.find((regel) => regel.text === zeile.pruefergebnis);
         if (treffer) cell.fillColor = argbZuCssFarbe(treffer.argb);
@@ -361,13 +385,12 @@ export function buildDocumentDefinition(input: PdfBuildInput): TDocumentDefiniti
         table: { headerRows: 1, widths, body },
         layout: {
           hLineWidth: () => LINIENBREITE,
-          vLineWidth: () => LINIENBREITE,
-          hLineColor: () => "#cccccc",
-          vLineColor: () => "#cccccc",
+          vLineWidth: () => 0,
+          hLineColor: () => TABELLE.trennlinie,
           paddingLeft: () => ZELLEN_PADDING,
           paddingRight: () => ZELLEN_PADDING,
-          paddingTop: () => 3,
-          paddingBottom: () => 3,
+          paddingTop: () => TABELLE.paddingVertikal,
+          paddingBottom: () => TABELLE.paddingVertikal,
         },
       },
     ],

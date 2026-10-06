@@ -132,10 +132,12 @@ describe("buildDocumentDefinition", () => {
     });
 
     const table = tableFromContent(doc);
-    expect(zellFarbe(table.body[1] as TableCell[], 2)).toBeTruthy();
+    const farbe = zellFarbe(table.body[1] as TableCell[], 2);
+    expect(farbe).toBeTruthy();
+    expect(farbe).not.toBe("#EDEDED"); // nicht bloss die Zeilen-Bänderung
   });
 
-  it("leaves a Prüfergebnis value with no matching color rule uncolored instead of guessing", () => {
+  it("leaves a Prüfergebnis value with no matching color rule in the plain row color instead of guessing", () => {
     const doc = buildDocumentDefinition({
       headerZeile: HEADER,
       mapping: mapping(),
@@ -147,7 +149,31 @@ describe("buildDocumentDefinition", () => {
     });
 
     const table = tableFromContent(doc);
-    expect(zellFarbe(table.body[1] as TableCell[], 2)).toBeUndefined();
+    // Erste Datenzeile ist gebändert — die Ergebnis-Zelle behält nur diese Zeilenfarbe.
+    expect(zellFarbe(table.body[1] as TableCell[], 2)).toBe(zellFarbe(table.body[1] as TableCell[], 0));
+  });
+
+  it("styles the table like the Excel templates: grey header with white bold text, banded rows, no vertical lines", () => {
+    const doc = buildDocumentDefinition({
+      headerZeile: HEADER,
+      mapping: mapping(),
+      letzteHeaderSpalte: HEADER.length,
+      farbRegeln: [],
+      zeilen: [leereZeile({ lagerort: "A" }), leereZeile({ lagerort: "B" }), leereZeile({ lagerort: "C" })],
+      firmaName: "Beispiel-Firma",
+      logoDataUrl: null,
+    });
+
+    const table = tableFromContent(doc);
+    const kopf = table.body[0] as unknown as { fillColor?: string; color?: string; bold?: boolean }[];
+    expect(kopf[0]).toMatchObject({ fillColor: "#A6A6A6", color: "#FFFFFF", bold: true });
+    expect(zellFarbe(table.body[1] as TableCell[], 0)).toBe("#EDEDED");
+    expect(zellFarbe(table.body[2] as TableCell[], 0)).toBeUndefined();
+    expect(zellFarbe(table.body[3] as TableCell[], 0)).toBe("#EDEDED");
+
+    const content = doc.content as { layout?: { vLineWidth?: () => number } }[];
+    const tableElement = content.find((element) => "table" in element);
+    expect(tableElement?.layout?.vLineWidth?.()).toBe(0);
   });
 
   it("widens a column's share based on its longest actual data value, even when the header itself is short", () => {
