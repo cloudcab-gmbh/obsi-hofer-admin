@@ -10,7 +10,7 @@
 - Nutzt die globale Firma-Session aus PROJ-3 (`firma-session.ts`)
 - Wird vorausgesetzt von: PROJ-5 (Sync-Freigabe pro Firma) — ein Sync ist erst möglich, wenn mindestens ein Kontakt der Firma freigegeben ist
 - **Cross-Repo-Abhängigkeit:** Der Sync im Kundenportal-Repo muss künftig nur Kontakte mit gesetztem Freigabe-Häkchen als Portal-Benutzer übernehmen und den Zugang entzogener Kontakte sperren — dort separat umzusetzen (zusammen mit dem Firma-Filter aus PROJ-5)
-- **Dataverse-Voraussetzung:** Der App-Benutzer "# OBSI Hofer Admin" braucht zusätzlich **Lesen auf `bmvcc_relation`** (Firma↔Kontakt-Zuordnung — vom Nutzer am 2026-10-06 erteilt, Lesezugriff verifiziert) und **Schreiben auf `bmvcc_kontakt`** (noch offen)
+- **Dataverse-Voraussetzung:** Der App-Benutzer "# OBSI Hofer Admin" braucht zusätzlich **Lesen auf `bmvcc_relation`** (Firma↔Kontakt-Zuordnung — vom Nutzer am 2026-10-06 erteilt, Lesezugriff verifiziert) und **Schreiben auf `bmvcc_kontakt`** (vom Nutzer am 2026-10-06 erteilt). Per `RetrieveUserPrivileges` verifiziert: prvReadbmvcc_relation, prvReadbmvcc_Kontakt und prvWritebmvcc_Kontakt jeweils auf Organisationsebene — mehr ist nicht nötig, da nur ein Feld eines bestehenden Kontakts geändert wird (kein Erstellen/Anfügen)
 
 ## Datengrundlage (verifiziert gegen Dataverse, 2026-10-06, rein lesend)
 - Kontakte liegen in der eigenen Tabelle **`bmvcc_kontakt`** ("Kontakt", 596 Datensätze, davon 551 aktiv), nicht in der Standard-Tabelle `contact`
