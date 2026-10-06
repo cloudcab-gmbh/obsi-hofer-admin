@@ -83,19 +83,6 @@ export async function uploadKundenDatei(path: string, content: ArrayBuffer): Pro
   return item.id;
 }
 
-/** Wandelt ein bereits in "Kunden" abgelegtes Element (per Item-ID) über die eingebaute Microsoft-Graph-Konvertierung in ein PDF um. */
-export async function konvertiereZuPdf(itemId: string): Promise<ArrayBuffer> {
-  const driveId = await resolveKundenDriveId();
-  const res = await graphFetch(`/drives/${driveId}/items/${itemId}/content?format=pdf`);
-  return res.arrayBuffer();
-}
-
-/** Löscht ein Element (z.B. die temporäre Arbeitskopie) anhand seiner Item-ID. */
-export async function loescheKundenDatei(itemId: string): Promise<void> {
-  const driveId = await resolveKundenDriveId();
-  await graphFetch(`/drives/${driveId}/items/${itemId}`, { method: "DELETE" });
-}
-
 /** Findet die zuletzt geänderte Excel-Datei in einem Ordner, oder `null`, falls keine existiert. */
 export async function findeNeuesteExcelDatei(path: string): Promise<DriveItem | null> {
   const children = await listKundenOrdner(path);

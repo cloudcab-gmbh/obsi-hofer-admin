@@ -1,14 +1,8 @@
 import type { ArtikelInfo, Geraet } from "@/lib/dataverse/geraete";
 import { listArtikelByIds } from "@/lib/dataverse/geraete";
 import { getAktuellstePruefberichteForGeraete, type Pruefbericht } from "@/lib/dataverse/pruefberichte";
-import {
-  downloadKundenDatei,
-  findeNeuesteExcelDatei,
-  konvertiereZuPdf,
-  loescheKundenDatei,
-  uploadKundenDatei,
-} from "@/lib/sharepoint/kunden-drive";
-import { erzeugeArbeitskopie } from "./arbeitskopie";
+import { downloadKundenDatei, findeNeuesteExcelDatei, uploadKundenDatei } from "@/lib/sharepoint/kunden-drive";
+import { erzeugePdf } from "./pdf-generator";
 import type { ExportZeile } from "./feld-mapping";
 
 export class ExportFehler extends Error {
@@ -101,7 +95,7 @@ export interface GeneratePdfParams {
 }
 
 export interface GeneratePdfResult {
-  pdfBuffer: ArrayBuffer;
+  pdfBuffer: Buffer;
   dateiname: string;
 }
 
@@ -133,30 +127,21 @@ export async function generatePruefberichtPdf(params: GeneratePdfParams): Promis
   const ordnerPfad = `${bereinigeFuerDateinamen(firmaName)}/Prüfberichte/${jahr}`;
 
   const vorlageBuffer = await ladeVorlage(ordnerPfad);
-  const arbeitskopieBuffer = await erzeugeArbeitskopie(vorlageBuffer, zeilen, firmaName);
-
-  const tempPfad = `${ordnerPfad}/_temp-${crypto.randomUUID()}.xlsx`;
-  const tempItemId = await uploadKundenDatei(tempPfad, arbeitskopieBuffer);
-  let pdfBuffer: ArrayBuffer;
-  try {
-    pdfBuffer = await konvertiereZuPdf(tempItemId);
-  } finally {
-    // QA BUG-2: ein Fehler beim Aufräumen darf eine ansonsten erfolgreiche
-    // Konvertierung nicht maskieren (ein `throw` hier würde den Erfolg des
-    // try-Blocks überschreiben) — im schlimmsten Fall bleibt nur eine
-    // harmlose, erkennbar benannte _temp-*.xlsx-Datei liegen.
-    try {
-      await loescheKundenDatei(tempItemId);
-    } catch (error) {
-      console.error(`Temporäre Arbeitskopie konnte nicht gelöscht werden (${tempPfad}):`, error);
-    }
-  }
+  const pdfBuffer = await erzeugePdf(vorlageBuffer, zeilen, firmaName);
 
   const dateiname = buildDateiname(firmaName, lagerortFilter);
   try {
     // QA BUG-3: Ein Fehler bei der zusätzlichen Archiv-Ablage darf dem
     // Bearbeiter nicht den bereits fertig generierten Download verwehren.
-    await uploadKundenDatei(`${ordnerPfad}/${dateiname}`, pdfBuffer);
+    // `uploadKundenDatei` erwartet einen ArrayBuffer; pdfmakes `getBuffer()`
+    // liefert einen Node-`Buffer`, dessen zugrundeliegender ArrayBuffer bei
+    // einem gepoolten Buffer grösser als die eigentlichen Daten sein kann —
+    // deshalb explizit auf den tatsächlich belegten Bereich einschränken.
+    const archivBuffer = pdfBuffer.buffer.slice(
+      pdfBuffer.byteOffset,
+      pdfBuffer.byteOffset + pdfBuffer.byteLength
+    ) as ArrayBuffer;
+    await uploadKundenDatei(`${ordnerPfad}/${dateiname}`, archivBuffer);
   } catch (error) {
     console.error(`PDF konnte nicht im Archiv abgelegt werden (${ordnerPfad}/${dateiname}):`, error);
   }

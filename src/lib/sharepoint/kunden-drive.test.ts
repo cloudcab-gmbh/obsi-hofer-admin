@@ -8,8 +8,6 @@ import {
   findeNeuesteExcelDatei,
   downloadKundenDatei,
   uploadKundenDatei,
-  konvertiereZuPdf,
-  loescheKundenDatei,
   resetKundenDriveCache,
 } from "./kunden-drive";
 import { SharePointError } from "./errors";
@@ -110,23 +108,5 @@ describe("Datei-Operationen", () => {
 
     expect(id).toBe("neues-item");
     expect(graphFetchMock.mock.calls[2][1]).toMatchObject({ method: "PUT" });
-  });
-
-  it("konvertiereZuPdf ruft die format=pdf-Konvertierung für die Item-ID auf", async () => {
-    stubSiteAndDriveLookup();
-    graphFetchMock.mockResolvedValueOnce(new Response(new Uint8Array([9, 9])));
-
-    await konvertiereZuPdf("item-1");
-
-    expect(graphFetchMock.mock.calls[2][0]).toBe("/drives/drive-kunden/items/item-1/content?format=pdf");
-  });
-
-  it("loescheKundenDatei ruft DELETE für die Item-ID auf", async () => {
-    stubSiteAndDriveLookup();
-    graphFetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
-
-    await loescheKundenDatei("item-1");
-
-    expect(graphFetchMock.mock.calls[2]).toEqual(["/drives/drive-kunden/items/item-1", { method: "DELETE" }]);
   });
 });

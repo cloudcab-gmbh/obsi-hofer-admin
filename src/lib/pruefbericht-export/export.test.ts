@@ -13,18 +13,14 @@ vi.mock("@/lib/dataverse/pruefberichte", () => ({
 const findeNeuesteExcelDateiMock = vi.fn();
 const downloadKundenDateiMock = vi.fn();
 const uploadKundenDateiMock = vi.fn();
-const konvertiereZuPdfMock = vi.fn();
-const loescheKundenDateiMock = vi.fn();
 vi.mock("@/lib/sharepoint/kunden-drive", () => ({
   findeNeuesteExcelDatei: (...args: unknown[]) => findeNeuesteExcelDateiMock(...args),
   downloadKundenDatei: (...args: unknown[]) => downloadKundenDateiMock(...args),
   uploadKundenDatei: (...args: unknown[]) => uploadKundenDateiMock(...args),
-  konvertiereZuPdf: (...args: unknown[]) => konvertiereZuPdfMock(...args),
-  loescheKundenDatei: (...args: unknown[]) => loescheKundenDateiMock(...args),
 }));
 
-const erzeugeArbeitskopieMock = vi.fn();
-vi.mock("./arbeitskopie", () => ({ erzeugeArbeitskopie: (...args: unknown[]) => erzeugeArbeitskopieMock(...args) }));
+const erzeugePdfMock = vi.fn();
+vi.mock("./pdf-generator", () => ({ erzeugePdf: (...args: unknown[]) => erzeugePdfMock(...args) }));
 
 import { generatePruefberichtPdf, ExportFehler } from "./export";
 
@@ -67,10 +63,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("SHAREPOINT_STANDARD_VORLAGE_PFAD", "_Standardvorlage/Pruefberichtraport.xlsx");
   listArtikelByIdsMock.mockResolvedValue(new Map());
-  erzeugeArbeitskopieMock.mockResolvedValue(new ArrayBuffer(1));
-  uploadKundenDateiMock.mockResolvedValue("temp-item-id");
-  konvertiereZuPdfMock.mockResolvedValue(new ArrayBuffer(2));
-  loescheKundenDateiMock.mockResolvedValue(undefined);
+  erzeugePdfMock.mockResolvedValue(Buffer.from([1, 2, 3]));
+  uploadKundenDateiMock.mockResolvedValue("item-id");
 });
 
 afterEach(() => {
@@ -115,42 +109,31 @@ describe("generatePruefberichtPdf", () => {
     expect(downloadKundenDateiMock).toHaveBeenCalledWith("_Standardvorlage/Pruefberichtraport.xlsx");
   });
 
-  it("uploads a temporary working copy, converts it to PDF, then deletes the temporary file", async () => {
+  it("generates the PDF directly from the template buffer and archives it in SharePoint", async () => {
     getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
     findeNeuesteExcelDateiMock.mockResolvedValue(null);
-    downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
+    const vorlageBuffer = new ArrayBuffer(3);
+    downloadKundenDateiMock.mockResolvedValue(vorlageBuffer);
 
-    await generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: null });
+    const jahr = new Date().getFullYear();
+    const result = await generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: null });
 
-    expect(uploadKundenDateiMock).toHaveBeenCalledTimes(2); // 1x temp .xlsx, 1x finales PDF
-    const [tempPfad] = uploadKundenDateiMock.mock.calls[0];
-    expect(tempPfad).toMatch(/_temp-.*\.xlsx$/);
-    expect(konvertiereZuPdfMock).toHaveBeenCalledWith("temp-item-id");
-    expect(loescheKundenDateiMock).toHaveBeenCalledWith("temp-item-id");
+    expect(erzeugePdfMock).toHaveBeenCalledWith(vorlageBuffer, expect.any(Array), "Firma");
+    expect(uploadKundenDateiMock).toHaveBeenCalledTimes(1);
+    const [archivPfad, archivInhalt] = uploadKundenDateiMock.mock.calls[0];
+    expect(archivPfad).toBe(`Firma/Prüfberichte/${jahr}/${result.dateiname}`);
+    expect(new Uint8Array(archivInhalt)).toEqual(new Uint8Array(result.pdfBuffer));
   });
 
-  it("still deletes the temporary working copy when the PDF conversion itself fails", async () => {
+  it("propagates an error from PDF generation without archiving anything", async () => {
     getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
     findeNeuesteExcelDateiMock.mockResolvedValue(null);
     downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
-    konvertiereZuPdfMock.mockRejectedValue(new Error("Konvertierung fehlgeschlagen"));
+    erzeugePdfMock.mockRejectedValue(new Error("PDF-Generierung fehlgeschlagen"));
 
     await expect(generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: null })).rejects.toThrow();
 
-    expect(loescheKundenDateiMock).toHaveBeenCalledWith("temp-item-id");
-  });
-
-  // QA BUG-2: ein Fehler beim Aufräumen darf einen ansonsten erfolgreichen Export nicht maskieren.
-  it("still returns the generated PDF when deleting the temporary working copy fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
-    findeNeuesteExcelDateiMock.mockResolvedValue(null);
-    downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
-    loescheKundenDateiMock.mockRejectedValue(new Error("Löschen fehlgeschlagen"));
-
-    await expect(
-      generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: null })
-    ).resolves.toMatchObject({ dateiname: expect.stringContaining("Firma") });
+    expect(uploadKundenDateiMock).not.toHaveBeenCalled();
   });
 
   // QA BUG-3: ein Fehler bei der zusätzlichen Archiv-Ablage darf den Download nicht verhindern.
@@ -159,11 +142,11 @@ describe("generatePruefberichtPdf", () => {
     getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
     findeNeuesteExcelDateiMock.mockResolvedValue(null);
     downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
-    uploadKundenDateiMock.mockResolvedValueOnce("temp-item-id").mockRejectedValueOnce(new Error("Archiv-Upload fehlgeschlagen"));
+    uploadKundenDateiMock.mockRejectedValue(new Error("Archiv-Upload fehlgeschlagen"));
 
     const result = await generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: null });
 
-    expect(result.pdfBuffer).toBeInstanceOf(ArrayBuffer);
+    expect(result.pdfBuffer).toBeInstanceOf(Buffer);
   });
 
   it("includes the active Lagerort filter in the final filename, and saves it in the year folder", async () => {
@@ -174,7 +157,7 @@ describe("generatePruefberichtPdf", () => {
     const result = await generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: "Trakt 4" });
 
     expect(result.dateiname).toContain(" - Trakt 4.pdf");
-    const [finalPfad] = uploadKundenDateiMock.mock.calls[1];
+    const [finalPfad] = uploadKundenDateiMock.mock.calls[0];
     expect(finalPfad).toContain(result.dateiname);
   });
 
@@ -191,7 +174,7 @@ describe("generatePruefberichtPdf", () => {
   // Live-Fund (2026-10-06): Dataverse liefert Datumsfelder als volle ISO-
   // Zeitstempel ("2014-10-31T00:00:00Z"), die unformatiert roh im PDF
   // erschienen statt als lesbares Datum.
-  it("formats ISO date fields as de-CH dates before handing rows to the Excel merge", async () => {
+  it("formats ISO date fields as de-CH dates before handing rows to the PDF generator", async () => {
     getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(
       new Map([["g1", pruefbericht({ pruefdatum: "2026-03-03T00:00:00Z" })]])
     );
@@ -204,7 +187,7 @@ describe("generatePruefberichtPdf", () => {
       lagerortFilter: null,
     });
 
-    const [, zeilen] = erzeugeArbeitskopieMock.mock.calls[0];
+    const [, zeilen] = erzeugePdfMock.mock.calls[0];
     expect(zeilen[0]).toMatchObject({
       herstelljahr: "31.10.2014",
       erstgebrauch: "31.10.2014",
@@ -224,7 +207,7 @@ describe("generatePruefberichtPdf", () => {
       lagerortFilter: null,
     });
 
-    const [, zeilen] = erzeugeArbeitskopieMock.mock.calls[0];
+    const [, zeilen] = erzeugePdfMock.mock.calls[0];
     expect(zeilen[0]).toMatchObject({ herstelljahr: "01.2017" });
   });
 });
