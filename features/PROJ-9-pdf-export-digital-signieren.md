@@ -1,6 +1,6 @@
 # PROJ-9: PDF-Export digital signieren (Firmen-Siegel)
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-10-07
 **Last Updated:** 2026-10-07
 
@@ -227,7 +227,109 @@ Die Umgebung (Production vs. Preview vs. lokal) erkennt die App an der von Verce
 **Manuell verifiziert (2026-10-07):** PDF mit echtem freetsa.org-Zeitstempel signiert; `openssl cms -verify` gegen das Test-Zertifikat → "Verification successful"; nach Änderung eines Bytes → "content verify error". **Vom Nutzer lokal verifiziert (2026-10-07):** Echter Prüfbericht-Export mit `PDF_SIGNATUR_MODUS=test` in Adobe Acrobat Reader — Test-Vermerk auf jeder Seite, Signatur "OBSI Hofer GmbH (TEST)" mit Zeitstempel als unverändert erkannt (Warnung zum unbekannten Unterzeichner wie erwartet), keine Ablage im SharePoint-Archiv. Nebenbei: lokal fehlte `SHAREPOINT_STANDARD_VORLAGE_PFAD` (PROJ-7) in `.env.local`, vom Nutzer aus Vercel nachgetragen.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-10-07 (Phase 1 — Testmodus)
+**App URL:** http://localhost:3000 (lokal, `PDF_SIGNATUR_MODUS=test`)
+**Tester:** QA Engineer (AI) + manueller Adobe-Reader-Test durch den Nutzer
+
+**Umfang:** Nur Phase 1. Die Kriterien unter "Phase 2 (Produktivmodus)" sind erst mit dem echten Siegel testbar und hier **nicht** geprüft.
+
+### Acceptance Criteria Status (Phase 1)
+
+#### AC-1: Testmodus lokal/Preview → mit Test-Zertifikat signiert, mit Zeitstempel des Gratis-Dienstes
+- [x] Unit-Tests (`signiere-pdf.test.ts`, `export.test.ts`, `konfiguration.test.ts`: aktiv ohne `VERCEL_ENV`, mit `preview`/`development`)
+- [x] Manuell: PDF mit echtem freetsa.org-Zeitstempel signiert, `openssl cms -verify` → "Verification successful"; Nutzer: echter Export in Adobe Reader zeigt Signatur "OBSI Hofer GmbH (TEST)" mit Zeitstempel
+
+#### AC-2: Sichtbarer Test-Vermerk auf jeder Seite
+- [x] Fusszeile nur mit Vermerk, Layout (Ränder, Spaltenbreiten) unverändert (`pdf-generator.test.ts`); Wortlaut und Schweizer Zeit (`konfiguration.test.ts`); vom Nutzer im echten Export bestätigt
+
+#### AC-3: Testmodus → keine Ablage im SharePoint-Archiv
+- [x] `export.test.ts` (Upload nie aufgerufen); vom Nutzer bestätigt
+
+#### AC-4: Adobe Reader zeigt Signatur vorhanden + Dokument unverändert (Warnung zum Unterzeichner erwartet)
+- [x] Vom Nutzer in Adobe Acrobat Reader bestätigt
+
+#### AC-5: Nachträglich verändertes Test-PDF → Signatur ungültig
+- [x] `signiere-pdf.test.ts` (ein Byte geändert → Prüfsumme passt nicht); manuell mit `openssl cms -verify` → "content verify error"
+
+#### AC-6: Testmodus in Production konfiguriert → unsigniert wie bisher + Warnung im Log
+- [x] `konfiguration.test.ts` (auch ohne hinterlegten Test-Schlüssel in Production); Pfad `aus` inkl. Archiv unverändert (`export.test.ts`)
+
+#### AC-7: Testmodus + Zeitstempel/Signatur schlägt fehl → kein PDF, Meldung wie im Produktivmodus
+- [x] `export.test.ts` (kein Rückfall auf unsigniert, kein Archiv), `zeitstempel.test.ts` (Netzwerkfehler, HTTP-Fehler, Ablehnung, falscher Hash/Nonce, unlesbare Antwort), `actions.test.ts` (Meldung "Der Prüfbericht konnte nicht signiert werden. Bitte später erneut versuchen.")
+- [ ] Siehe BUG-1: in ca. 1 von 128 Exporten scheitert die Zeitstempel-Anfrage ohne äusseren Grund
+
+#### AC-8: Weder Test- noch Produktivmodus → Export unverändert
+- [x] `export.test.ts` (Aufruf von `erzeugePdf` wie bisher, kein Signieren, Archiv-Ablage); alle bestehenden PROJ-7-Tests unverändert grün
+
+### Edge Cases Status
+
+#### EC-1: Zertifikat abgelaufen → Abbruch mit Hinweis auf die Einrichtung
+- [x] `konfiguration.test.ts`; Meldung "… Die Signatur-Einrichtung muss geprüft werden." (`actions.test.ts`)
+
+#### EC-2: Zeitstempeldienst nicht erreichbar → kein PDF ohne Zeitstempel
+- [x] `zeitstempel.test.ts` + `export.test.ts`; Wartezeit auf 15 s begrenzt
+
+#### EC-3: Sehr grosser Bericht
+- [x] 150 Seiten / 205 KB in 262 ms signiert (ohne Netzwerk-Latenz des Zeitstempeldienstes, real ca. 1 s zusätzlich)
+
+#### EC-4: Gleichzeitige Exporte
+- [x] Signieren ist zustandslos (Konfiguration, Zertifikat und Signatur-Container pro Aufruf neu); die gemeinsame `@signpdf`-Instanz speichert nur `lastSignature`, das nicht verwendet wird
+
+#### EC-5: Konfigurationsfehler → verständliche Meldung, keine Details
+- [x] Fehlend, unlesbar, nicht zusammengehörig, kein RSA, unbekannter Modus, `produktiv` (noch nicht verfügbar) → Abbruch **vor** jedem Dataverse-/SharePoint-Zugriff; Meldung ohne Variablennamen (`actions.test.ts`), Details nur im Server-Log
+
+#### EC-6: Viewer ohne Signaturanzeige / Ausdruck
+- [x] Vermerk ist normaler Seiteninhalt (Fusszeile), unabhängig vom Viewer sichtbar
+
+#### EC-7 (zusätzlich): Sonderzeichen im Signatur-Grund
+- [ ] Siehe BUG-2
+
+#### EC-8 (zusätzlich): Nonce der Zeitstempel-Anfrage mit führendem Null-Byte
+- [ ] Siehe BUG-1
+
+### Security Audit Results
+- [x] Signatur nicht über Oberfläche/Anfrage beeinflussbar — Modus, Zertifikat, Schlüssel und Zeitstempel-URL ausschliesslich aus Server-Umgebungsvariablen
+- [x] Test-Signatur in Production unmöglich: Modus wird anhand des von Vercel gesetzten `VERCEL_ENV` ignoriert; Test-Schlüssel laut Doku nur in `.env.local`/Preview
+- [x] Kein privater Schlüssel im Repo (Test-Zertifikate zur Laufzeit erzeugt; die Fixture ist eine öffentliche Zeitstempel-Antwort); `.env.local` git-ignored
+- [x] Fehlermeldungen in der Oberfläche ohne technische Details/Variablennamen
+- [x] Authentifizierung/Autorisierung unverändert: PDF-Export nur angemeldet, Geräte weiterhin serverseitig auf die Session-Firma eingeschränkt (QA BUG-1 aus PROJ-7 bleibt wirksam, Tests grün)
+- [x] Zeitstempel-Antwort wird gegen Hash und Nonce der eigenen Anfrage geprüft; Transport per HTTPS; Wartezeit begrenzt
+- [x] `test-helfer.ts` und Fixture werden von keinem App-Code importiert (nicht im Produktions-Bundle)
+- [x] Neue Pakete (`@signpdf/*`, `pdf-lib`, `pkijs`, `asn1js`): keine `npm audit`-Funde
+- Hinweis (nicht PROJ-9): `npm audit` meldet ältere Funde in `sharp` und `source-map-js` (über `next`/`postcss`, high) sowie `uuid` (über `exceljs`, moderate) — separat prüfen
+
+### Automatisierte Tests
+- [x] `npm test`: 28 Dateien, 315 Tests grün
+- [x] `npm run test:e2e`: 18/18 grün (Regression Zugriffsschutz)
+- Kein neuer E2E-Test: Der PDF-Export ist nur angemeldet erreichbar, und der Entra-ID-Login ist (wie bei allen bisherigen Features) nicht automatisierbar; abgedeckt durch Unit-Tests und den manuellen Adobe-Test
+- Cross-Browser/Responsive: nicht relevant — keine Änderung an der Oberfläche
+
+### Bugs Found
+
+#### BUG-1: Zeitstempel-Anfrage scheitert sporadisch (Nonce mit führendem Null-Byte)
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Testmodus aktiv, PDF wiederholt exportieren
+  2. `holeZeitstempel` erzeugt eine 8-Byte-Zufalls-Nonce und setzt nur das höchste Bit auf 0; ist das erste Byte danach `0x00` (Wahrscheinlichkeit 1/128), ist die Nonce nicht minimal DER-kodiert
+  3. Expected: Zeitstempel wird ausgestellt
+  4. Actual: OpenSSL-basierte Zeitstempeldienste (u.a. freetsa.org) lehnen die Anfrage ab ("illegal padding", lokal mit `openssl ts -query -text` reproduziert) → Export bricht mit "Bitte später erneut versuchen" ab; ein erneuter Versuch klappt meist
+- **Priority:** Fix before deployment (betrifft auch Phase 2)
+
+#### BUG-2: Gedankenstrich im Signatur-Grund wird verstümmelt
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Test-signiertes PDF in Adobe Reader öffnen → Signatureigenschaften → Grund
+  2. Expected: "TEST-Signatur – nicht gültig"
+  3. Actual: "–" wird als Steuerzeichen (Byte `0x13`) gespeichert, weil `@signpdf/placeholder-pdf-lib` den Grund ohne Unicode-Kodierung schreibt (`PDFString.of`); "ü" ist korrekt. Der sichtbare Vermerk in der Fusszeile ist nicht betroffen
+- **Priority:** Fix before deployment (klein: im Grund nur Zeichen aus dem PDF-Standardzeichensatz verwenden, z.B. "-")
+
+### Summary
+- **Acceptance Criteria (Phase 1):** 8/8 erfüllt (AC-7 mit Einschränkung durch BUG-1)
+- **Bugs Found:** 2 total (0 critical, 0 high, 1 medium, 1 low)
+- **Security:** Pass
+- **Production Ready (Phase 1):** YES — keine Critical/High-Bugs; in Production bleibt die Signatur ohnehin aus. PROJ-9 gilt laut Spec erst mit Phase 2 als "Deployed"
+- **Recommendation:** BUG-1 und BUG-2 vor dem Push beheben (beide klein), dann Phase 1 deployen
 
 ## Deployment
 _To be added by /deploy_
