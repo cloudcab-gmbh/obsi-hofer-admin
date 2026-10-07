@@ -3,7 +3,8 @@ import { aktuellerBenutzerIstFreigeber } from "@/lib/auth/freigeber";
 import { getCurrentFirmaId } from "@/lib/firma-session";
 import { getFirma } from "@/lib/dataverse/geraete";
 import { listKundenportalKontakteForFirma, type KundenportalKontakt } from "@/lib/dataverse/kontakte";
-import { KundenportalKontakte } from "@/components/kundenportal-kontakte";
+import { SyncFreigabeBereich } from "@/components/sync-freigabe-bereich";
+import { istSyncKonfiguriert } from "@/lib/kundenportal-sync";
 import { Card, CardContent } from "@/components/ui/card";
 
 function Hinweis({ children }: { children: React.ReactNode }) {
@@ -16,6 +17,10 @@ function Hinweis({ children }: { children: React.ReactNode }) {
     </main>
   );
 }
+
+// PROJ-5: gilt laut Next.js-Doku auch für die Server Actions dieser Seite —
+// der Kundenportal-Sync darf dort ebenfalls bis 300 s laufen.
+export const maxDuration = 300;
 
 export default async function SyncFreigabePage() {
   // Keine Weiterleitung auf /kein-zugang: proxy.ts leitet Benutzer MIT einer
@@ -51,7 +56,13 @@ export default async function SyncFreigabePage() {
     <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
       <h1 className="text-xl font-semibold">Sync-Freigabe</h1>
       {/* Neu aufbauen bei Firmenwechsel, damit kein Client-State der vorherigen Firma bleibt. */}
-      <KundenportalKontakte key={firmaId} kontakte={kontakte} firmaName={firmaName} />
+      <SyncFreigabeBereich
+        key={firmaId}
+        firmaId={firmaId}
+        firmaName={firmaName}
+        kontakte={kontakte}
+        syncAktiv={istSyncKonfiguriert()}
+      />
     </main>
   );
 }

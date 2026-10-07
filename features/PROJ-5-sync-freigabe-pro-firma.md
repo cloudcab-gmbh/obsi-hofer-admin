@@ -1,6 +1,6 @@
 # PROJ-5: Sync-Freigabe pro Firma
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-10-06
 **Last Updated:** 2026-10-07
 
@@ -91,6 +91,8 @@ _Geklärt am 2026-10-07 durch Lesen des Kundenportal-Codes (dort PROJ-12, lokal 
 | Gemeinsame Client-Hülle für Kontakt-Bereich (PROJ-8) und Sync-Bereich, die die aktuelle Anzahl freigegebener Kontakte hält | Der Sync-Button muss sofort aktiv werden, sobald im Kontakt-Bereich das erste Häkchen gespeichert ist — ohne Neuladen (Akzeptanzkriterium) | 2026-10-07 |
 | Maximale Laufzeit der Seite auf 300 s angehoben, Wartezeit auf den Endpoint knapp darunter begrenzt | Gleiche Obergrenze wie der Endpoint; die eigene Begrenzung sorgt für eine verständliche "Ergebnis unbekannt"-Meldung statt eines harten Plattform-Abbruchs | 2026-10-07 |
 | Bestätigungsdialog mit shadcn `alert-dialog` (bereits installiert) | Gleiche Komponente wie beim Stornieren in PROJ-4 | 2026-10-07 |
+| Sicherheitsschalter `KUNDENPORTAL_SYNC_AKTIV` (nur bei exakt `"true"` aktiv) — ergänzt in `/frontend` | Ob der Produktions-Endpoint den Firma-Filter schon kennt, lässt sich nicht gefahrlos prüfen: ein Testaufruf an einen alten Endpoint würde genau den Gesamt-Sync auslösen. Der Schalter wird erst nach dem Kundenportal-Deploy gesetzt; bis dahin ist der Button deaktiviert, und Code kann jederzeit gefahrlos nach `main` (Auto-Deploy) | 2026-10-07 |
+| Zusätzliche Erkennung im Ergebnis: meldet der Endpoint mehr als eine geladene Firma, wird das als Problem angezeigt statt als Erfolg | Zweite Verteidigungslinie, falls der Schalter versehentlich zu früh gesetzt wird — der Freigeber sieht sofort, dass der Filter nicht gegriffen hat | 2026-10-07 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
@@ -138,6 +140,27 @@ Kein eigenes Datenmodell, nichts wird im Admin-Tool gespeichert:
 - Keine neuen Pakete, keine neuen shadcn-Komponenten (`alert-dialog`, `button`, `card` vorhanden)
 - Umgebungsvariablen (bereits dokumentiert): `KUNDENPORTAL_SYNC_URL`, `KUNDENPORTAL_CRON_SECRET` — Werte in Vercel (Production) prüfen; das Secret muss dem `CRON_SECRET` des Kundenportals entsprechen
 - **Cross-Repo vor dem Live-Test:** Die 5 lokalen Commits im Kundenportal-Repo (u.a. Firma-Filter PROJ-12) müssen gepusht und deployt sein, sonst ignoriert der Produktions-Endpoint den `firmaId`-Parameter und würde **alle** Firmen synchronisieren
+
+## Implementation Notes (Frontend)
+
+Umgesetzt in einem Durchlauf (UI + Server Action + Endpoint-Aufruf), wie bei PROJ-3/4/8:
+
+- `src/lib/kundenportal-sync.ts` — `istSyncKonfiguriert()` (Schalter + URL + Secret) und `starteFirmaSync(firmaId, firmaName)`: GUID-Prüfung vor jedem Aufruf (wirft, nie ein Aufruf ohne Firma), `GET …?firmaId=` mit Bearer-Secret, `cache: "no-store"`, Timeout 285 s. Übersetzt die Antwort in vier Stufen (erfolg / teilweise / fehler / unbekannt) mit deutschen Bereichsnamen; 200 mit `errors`/`warnings` → "teilweise"; mehr als eine geladene Firma → zusätzliches Problem "Firma-Filter offenbar nicht aktiv"
+- `src/app/(protected)/sync-freigabe/actions.ts` — neue Server Action `syncFirmaAction(firmaId)`: Freigeber-Prüfung, `z.guid()`, Schalter, serverseitige Wiederholung der Sperre (mind. ein aktiver, freigegebener Kontakt mit E-Mail, über `listKundenportalKontakteForFirma` aus PROJ-8), Firmenname aus Dataverse
+- `src/components/sync-ausloesen.tsx` — Sync-Bereich: Hinweise (nicht aktiviert / kein Kontakt), Button mit Bestätigungsdialog (Firma + Anzahl Kontakte), "Synchronisiere…", Ergebnis mit Farbe je Stufe, Problemliste und Zahlentabelle; `try/catch` um den Aufruf (Lehre aus PROJ-8 BUG-1)
+- `src/components/sync-freigabe-bereich.tsx` — gemeinsame Hülle, hält die live Anzahl freigegebener Kontakte mit E-Mail
+- `src/components/kundenportal-kontakte.tsx` (PROJ-8) — neue optionale Rückmeldung `onZugriffeChange`
+- `src/app/(protected)/sync-freigabe/page.tsx` — nutzt die Hülle, `export const maxDuration = 300` (laut gebündelter Next.js-Doku gilt das auf Seitenebene auch für deren Server Actions)
+- `.env.local.example` — neue Variable `KUNDENPORTAL_SYNC_AKTIV` dokumentiert
+- Tests: `kundenportal-sync.test.ts` (12), `sync-freigabe/actions.test.ts` (+8), `sync-ausloesen.test.tsx` (6) — `npm test` 231/231, Lint, TypeScript, Build grün
+
+**Abweichung vom Tech Design:** Sicherheitsschalter `KUNDENPORTAL_SYNC_AKTIV` und die Mehr-als-eine-Firma-Erkennung zusätzlich eingeführt (siehe Technical Decisions). Die Sperre zählt nur freigegebene Kontakte **mit E-Mail** (nur diese können sich anmelden) — konsistent mit der serverseitigen Prüfung.
+
+**Nicht verifiziert:** Ein echter Aufruf des Kundenportal-Endpoints (bewusst nicht ausgeführt, solange dort der Firma-Filter nicht deployt ist) und die Oberfläche mit echtem Freigeber-Login.
+
+**Zum Aktivieren (in dieser Reihenfolge):**
+1. Kundenportal-Repo: die lokalen Commits (Firma-Filter PROJ-12 u.a.) pushen und Deploy abwarten
+2. Vercel (Admin-Tool, Production): `KUNDENPORTAL_SYNC_URL` und `KUNDENPORTAL_CRON_SECRET` prüfen (Secret = `CRON_SECRET` des Kundenportals), dann `KUNDENPORTAL_SYNC_AKTIV=true` setzen und neu deployen
 
 ## QA Test Results
 _To be added by /qa_

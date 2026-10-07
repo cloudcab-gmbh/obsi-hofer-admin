@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -8,12 +8,30 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { KundenportalKontakt } from "@/lib/dataverse/kontakte";
 import { setKundenportalFreigabeAction } from "@/app/(protected)/sync-freigabe/actions";
 
-export function KundenportalKontakte({ kontakte, firmaName }: { kontakte: KundenportalKontakt[]; firmaName: string }) {
+export function KundenportalKontakte({
+  kontakte,
+  firmaName,
+  onZugriffeChange,
+}: {
+  kontakte: KundenportalKontakt[];
+  firmaName: string;
+  /**
+   * PROJ-5: meldet die Anzahl freigegebener Kontakte MIT E-Mail (nur die
+   * können sich im Portal anmelden) — der Sync-Button wird darüber live
+   * freigeschaltet, ohne Neuladen.
+   */
+  onZugriffeChange?: (anzahl: number) => void;
+}) {
   const [freigaben, setFreigaben] = useState(() => new Map(kontakte.map((k) => [k.id, k.freigegeben])));
   const [speichernd, setSpeichernd] = useState<Set<string>>(new Set());
   const [fehler, setFehler] = useState<string | null>(null);
 
   const anzahlFreigegeben = [...freigaben.values()].filter(Boolean).length;
+  const anzahlZugriffe = kontakte.filter((k) => k.email && freigaben.get(k.id)).length;
+
+  useEffect(() => {
+    onZugriffeChange?.(anzahlZugriffe);
+  }, [anzahlZugriffe, onZugriffeChange]);
 
   async function aendereFreigabe(kontakt: KundenportalKontakt, neu: boolean) {
     const vorher = freigaben.get(kontakt.id) ?? false;
