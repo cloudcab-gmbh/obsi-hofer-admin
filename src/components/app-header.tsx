@@ -30,7 +30,7 @@ export async function AppHeader() {
         </Link>
         {istFreigeber && (
           <Link href="/sync-freigabe" className="text-muted-foreground hover:text-foreground">
-            Sync-Freigabe
+            Freigabe
           </Link>
         )}
       </nav>
