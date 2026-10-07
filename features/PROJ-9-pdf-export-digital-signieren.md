@@ -56,6 +56,23 @@
 - [ ] Siegel-Stufe nach Schweizer Recht (geregeltes elektronisches Siegel nach ZertES vs. fortgeschrittenes Siegel) — mit dem Anbieter klären, was für den Zweck "Herkunft + Unverfälschtheit nachweisen" angemessen ist
 - [ ] Genauer Wortlaut und Position des sichtbaren Vermerks (Fusszeile jeder Seite angenommen)
 
+## Anbieter-Recherche (2026-10-07, öffentliche Webseiten — Preise bei keinem Anbieter veröffentlicht)
+
+| Kriterium | Swisscom Trust Services | SwissSign | GlobalSign DSS | Skribble |
+|---|---|---|---|---|
+| Adobe Approved Trust List | ✅ | ✅ | ✅ | (nutzt Swisscom) |
+| Organisations-Siegel | fortgeschritten + geregelt (ZertES), fortgeschritten + qualifiziert (eIDAS) | Organisations-Siegel nach ZertES/eIDAS | fortgeschrittenes + qualifiziertes Siegel (eIDAS) | Organisations-Signatur nur im Scale-Plan |
+| Automatisch per API, nur Hash übertragen | ✅ ausdrücklich | ✅ REST-API | ✅ REST-API, Zertifikat + Zeitstempel + Sperrstatus in einem Aufruf | API, eher Signatur-Workflows |
+| Zeitstempel | qualifizierter Zeitstempel kombinierbar | ✅ | ✅ inklusive | k.A. |
+| Preise | nur auf Anfrage; Siegel-Pakete ab **50'000 Einheiten/Jahr** (XS) | nur auf Anfrage | nur auf Anfrage | Scale-Plan nur auf Anfrage |
+| Einrichtung | Erklärung + Zertifikatsantrag, Identifikation der zeichnungsberechtigten Person; fortgeschrittenes Siegel: Client-Zertifikat für die API; geregeltes Siegel: Schlüssel auf FIPS-zertifizierter Hardware (z.B. YubiKey, Azure Key Vault HSM); Zertifikat 3 Jahre gültig | Identifikation laut Anbieter inklusive | Organisation wird vor Aktivierung validiert | — |
+
+**Einschätzung:** Für das Admin-Tool reicht ein **fortgeschrittenes Siegel** (Herkunft + Unverfälschtheit) — einfacher einzurichten als das geregelte (keine eigene Schlüssel-Hardware). Erwartetes Volumen grob einige hundert Signaturen pro Jahr (305 Firmen × wenige Exporte) — Swisscoms kleinstes veröffentlichtes Siegel-Paket (50'000) ist dafür deutlich überdimensioniert; ein kleineres Kontingent oder Preis pro Signatur gezielt anfragen. Skribble ist eine Signatur-Plattform mit Workflows und für reines automatisches Siegeln voraussichtlich überdimensioniert.
+
+**Empfohlenes Vorgehen:** Offerten bei **Swisscom Trust Services** (fortgeschrittenes ZertES-Siegel + qualifizierter Zeitstempel, kleines Volumen) und **GlobalSign DSS** (Vergleich, entwicklerfreundlich) einholen, **SwissSign** als dritte Option.
+
+Quellen: trustservices.swisscom.com (ZertES-Siegel, Service-Pakete, Hilfe-Center Siegel-Einrichtung), docs.globalsign.com (DSS-FAQ), globalsign.com/document-signing, swisssign.com (Suchtreffer; Seiten blockierten den Abruf), helpx.adobe.com (AATL-Mitglieder), skribble.com (Preise, E-Siegel).
+
 ## Decision Log
 
 ### Product Decisions
