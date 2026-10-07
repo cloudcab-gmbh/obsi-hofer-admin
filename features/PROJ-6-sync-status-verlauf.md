@@ -1,6 +1,6 @@
 # PROJ-6: Sync-Status/-Verlauf einsehen
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-10-07
 **Last Updated:** 2026-10-07
 
@@ -151,6 +151,24 @@ Nicht nötig: Schreiben/Löschen auf Sync-Lauf (Einträge werden nie geändert o
 - Neue shadcn-Komponente: `collapsible` (Aufklappen der Einträge)
 - Keine neuen npm-Pakete
 - Dataverse: neue Tabelle + Rechte (siehe B), vom Nutzer einzurichten; die tatsächlichen technischen Spaltennamen werden nach dem Anlegen aus den Dataverse-Metadaten gelesen, bevor `/frontend` startet
+
+## Implementation Notes (Frontend)
+
+Umgesetzt in einem Durchlauf (UI + Server Actions + Datenzugriff), wie bei PROJ-3/4/5/8:
+
+- `src/lib/dataverse/sync-laeufe.ts` — `erstelleSyncLauf()` (schreibt alle Spalten, Firma per `bmvcc_Firma@odata.bind`, Name "Firma – TT.MM.JJJJ, HH:MM" in Schweizer Zeit, Texte auf die Spaltengrenzen gekürzt) und `listSyncLaeufeForFirma(firmaId, { vor })` (neueste zuerst, 20 pro Seite, `hatMehr` über einen zusätzlich geladenen Eintrag, Fortsetzung über "älter als Startzeitpunkt"); `serialisiereDetails()` kürzt Probleme vom Ende her mit Vermerk, falls 100'000 Zeichen überschritten würden; unbekannte Ergebniswerte → "unbekannt", defekte Details → Hinweis statt Absturz
+- `src/lib/auth/freigeber.ts` — neue `aktuellerFreigeberName()` (Prüfung + Name in einer Abfrage)
+- `src/app/(protected)/sync-freigabe/actions.ts` — `syncFirmaAction` misst Start/Dauer und protokolliert nach jedem tatsächlichen Portal-Aufruf (eigener Fehlerpfad, Ergebnis bleibt erhalten, `lauf: null` bei Speicherfehler); neue `ladeSyncLaeufeAction` für "Mehr anzeigen" (Freigeber-Prüfung, GUID- und Zeitstempel-Validierung)
+- `src/components/sync-ergebnis-anzeige.tsx` — gemeinsame Ergebnisdarstellung, aus `sync-ausloesen.tsx` herausgelöst und dort wie im Verlauf verwendet
+- `src/components/sync-verlauf.tsx` — Verlaufskarte mit "Letzter Sync", aufklappbaren Einträgen (shadcn `collapsible`, neu installiert), Status-Badges, Dauer, Leer- und Fehlerzustand, "Mehr anzeigen"
+- `src/components/sync-freigabe-bereich.tsx` — hält zusätzlich den Verlauf; neuer Lauf erscheint sofort oben
+- `src/components/sync-ausloesen.tsx` — meldet neue Läufe an die Hülle, Hinweis falls der Lauf nicht gespeichert werden konnte
+- `src/app/(protected)/sync-freigabe/page.tsx` — lädt die erste Verlaufsseite parallel zu den Kontakten, mit eigenem Fehlerpfad
+- Tests: `sync-laeufe.test.ts` (11), `sync-verlauf.test.tsx` (5), `sync-freigabe/actions.test.ts` (+7), `sync-ausloesen.test.tsx` (+2) — `npm test` 259/259, Lint, TypeScript, Build grün
+
+**Gegen echtes Dataverse verifiziert (rein lesend):** Firma-Filter, Sortierung `bmvcc_gestartedam desc,createdon desc` und der Zeitstempel-Vergleich für "Mehr anzeigen" werden akzeptiert (Tabelle noch leer). **Nicht verifiziert:** das Schreiben eines echten Eintrags — entsteht beim nächsten Sync über die Oberfläche.
+
+**Bekannte Einschränkung:** Zwei Läufe derselben Firma mit exakt gleichem Startzeitpunkt (Sekundengenauigkeit von Dataverse) könnten beim "Mehr anzeigen"-Übergang einmal übersprungen werden — praktisch ausgeschlossen, da ein Sync Sekunden dauert und der Button währenddessen gesperrt ist.
 
 ## QA Test Results
 _To be added by /qa_

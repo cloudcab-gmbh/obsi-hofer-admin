@@ -3,7 +3,8 @@ import { aktuellerBenutzerIstFreigeber } from "@/lib/auth/freigeber";
 import { getCurrentFirmaId } from "@/lib/firma-session";
 import { getFirma } from "@/lib/dataverse/geraete";
 import { listKundenportalKontakteForFirma, type KundenportalKontakt } from "@/lib/dataverse/kontakte";
-import { SyncFreigabeBereich } from "@/components/sync-freigabe-bereich";
+import { SyncFreigabeBereich, type InitialerVerlauf } from "@/components/sync-freigabe-bereich";
+import { listSyncLaeufeForFirma } from "@/lib/dataverse/sync-laeufe";
 import { fehlendeSyncEinstellungen } from "@/lib/kundenportal-sync";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -42,12 +43,24 @@ export default async function SyncFreigabePage() {
     );
   }
 
+  // PROJ-6: Verlauf parallel laden, aber mit eigenem Fehlerpfad — ist er nicht
+  // abrufbar, bleiben Kontakt-Freigabe und Sync-Button trotzdem bedienbar.
+  const verlaufPromise: Promise<InitialerVerlauf> = listSyncLaeufeForFirma(firmaId)
+    .then((v) => ({ ...v, fehler: null }))
+    .catch(() => ({ laeufe: [], hatMehr: false, fehler: "Der Sync-Verlauf konnte nicht geladen werden." }));
+
   let firmaName = "";
   let kontakte: KundenportalKontakt[] = [];
+  let verlauf: InitialerVerlauf;
   try {
-    const [firma, geladeneKontakte] = await Promise.all([getFirma(firmaId), listKundenportalKontakteForFirma(firmaId)]);
+    const [firma, geladeneKontakte, geladenerVerlauf] = await Promise.all([
+      getFirma(firmaId),
+      listKundenportalKontakteForFirma(firmaId),
+      verlaufPromise,
+    ]);
     firmaName = firma.name;
     kontakte = geladeneKontakte;
+    verlauf = geladenerVerlauf;
   } catch {
     return <Hinweis>Die Kontakte konnten nicht geladen werden.</Hinweis>;
   }
@@ -62,6 +75,7 @@ export default async function SyncFreigabePage() {
         firmaName={firmaName}
         kontakte={kontakte}
         fehlendeSyncEinstellungen={fehlendeSyncEinstellungen()}
+        verlauf={verlauf}
       />
     </main>
   );

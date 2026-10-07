@@ -14,23 +14,17 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { SyncErgebnis, SyncStatus } from "@/lib/kundenportal-sync";
+import { SyncErgebnisAnzeige } from "@/components/sync-ergebnis-anzeige";
+import type { SyncErgebnis } from "@/lib/kundenportal-sync";
+import type { SyncLauf } from "@/lib/dataverse/sync-laeufe";
 import { syncFirmaAction } from "@/app/(protected)/sync-freigabe/actions";
-import { cn } from "@/lib/utils";
-
-const STATUS_FARBE: Record<SyncStatus, string> = {
-  erfolg: "text-status-success",
-  teilweise: "text-status-warning",
-  fehler: "text-destructive",
-  unbekannt: "text-status-warning",
-};
 
 export function SyncAusloesen({
   firmaId,
   firmaName,
   anzahlZugriffe,
   fehlendeSyncEinstellungen,
+  onNeuerLauf,
 }: {
   firmaId: string;
   firmaName: string;
@@ -38,21 +32,29 @@ export function SyncAusloesen({
   anzahlZugriffe: number;
   /** Namen fehlender Sync-Einstellungen in Vercel (leer = Sync bereit) — nie Werte. */
   fehlendeSyncEinstellungen: string[];
+  /** PROJ-6: neuer, gespeicherter Verlaufseintrag — erscheint ohne Neuladen oben im Verlauf. */
+  onNeuerLauf?: (lauf: SyncLauf) => void;
 }) {
   const syncAktiv = fehlendeSyncEinstellungen.length === 0;
   const [laeuft, setLaeuft] = useState(false);
   const [ergebnis, setErgebnis] = useState<SyncErgebnis | null>(null);
+  const [verlaufNichtGespeichert, setVerlaufNichtGespeichert] = useState(false);
 
   const gesperrt = !syncAktiv || anzahlZugriffe === 0 || laeuft;
 
   async function synchronisieren() {
     setLaeuft(true);
     setErgebnis(null);
+    setVerlaufNichtGespeichert(false);
     try {
       const result = await syncFirmaAction(firmaId);
-      setErgebnis(
-        result.success ? result.ergebnis : { status: "fehler", meldung: result.message, bereiche: [], probleme: [] }
-      );
+      if (result.success) {
+        setErgebnis(result.ergebnis);
+        if (result.lauf) onNeuerLauf?.(result.lauf);
+        else setVerlaufNichtGespeichert(true);
+      } else {
+        setErgebnis({ status: "fehler", meldung: result.message, bereiche: [], probleme: [] });
+      }
     } catch {
       // Der Aufruf selbst kann werfen (Verbindungsabbruch, veraltete Action
       // nach einem Deploy) — gleiche Lehre wie PROJ-8 QA BUG-1.
@@ -111,41 +113,12 @@ export function SyncAusloesen({
         </AlertDialog>
 
         {ergebnis && (
-          <div role="status" className="space-y-3">
-            <p className={cn("text-sm font-medium", STATUS_FARBE[ergebnis.status])}>{ergebnis.meldung}</p>
-            {ergebnis.probleme.length > 0 && (
-              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                {ergebnis.probleme.map((p, i) => (
-                  <li key={i}>{p}</li>
-                ))}
-              </ul>
-            )}
-            {ergebnis.bereiche.length > 0 && (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Bereich</TableHead>
-                      <TableHead className="text-right">Geladen</TableHead>
-                      <TableHead className="text-right">Neu</TableHead>
-                      {/* Das Kundenportal zählt jeden geschriebenen Datensatz, auch unveränderte — daher "Abgeglichen". */}
-                      <TableHead className="text-right">Abgeglichen</TableHead>
-                      <TableHead className="text-right">Gelöscht</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {ergebnis.bereiche.map((b) => (
-                      <TableRow key={b.bereich}>
-                        <TableCell>{b.bereich}</TableCell>
-                        <TableCell className="text-right">{b.geladen}</TableCell>
-                        <TableCell className="text-right">{b.neu}</TableCell>
-                        <TableCell className="text-right">{b.aktualisiert}</TableCell>
-                        <TableCell className="text-right">{b.geloescht}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+          <div role="status" className="space-y-2">
+            <SyncErgebnisAnzeige ergebnis={ergebnis} />
+            {verlaufNichtGespeichert && (
+              <p className="text-sm text-muted-foreground">
+                Hinweis: Dieser Lauf konnte nicht im Sync-Verlauf gespeichert werden.
+              </p>
             )}
           </div>
         )}

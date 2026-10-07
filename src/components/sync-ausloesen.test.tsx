@@ -69,6 +69,30 @@ describe("SyncAusloesen", () => {
     expect(button()).not.toBeDisabled();
   });
 
+  // PROJ-6
+  it("hands the saved run to the history and shows no warning", async () => {
+    const lauf = { id: "l1" };
+    const onNeuerLauf = vi.fn();
+    syncFirmaAction.mockResolvedValue({ success: true, ergebnis: { status: "erfolg", meldung: "ok", bereiche: [], probleme: [] }, lauf });
+    render(<SyncAusloesen firmaId={FIRMA_ID} firmaName="Beispiel AG" anzahlZugriffe={1} fehlendeSyncEinstellungen={[]} onNeuerLauf={onNeuerLauf} />);
+
+    await bestaetigen();
+
+    await screen.findByText("ok");
+    expect(onNeuerLauf).toHaveBeenCalledWith(lauf);
+    expect(screen.queryByText(/nicht im Sync-Verlauf gespeichert/)).not.toBeInTheDocument();
+  });
+
+  it("shows the sync result with a hint when the run could not be saved in the history", async () => {
+    syncFirmaAction.mockResolvedValue({ success: true, ergebnis: { status: "erfolg", meldung: "ok", bereiche: [], probleme: [] }, lauf: null });
+    render(<SyncAusloesen firmaId={FIRMA_ID} firmaName="Beispiel AG" anzahlZugriffe={1} fehlendeSyncEinstellungen={[]} />);
+
+    await bestaetigen();
+
+    expect(await screen.findByText("ok")).toBeInTheDocument();
+    expect(screen.getByText(/nicht im Sync-Verlauf gespeichert/)).toBeInTheDocument();
+  });
+
   it("shows the refusal message from the action as a failure", async () => {
     syncFirmaAction.mockResolvedValue({ success: false, message: "Der Sync ist noch nicht aktiviert bzw. nicht konfiguriert." });
     render(<SyncAusloesen firmaId={FIRMA_ID} firmaName="Beispiel AG" anzahlZugriffe={1} fehlendeSyncEinstellungen={[]} />);

@@ -13,3 +13,14 @@ export function istFreigeber(session: Session | null): boolean {
 export async function aktuellerBenutzerIstFreigeber(): Promise<boolean> {
   return istFreigeber(await auth());
 }
+
+/**
+ * PROJ-6: Name des eingeloggten Freigebers (für "Ausgelöst von" im
+ * Sync-Verlauf), oder `null`, wenn der Benutzer kein Freigeber ist — eine
+ * Abfrage für Prüfung und Name zugleich.
+ */
+export async function aktuellerFreigeberName(): Promise<string | null> {
+  const session = await auth();
+  if (!istFreigeber(session)) return null;
+  return session?.user?.name?.trim() || session?.user?.email || "Unbekannt";
+}

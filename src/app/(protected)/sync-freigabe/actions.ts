@@ -2,11 +2,12 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { aktuellerBenutzerIstFreigeber } from "@/lib/auth/freigeber";
+import { aktuellerBenutzerIstFreigeber, aktuellerFreigeberName } from "@/lib/auth/freigeber";
 import { listKundenportalKontakteForFirma, setKundenportalFreigabe } from "@/lib/dataverse/kontakte";
 import { getFirma } from "@/lib/dataverse/geraete";
 import { DataverseError } from "@/lib/dataverse/errors";
 import { istSyncKonfiguriert, starteFirmaSync, type SyncErgebnis } from "@/lib/kundenportal-sync";
+import { erstelleSyncLauf, listSyncLaeufeForFirma, type SyncLauf } from "@/lib/dataverse/sync-laeufe";
 
 export type KontaktFreigabeResult = { success: true } | { success: false; message: string };
 
@@ -43,7 +44,14 @@ export async function setKundenportalFreigabeAction(
   return { success: true };
 }
 
-export type FirmaSyncResult = { success: true; ergebnis: SyncErgebnis } | { success: false; message: string };
+export type FirmaSyncResult =
+  | {
+      success: true;
+      ergebnis: SyncErgebnis;
+      /** PROJ-6: der gespeicherte Verlaufseintrag, oder `null`, wenn das Speichern scheiterte. */
+      lauf: SyncLauf | null;
+    }
+  | { success: false; message: string };
 
 /**
  * PROJ-5: löst den Kundenportal-Sync für genau eine Firma aus. Die Firma-ID
@@ -51,9 +59,14 @@ export type FirmaSyncResult = { success: true; ergebnis: SyncErgebnis } | { succ
  * der Session — ein Firmenwechsel während des Syncs betrifft so weiterhin die
  * bestätigte Firma (Edge Case). Ein Freigeber darf ohnehin jede Firma
  * synchronisieren, daraus entsteht kein Berechtigungsrisiko.
+ *
+ * PROJ-6: jeder tatsächliche Aufruf ans Kundenportal wird hier — serverseitig,
+ * unabhängig davon, ob der Browser die Antwort noch empfängt — im Sync-Verlauf
+ * protokolliert. Ablehnungen davor erzeugen bewusst keinen Eintrag.
  */
 export async function syncFirmaAction(firmaId: string): Promise<FirmaSyncResult> {
-  if (!(await aktuellerBenutzerIstFreigeber())) {
+  const freigeberName = await aktuellerFreigeberName();
+  if (!freigeberName) {
     return { success: false, message: "Nur Freigeber dürfen den Sync ins Kundenportal auslösen." };
   }
 
@@ -83,9 +96,49 @@ export async function syncFirmaAction(firmaId: string): Promise<FirmaSyncResult>
     return { success: false, message };
   }
 
+  const gestartetAm = new Date();
+  let ergebnis: SyncErgebnis;
   try {
-    return { success: true, ergebnis: await starteFirmaSync(parsed.data, firmaName) };
+    ergebnis = await starteFirmaSync(parsed.data, firmaName);
   } catch {
     return { success: false, message: "Unbekannter Fehler beim Auslösen des Syncs." };
+  }
+
+  // Eigener Fehlerpfad: ein Fehler beim Protokollieren darf das Sync-Ergebnis nicht verdecken.
+  let lauf: SyncLauf | null = null;
+  try {
+    lauf = await erstelleSyncLauf({
+      firmaId: parsed.data,
+      firmaName,
+      gestartetAm,
+      dauerSekunden: Math.round((Date.now() - gestartetAm.getTime()) / 1000),
+      ausgeloestVon: freigeberName,
+      ergebnis,
+    });
+  } catch (error) {
+    console.error(`Sync-Lauf für Firma ${parsed.data} konnte nicht im Verlauf gespeichert werden:`, error);
+  }
+
+  return { success: true, ergebnis, lauf };
+}
+
+export type SyncVerlaufResult =
+  | { success: true; laeufe: SyncLauf[]; hatMehr: boolean }
+  | { success: false; message: string };
+
+/** PROJ-6: "Mehr anzeigen" — die nächsten älteren Läufe einer Firma. */
+export async function ladeSyncLaeufeAction(firmaId: string, vor: string): Promise<SyncVerlaufResult> {
+  if (!(await aktuellerBenutzerIstFreigeber())) {
+    return { success: false, message: "Nur Freigeber dürfen den Sync-Verlauf einsehen." };
+  }
+  if (!z.guid().safeParse(firmaId).success || Number.isNaN(new Date(vor).getTime())) {
+    return { success: false, message: "Ungültige Anfrage." };
+  }
+
+  try {
+    return { success: true, ...(await listSyncLaeufeForFirma(firmaId, { vor })) };
+  } catch (error) {
+    const message = error instanceof DataverseError ? error.message : "Der Verlauf konnte nicht geladen werden.";
+    return { success: false, message };
   }
 }
