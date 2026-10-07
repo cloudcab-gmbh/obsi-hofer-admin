@@ -4,7 +4,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import * as pkijs from "pkijs";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { holeZeitstempel, pruefeZeitstempelAntwort } from "./zeitstempel";
+import { baueZeitstempelAnfrage, holeZeitstempel, minimaleGanzzahlBytes, pruefeZeitstempelAntwort } from "./zeitstempel";
 import { SignaturFehler } from "./konfiguration";
 
 // Echte Antwort von freetsa.org (aufgezeichnet 2026-10-07) auf eine Anfrage
@@ -54,6 +54,47 @@ describe("pruefeZeitstempelAntwort", () => {
 
   it("rejects unreadable content", async () => {
     await erwarteDienstFehler(() => pruefeZeitstempelAntwort(Buffer.from("<html>Fehler</html>"), { hash: FIXTURE_HASH }));
+  });
+});
+
+// QA BUG-1: OpenSSL-basierte Dienste lehnen nicht minimal kodierte Nonces ab ("illegal padding").
+describe("baueZeitstempelAnfrage / minimaleGanzzahlBytes", () => {
+  function nonceBytesImRequest(nonce: Buffer): Buffer {
+    const anfrage = pkijs.TimeStampReq.fromBER(new Uint8Array(baueZeitstempelAnfrage(FIXTURE_HASH, nonce)).buffer);
+    return Buffer.from(anfrage.nonce!.valueBlock.valueHexView);
+  }
+
+  it("strips superfluous leading zero bytes", () => {
+    expect(minimaleGanzzahlBytes(Buffer.from("0056e965409984c2", "hex")).toString("hex")).toBe("56e965409984c2");
+    expect(minimaleGanzzahlBytes(Buffer.from("00000012", "hex")).toString("hex")).toBe("12");
+    expect(nonceBytesImRequest(Buffer.from("0056e965409984c2", "hex")).toString("hex")).toBe("56e965409984c2");
+  });
+
+  it("keeps exactly one zero byte before a value ≥ 0x80 so the number stays positive", () => {
+    expect(minimaleGanzzahlBytes(Buffer.from("ab56e965409984c2", "hex")).toString("hex")).toBe("00ab56e965409984c2");
+    expect(minimaleGanzzahlBytes(Buffer.from("0000ab", "hex")).toString("hex")).toBe("00ab");
+    expect(nonceBytesImRequest(Buffer.from("ab56e965409984c2", "hex")).toString("hex")).toBe("00ab56e965409984c2");
+  });
+
+  it("leaves an already minimal value and zero itself unchanged", () => {
+    expect(minimaleGanzzahlBytes(Buffer.from("2a56e965409984c2", "hex")).toString("hex")).toBe("2a56e965409984c2");
+    expect(minimaleGanzzahlBytes(Buffer.from("0000", "hex")).toString("hex")).toBe("00");
+  });
+
+  it("produces minimal encodings for random nonces", async () => {
+    const { randomBytes } = await import("node:crypto");
+    for (let i = 0; i < 2000; i++) {
+      const bytes = nonceBytesImRequest(randomBytes(8));
+      const minimal = bytes.length === 1 || !(bytes[0] === 0 && bytes[1] < 0x80);
+      expect(minimal).toBe(true);
+      expect(bytes[0] < 0x80).toBe(true);
+    }
+  });
+
+  it("still matches the nonce in the answer when it was sent with a leading zero byte", () => {
+    // Fixture-Nonce 2A56… — dieselbe Zahl, mit überflüssigem Null-Byte übergeben.
+    const token = pruefeZeitstempelAntwort(FIXTURE, { hash: FIXTURE_HASH, nonce: Buffer.from("002A56E965409984C2", "hex") });
+    expect(token.contentType).toBe("1.2.840.113549.1.7.2");
   });
 });
 

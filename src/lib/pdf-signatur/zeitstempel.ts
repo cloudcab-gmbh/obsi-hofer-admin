@@ -11,6 +11,20 @@ function zuArrayBuffer(daten: Uint8Array): ArrayBuffer {
   return daten.buffer.slice(daten.byteOffset, daten.byteOffset + daten.byteLength) as ArrayBuffer;
 }
 
+/**
+ * QA BUG-1 (Fix): DER verlangt die kürzeste Kodierung einer Ganzzahl — keine
+ * führenden 0x00-Bytes, ausser eines einzigen vor einem Byte ≥ 0x80 (sonst
+ * wäre die Zahl negativ). OpenSSL-basierte Zeitstempeldienste lehnen eine
+ * Nonce mit überflüssigem Null-Byte ab ("illegal padding"), was bei
+ * Zufalls-Nonces in ca. 1 von 128 Anfragen vorkam.
+ */
+export function minimaleGanzzahlBytes(wert: Buffer): Buffer {
+  let start = 0;
+  while (start < wert.length - 1 && wert[start] === 0) start++;
+  const ohneNullen = wert.subarray(start);
+  return ohneNullen[0] >= 0x80 ? Buffer.concat([Buffer.from([0]), ohneNullen]) : Buffer.from(ohneNullen);
+}
+
 export function baueZeitstempelAnfrage(hash: Buffer, nonce: Buffer): Buffer {
   const anfrage = new pkijs.TimeStampReq({
     version: 1,
@@ -18,7 +32,7 @@ export function baueZeitstempelAnfrage(hash: Buffer, nonce: Buffer): Buffer {
       hashAlgorithm: new pkijs.AlgorithmIdentifier({ algorithmId: OID_SHA256 }),
       hashedMessage: new asn1js.OctetString({ valueHex: zuArrayBuffer(hash) }),
     }),
-    nonce: new asn1js.Integer({ valueHex: zuArrayBuffer(nonce) }),
+    nonce: new asn1js.Integer({ valueHex: zuArrayBuffer(minimaleGanzzahlBytes(nonce)) }),
     // Zertifikat des Zeitstempeldienstes mitliefern lassen, damit der PDF-Viewer den Zeitstempel ohne Nachladen prüfen kann.
     certReq: true,
   });
@@ -72,9 +86,8 @@ function entferneFuehrendeNullen(wert: Buffer): Buffer {
 /** Holt beim Zeitstempeldienst einen Zeitstempel für den übergebenen Signaturwert. */
 export async function holeZeitstempel(signaturWert: Buffer, url: string): Promise<pkijs.ContentInfo> {
   const hash = createHash("sha256").update(signaturWert).digest();
-  // Positive Ganzzahl erzwingen (höchstes Bit 0), sonst würde sie als negativ kodiert.
+  // Als positive Ganzzahl gelesen; die DER-gerechte Kodierung übernimmt baueZeitstempelAnfrage.
   const nonce = randomBytes(8);
-  nonce[0] &= 0x7f;
 
   let antwort: Response;
   try {

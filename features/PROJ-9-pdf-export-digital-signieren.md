@@ -257,7 +257,7 @@ Die Umgebung (Production vs. Preview vs. lokal) erkennt die App an der von Verce
 
 #### AC-7: Testmodus + Zeitstempel/Signatur schlägt fehl → kein PDF, Meldung wie im Produktivmodus
 - [x] `export.test.ts` (kein Rückfall auf unsigniert, kein Archiv), `zeitstempel.test.ts` (Netzwerkfehler, HTTP-Fehler, Ablehnung, falscher Hash/Nonce, unlesbare Antwort), `actions.test.ts` (Meldung "Der Prüfbericht konnte nicht signiert werden. Bitte später erneut versuchen.")
-- [ ] Siehe BUG-1: in ca. 1 von 128 Exporten scheitert die Zeitstempel-Anfrage ohne äusseren Grund
+- [x] ~~Siehe BUG-1: in ca. 1 von 128 Exporten scheitert die Zeitstempel-Anfrage ohne äusseren Grund~~ — behoben 2026-10-07
 
 #### AC-8: Weder Test- noch Produktivmodus → Export unverändert
 - [x] `export.test.ts` (Aufruf von `erzeugePdf` wie bisher, kein Signieren, Archiv-Ablage); alle bestehenden PROJ-7-Tests unverändert grün
@@ -286,7 +286,7 @@ Die Umgebung (Production vs. Preview vs. lokal) erkennt die App an der von Verce
 - [ ] Siehe BUG-2
 
 #### EC-8 (zusätzlich): Nonce der Zeitstempel-Anfrage mit führendem Null-Byte
-- [ ] Siehe BUG-1
+- [x] BUG-1 behoben 2026-10-07
 
 ### Security Audit Results
 - [x] Signatur nicht über Oberfläche/Anfrage beeinflussbar — Modus, Zertifikat, Schlüssel und Zeitstempel-URL ausschliesslich aus Server-Umgebungsvariablen
@@ -315,6 +315,7 @@ Die Umgebung (Production vs. Preview vs. lokal) erkennt die App an der von Verce
   3. Expected: Zeitstempel wird ausgestellt
   4. Actual: OpenSSL-basierte Zeitstempeldienste (u.a. freetsa.org) lehnen die Anfrage ab ("illegal padding", lokal mit `openssl ts -query -text` reproduziert) → Export bricht mit "Bitte später erneut versuchen" ab; ein erneuter Versuch klappt meist
 - **Priority:** Fix before deployment (betrifft auch Phase 2)
+- **Status:** ✅ Behoben (2026-10-07) — neue Funktion `minimaleGanzzahlBytes()` in `zeitstempel.ts` kodiert die Nonce immer minimal (überflüssige Null-Bytes entfernt, genau ein Null-Byte vor einem Wert ≥ 0x80); die bisherige Bit-Maske entfällt. Regressionstests in `zeitstempel.test.ts` (Grenzfälle, 2000 Zufalls-Nonces, Nonce-Vergleich mit führendem Null-Byte). Gegenprobe: `openssl ts -query -text` liest die vorher abgelehnte Nonce `0056…` jetzt korrekt; echte Anfragen an freetsa.org mit `0056…` und `ab56…` werden ausgestellt und bestehen die Hash-/Nonce-Prüfung
 
 #### BUG-2: Gedankenstrich im Signatur-Grund wird verstümmelt
 - **Severity:** Low
@@ -325,8 +326,8 @@ Die Umgebung (Production vs. Preview vs. lokal) erkennt die App an der von Verce
 - **Priority:** Fix before deployment (klein: im Grund nur Zeichen aus dem PDF-Standardzeichensatz verwenden, z.B. "-")
 
 ### Summary
-- **Acceptance Criteria (Phase 1):** 8/8 erfüllt (AC-7 mit Einschränkung durch BUG-1)
-- **Bugs Found:** 2 total (0 critical, 0 high, 1 medium, 1 low)
+- **Acceptance Criteria (Phase 1):** 8/8 erfüllt
+- **Bugs Found:** 2 total (0 critical, 0 high, 1 medium, 1 low) — BUG-1 behoben, BUG-2 offen
 - **Security:** Pass
 - **Production Ready (Phase 1):** YES — keine Critical/High-Bugs; in Production bleibt die Signatur ohnehin aus. PROJ-9 gilt laut Spec erst mit Phase 2 als "Deployed"
 - **Recommendation:** BUG-1 und BUG-2 vor dem Push beheben (beide klein), dann Phase 1 deployen
