@@ -4,6 +4,9 @@ import { getAktuellstePruefberichteForGeraete, type Pruefbericht } from "@/lib/d
 import { SharePointError } from "@/lib/sharepoint/errors";
 import { downloadKundenDatei, uploadKundenDatei } from "@/lib/sharepoint/kunden-drive";
 import { erzeugePdf } from "./pdf-generator";
+import { baueSignaturVermerk, ermittleSignaturKonfiguration } from "@/lib/pdf-signatur/konfiguration";
+import { signierePdf } from "@/lib/pdf-signatur/signiere-pdf";
+import { holeZeitstempel } from "@/lib/pdf-signatur/zeitstempel";
 import type { ExportZeile } from "./feld-mapping";
 
 export class ExportFehler extends Error {
@@ -119,6 +122,9 @@ export async function generatePruefberichtPdf(params: GeneratePdfParams): Promis
   if (geraete.length === 0) {
     throw new ExportFehler("Keine Geräte für diesen Export gefunden.");
   }
+  // PROJ-9: zuerst, damit eine fehlerhafte Signatur-Einrichtung den Export
+  // abbricht, bevor Dataverse/SharePoint überhaupt angefragt werden.
+  const signatur = ermittleSignaturKonfiguration();
 
   const pruefberichte = await getAktuellstePruefberichteForGeraete(geraete.map((g) => g.id));
   const geraeteMitPruefbericht = geraete.filter((g) => pruefberichte.has(g.id));
@@ -143,9 +149,27 @@ export async function generatePruefberichtPdf(params: GeneratePdfParams): Promis
   const ordnerPfad = `${firmaOrdner}/Prüfberichte/${new Date().getFullYear()}`;
 
   const vorlageBuffer = await ladeVorlage(firmaOrdner);
-  const pdfBuffer = await erzeugePdf(vorlageBuffer, zeilen, firmaName);
-
   const dateiname = buildDateiname(firmaName, lagerortFilter);
+
+  if (signatur.modus === "test") {
+    // PROJ-9 Phase 1: Vermerk mit Test-Kennzeichnung, Signatur mit dem
+    // Test-Zertifikat — und bewusst KEINE Ablage im SharePoint-Archiv, damit
+    // Test-PDFs nie im echten Kundenarchiv landen. Schlägt das Signieren fehl,
+    // wird der Fehler durchgereicht: nie ein unsigniertes PDF bei aktiver Signatur.
+    const signierZeit = new Date();
+    const unsigniert = await erzeugePdf(vorlageBuffer, zeilen, firmaName, {
+      signaturVermerk: baueSignaturVermerk("test", signierZeit),
+    });
+    const pdfBuffer = await signierePdf(unsigniert, {
+      schluessel: signatur.schluessel,
+      zeitstempel: (signaturWert) => holeZeitstempel(signaturWert, signatur.zeitstempelUrl),
+      grund: "TEST-Signatur – nicht gültig",
+      signierZeit,
+    });
+    return { pdfBuffer, dateiname };
+  }
+
+  const pdfBuffer = await erzeugePdf(vorlageBuffer, zeilen, firmaName);
   try {
     // QA BUG-3: Ein Fehler bei der zusätzlichen Archiv-Ablage darf dem
     // Bearbeiter nicht den bereits fertig generierten Download verwehren.

@@ -360,6 +360,8 @@ export interface PdfBuildInput {
   logoDataUrl: string | null;
   /** Standard: grobe Zeichen-Schätzung; `erzeugePdf` übergibt die echte Font-Messung. */
   textMesser?: TextMesser;
+  /** PROJ-9: sichtbarer Signaturvermerk in der Fusszeile jeder Seite; fehlt → keine Fusszeile (unsigniert). */
+  signaturVermerk?: string;
 }
 
 /**
@@ -385,6 +387,19 @@ export function buildDocumentDefinition(input: PdfBuildInput): TDocumentDefiniti
     pageOrientation: "landscape",
     pageMargins: [SEITENRAND, SEITENRAND, SEITENRAND, SEITENRAND],
     defaultStyle: { font: "Roboto", fontSize: 9 },
+    // PROJ-9: dezent unten auf jeder Seite, innerhalb des unteren Seitenrands —
+    // ändert damit weder Spaltenbreiten noch Seitenumbrüche des Berichts.
+    ...(input.signaturVermerk
+      ? {
+          footer: {
+            text: input.signaturVermerk,
+            alignment: "center" as const,
+            fontSize: 7,
+            color: "#808080",
+            margin: [SEITENRAND, SEITENRAND / 3, SEITENRAND, 0] as [number, number, number, number],
+          },
+        }
+      : {}),
     content: [
       buildKopfbereich(firmaName, logoDataUrl),
       {
@@ -428,7 +443,12 @@ export function buildDocumentDefinition(input: PdfBuildInput): TDocumentDefiniti
  * Symptome derselben grundsätzlichen Einschränkung). Direktes Rendern über
  * pdfmake gibt volle Kontrolle über das Ergebnis zurück.
  */
-export async function erzeugePdf(vorlageBuffer: ArrayBuffer, zeilen: ExportZeile[], firmaName: string): Promise<Buffer> {
+export async function erzeugePdf(
+  vorlageBuffer: ArrayBuffer,
+  zeilen: ExportZeile[],
+  firmaName: string,
+  optionen: { signaturVermerk?: string } = {}
+): Promise<Buffer> {
   registriereFontsFallsNoetig();
 
   const vorlageWorkbook = new ExcelJS.Workbook();
@@ -444,6 +464,7 @@ export async function erzeugePdf(vorlageBuffer: ArrayBuffer, zeilen: ExportZeile
     firmaName,
     logoDataUrl: ladeLogoDataUrl(),
     textMesser: erstelleTextMesser(),
+    signaturVermerk: optionen.signaturVermerk,
   });
 
   return pdfMake.createPdf(docDefinition).getBuffer();

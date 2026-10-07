@@ -1,6 +1,6 @@
 # PROJ-9: PDF-Export digital signieren (Firmen-Siegel)
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-10-07
 **Last Updated:** 2026-10-07
 
@@ -88,7 +88,7 @@ Der Wechsel von Phase 1 zu Phase 2 erfolgt über die Konfiguration (Zertifikat, 
 ## Open Questions
 - [ ] Anbieter von Zertifikat und Signierdienst (z.B. Swisscom Trust Services, SwissSign, internationale Zertifizierungsstellen) — Angebote einholen; Kosten und Konditionen klären. Die Wahl bestimmt die Schnittstelle zum Signierdienst und ist Voraussetzung für **Phase 2**; `/architecture` für Phase 1 kann ohne sie starten (Refinement 2026-10-07)
 - [ ] Siegel-Stufe nach Schweizer Recht (geregeltes elektronisches Siegel nach ZertES vs. fortgeschrittenes Siegel) — mit dem Anbieter klären, was für den Zweck "Herkunft + Unverfälschtheit nachweisen" angemessen ist
-- [ ] Genauer Wortlaut und Position des sichtbaren Vermerks (Fusszeile jeder Seite angenommen; Architektur: unten, klein, grau) — am ersten Test-PDF festlegen
+- [x] Genauer Wortlaut und Position des sichtbaren Vermerks → Fusszeile jeder Seite, zentriert, 7 pt grau; Test: "TEST-Signatur – nicht gültig – OBSI Hofer GmbH, TT.MM.JJJJ HH:MM", produktiv: "Elektronisch signiert durch OBSI Hofer GmbH, TT.MM.JJJJ HH:MM" — am ersten Test-PDF vom Nutzer bestätigt (2026-10-07)
 
 ## Anbieter-Recherche (2026-10-07, öffentliche Webseiten — Preise bei keinem Anbieter veröffentlicht)
 
@@ -132,7 +132,7 @@ Quellen: trustservices.swisscom.com (ZertES-Siegel, Service-Pakete, Hilfe-Center
 |----------|-----------|------|
 | Signaturformat PAdES mit Zeitstempel (Baseline B-T) | Von Adobe Reader geprüft und von allen recherchierten Anbietern unterstützt; Zeitstempel für Langzeit-Prüfbarkeit | 2026-10-07 |
 | Signatur-Ablauf im eigenen Server-Code, nur das Unterschreiben der Prüfsumme über austauschbaren Schlüssel-Baustein | Phase 1 → Phase 2 ohne Umbau; in Phase 2 bleibt der Schlüssel beim Anbieter (nur Prüfsumme wird übertragen) | 2026-10-07 |
-| `@signpdf` (Signaturfeld/Einbetten) + `pkijs`/`asn1js` (Signatur-Container, Zeitstempel) | Verbreitete, aktiv gepflegte Bibliotheken; die mitgelieferten `@signpdf`-Signer (P12/node-forge) können keinen Zeitstempel und kein Unterschreiben beim Anbieter, daher eigener Signer auf `pkijs`-Basis | 2026-10-07 |
+| `@signpdf` (Signaturfeld/Einbetten; umgesetzt mit `placeholder-pdf-lib` statt `placeholder-plain`, siehe Implementation Notes) + `pkijs`/`asn1js` (Signatur-Container, Zeitstempel) | Verbreitete, aktiv gepflegte Bibliotheken; die mitgelieferten `@signpdf`-Signer (P12/node-forge) können keinen Zeitstempel und kein Unterschreiben beim Anbieter, daher eigener Signer auf `pkijs`-Basis | 2026-10-07 |
 | Signaturfeld nachträglich in das fertige pdfmake-PDF statt Signatur im pdfmake-Layout | PROJ-7-Layout bleibt unangetastet; pdfmake bietet keinen Zugang zum Signieren | 2026-10-07 |
 | Sichtbarer Vermerk als pdfmake-Fusszeile auf jeder Seite, Signaturfeld selbst unsichtbar | Vermerk auf jeder Seite verlangt (Spec), sichtbare Signaturfelder gäbe es nur auf einer Seite | 2026-10-07 |
 | Signatur-Modus `aus`/`test`/`produktiv` per Umgebungsvariable, Umgebung über Vercels automatische Kennung | Muster wie `KUNDENPORTAL_SYNC_AKTIV` (PROJ-5); die automatische Kennung kann nicht versehentlich falsch gepflegt werden | 2026-10-07 |
@@ -208,6 +208,23 @@ Die Umgebung (Production vs. Preview vs. lokal) erkennt die App an der von Verce
 - Unit-Test: signiertes Test-PDF enthält Signatur, Zertifikat und Zeitstempel; nach Veränderung eines Bytes ist die Signatur ungültig (Zeitstempeldienst im Test simuliert)
 - Archiv-Ablage im Testmodus übersprungen; Fehler beim Signieren → kein Download, richtige Meldung
 - Manuell: Test-PDF lokal in Adobe Acrobat Reader öffnen (Signatur vorhanden, "unverändert", Warnung zum Unterzeichner erwartet)
+
+## Implementation Notes (Backend, Phase 1)
+
+**Umgesetzt 2026-10-07** — neues Modul `src/lib/pdf-signatur/`:
+- `konfiguration.ts` — Modus-Regel (`ermittleSignaturKonfiguration`), Test-Schlüssel-Baustein, `SignaturFehler` (Kategorie `konfiguration` / `dienst`), sichtbarer Vermerk (`baueSignaturVermerk`, Schweizer Zeit). Production wird über `VERCEL_ENV === "production"` erkannt; dort wird `test` ignoriert (unsigniert + `console.warn`), auch wenn dort gar kein Test-Schlüssel hinterlegt ist. `produktiv` und unbekannte Werte → Konfigurationsfehler. Geprüft werden außerdem: Zertifikat und Schlüssel vorhanden, lesbar, zusammengehörig, RSA, nicht abgelaufen.
+- `zeitstempel.ts` — RFC-3161-Anfrage an den Zeitstempeldienst (Standard `https://freetsa.org/tsr`, überschreibbar), Wartezeit max. 15 s, Prüfung der Antwort: Status "granted", Hash und Nonce passen zur Anfrage. Die kryptografische Prüfung des Tokens übernimmt der PDF-Viewer.
+- `signiere-pdf.ts` — `CadesSigner` baut den Signatur-Container nach PAdES Baseline B-T (signierte Attribute contentType, messageDigest, signingCertificateV2; kein signingTime-Attribut, die Zeit steht im Signaturfeld; Zeitstempel als unsigniertes Attribut). `signierePdf` fügt per `@signpdf/placeholder-pdf-lib` ein unsichtbares Signaturfeld (SubFilter `ETSI.CAdES.detached`, 16 KB Platz) ins fertige PDF ein und bettet die Signatur ein. Unterschrieben wird über den Schlüssel-Baustein (`SignaturSchluessel.unterschreibe`) — in Phase 2 wird nur dieser durch den Signierdienst des Anbieters ersetzt.
+- Eingebunden in `generatePruefberichtPdf` (`export.ts`): Signatur-Konfiguration wird **zuerst** ermittelt (Konfigurationsfehler bricht ab, bevor Dataverse/SharePoint angefragt werden). Im Testmodus: Fusszeile mit Test-Vermerk → signieren → **keine Archiv-Ablage**. Modus `aus`: Ablauf exakt wie bisher.
+- Fusszeile: neues optionales `signaturVermerk` in `buildDocumentDefinition`/`erzeugePdf` (pdfmake `footer`, 7 pt, grau, zentriert, innerhalb des unteren Seitenrands — Spaltenbreiten und Seitenumbrüche unverändert).
+- `generatePdfAction` (`geraete/actions.ts`): `SignaturFehler` → "Der Prüfbericht konnte nicht signiert werden. Bitte später erneut versuchen." (Dienst) bzw. "… Die Signatur-Einrichtung muss geprüft werden." (Konfiguration); Details nur im Server-Log.
+- Neue Umgebungsvariablen (dokumentiert in `.env.local.example`, inkl. OpenSSL-Befehl für das Test-Zertifikat): `PDF_SIGNATUR_MODUS`, `PDF_SIGNATUR_TEST_ZERTIFIKAT`, `PDF_SIGNATUR_TEST_SCHLUESSEL`, `PDF_SIGNATUR_ZEITSTEMPEL_URL` (optional). PEM direkt, mit `\n` oder base64-kodiert.
+
+**Abweichung vom Tech Design:** `@signpdf/placeholder-pdf-lib` (+ `pdf-lib`) statt `@signpdf/placeholder-plain` — letzteres zieht eine alte pdfkit-Version mit einer als kritisch gemeldeten `crypto-js`-Abhängigkeit nach (`npm audit`). pdf-lib schreibt das PDF beim Einfügen des Signaturfelds neu (ohne Objekt-Streams), der Inhalt und das Layout bleiben unverändert.
+
+**Tests:** `konfiguration.test.ts` (Modus-Matrix inkl. Test in Production, fehlende/falsche/abgelaufene Zertifikate, PEM-Formate, Vermerk), `zeitstempel.test.ts` (mit aufgezeichneter echter freetsa.org-Antwort in `__fixtures__/`: Hash/Nonce/Status/HTTP-/Netzwerkfehler), `signiere-pdf.test.ts` (Signatur gültig, Zeitstempel und Zertifikat eingebettet, Veränderung erkannt, Fehler → kein PDF), `export.test.ts` (Testmodus: Vermerk, Signatur, kein Archiv, kein unsignierter Rückfall; Konfigurationsfehler vor jedem Datenzugriff), `actions.test.ts` (Fehlermeldungen ohne technische Details), `pdf-generator.test.ts` (Fusszeile nur mit Vermerk, Layout unverändert). Test-Zertifikate werden zur Laufzeit erzeugt (`test-helfer.ts`) — kein privater Schlüssel im Repo.
+
+**Manuell verifiziert (2026-10-07):** PDF mit echtem freetsa.org-Zeitstempel signiert; `openssl cms -verify` gegen das Test-Zertifikat → "Verification successful"; nach Änderung eines Bytes → "content verify error". **Vom Nutzer lokal verifiziert (2026-10-07):** Echter Prüfbericht-Export mit `PDF_SIGNATUR_MODUS=test` in Adobe Acrobat Reader — Test-Vermerk auf jeder Seite, Signatur "OBSI Hofer GmbH (TEST)" mit Zeitstempel als unverändert erkannt (Warnung zum unbekannten Unterzeichner wie erwartet), keine Ablage im SharePoint-Archiv. Nebenbei: lokal fehlte `SHAREPOINT_STANDARD_VORLAGE_PFAD` (PROJ-7) in `.env.local`, vom Nutzer aus Vercel nachgetragen.
 
 ## QA Test Results
 _To be added by /qa_

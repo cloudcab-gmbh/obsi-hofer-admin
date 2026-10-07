@@ -7,6 +7,11 @@ import { DataverseError } from "@/lib/dataverse/errors";
 import { getCurrentFirmaId } from "@/lib/firma-session";
 import { generatePruefberichtPdf, ExportFehler } from "@/lib/pruefbericht-export/export";
 import { SharePointError } from "@/lib/sharepoint/errors";
+import {
+  SignaturFehler,
+  SIGNATUR_FEHLERMELDUNG_DIENST,
+  SIGNATUR_FEHLERMELDUNG_KONFIGURATION,
+} from "@/lib/pdf-signatur/konfiguration";
 
 const stammdatenSchema = z.object({
   serienummer: z.string().trim().nullable(),
@@ -90,6 +95,15 @@ export async function generatePdfAction(geraetIds: string[], lagerortFilter: str
     return { success: true, pdfBase64: Buffer.from(pdfBuffer).toString("base64"), dateiname };
   } catch (error) {
     if (error instanceof ExportFehler) return { success: false, message: error.message };
+    if (error instanceof SignaturFehler) {
+      // PROJ-9: Details (z.B. fehlende Variable, Antwort des Zeitstempeldienstes)
+      // nur ins Server-Log — in der Oberfläche keine Hinweise auf Zugangsdaten.
+      console.error("generatePdfAction: Signatur fehlgeschlagen", error);
+      return {
+        success: false,
+        message: error.kategorie === "konfiguration" ? SIGNATUR_FEHLERMELDUNG_KONFIGURATION : SIGNATUR_FEHLERMELDUNG_DIENST,
+      };
+    }
     if (error instanceof DataverseError || error instanceof SharePointError) {
       return { success: false, message: error.message };
     }

@@ -34,6 +34,7 @@ vi.mock("next/cache", () => ({
 import { saveGeraetStammdaten, generatePdfAction } from "./actions";
 import { DataverseError } from "@/lib/dataverse/errors";
 import { ExportFehler } from "@/lib/pruefbericht-export/export";
+import { SignaturFehler } from "@/lib/pdf-signatur/konfiguration";
 
 const GERAET_ID = "44444444-4444-4444-4444-444444444444";
 
@@ -207,6 +208,38 @@ describe("generatePdfAction", () => {
     const result = await generatePdfAction([], null);
 
     expect(result).toEqual({ success: false, message: "Keine Geräte für diesen Export gefunden." });
+  });
+
+  // PROJ-9: nur eine allgemeine Meldung in der Oberfläche, Details ins Server-Log.
+  it("maps a signing service failure to the generic retry message, without technical details", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    getCurrentFirmaId.mockResolvedValue(FIRMA_ID);
+    getFirma.mockResolvedValue({ id: FIRMA_ID, name: "Firma A" });
+    listStandorteForFirma.mockResolvedValue([]);
+    listGeraeteForStandorte.mockResolvedValue([]);
+    generatePruefberichtPdf.mockRejectedValue(new SignaturFehler("Zeitstempeldienst antwortet mit HTTP 503.", "dienst"));
+
+    const result = await generatePdfAction([], null);
+
+    expect(result).toEqual({
+      success: false,
+      message: "Der Prüfbericht konnte nicht signiert werden. Bitte später erneut versuchen.",
+    });
+  });
+
+  it("maps a signing configuration error to a hint to check the setup, without naming variables", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    getCurrentFirmaId.mockResolvedValue(FIRMA_ID);
+    getFirma.mockResolvedValue({ id: FIRMA_ID, name: "Firma A" });
+    listStandorteForFirma.mockResolvedValue([]);
+    listGeraeteForStandorte.mockResolvedValue([]);
+    generatePruefberichtPdf.mockRejectedValue(new SignaturFehler("PDF_SIGNATUR_TEST_SCHLUESSEL fehlt", "konfiguration"));
+
+    const result = await generatePdfAction([], null);
+
+    expect(result.success).toBe(false);
+    expect(!result.success && result.message).toContain("Signatur-Einrichtung muss geprüft werden");
+    expect(!result.success && result.message).not.toContain("PDF_SIGNATUR");
   });
 
   it("includes the underlying error message for an unexpected failure instead of a bare generic message", async () => {

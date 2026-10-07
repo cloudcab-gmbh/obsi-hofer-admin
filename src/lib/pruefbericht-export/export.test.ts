@@ -20,7 +20,18 @@ vi.mock("@/lib/sharepoint/kunden-drive", () => ({
 const erzeugePdfMock = vi.fn();
 vi.mock("./pdf-generator", () => ({ erzeugePdf: (...args: unknown[]) => erzeugePdfMock(...args) }));
 
+const ermittleSignaturKonfigurationMock = vi.fn();
+vi.mock("@/lib/pdf-signatur/konfiguration", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/pdf-signatur/konfiguration")>()),
+  ermittleSignaturKonfiguration: () => ermittleSignaturKonfigurationMock(),
+}));
+const signierePdfMock = vi.fn();
+vi.mock("@/lib/pdf-signatur/signiere-pdf", () => ({ signierePdf: (...args: unknown[]) => signierePdfMock(...args) }));
+const holeZeitstempelMock = vi.fn();
+vi.mock("@/lib/pdf-signatur/zeitstempel", () => ({ holeZeitstempel: (...args: unknown[]) => holeZeitstempelMock(...args) }));
+
 import { generatePruefberichtPdf, ExportFehler } from "./export";
+import { SignaturFehler } from "@/lib/pdf-signatur/konfiguration";
 import { SharePointError } from "@/lib/sharepoint/errors";
 
 function geraet(overrides: Partial<Geraet> = {}): Geraet {
@@ -64,6 +75,7 @@ beforeEach(() => {
   listArtikelByIdsMock.mockResolvedValue(new Map());
   erzeugePdfMock.mockResolvedValue(Buffer.from([1, 2, 3]));
   uploadKundenDateiMock.mockResolvedValue("item-id");
+  ermittleSignaturKonfigurationMock.mockReturnValue({ modus: "aus" });
 });
 
 afterEach(() => {
@@ -214,5 +226,91 @@ describe("generatePruefberichtPdf", () => {
 
     const [, zeilen] = erzeugePdfMock.mock.calls[0];
     expect(zeilen[0]).toMatchObject({ herstelljahr: "01.2017" });
+  });
+
+  describe("PROJ-9 Signatur", () => {
+    const testSchluessel = { zertifikatDer: Buffer.from([0]), unterschreibe: vi.fn() };
+
+    function testmodus() {
+      ermittleSignaturKonfigurationMock.mockReturnValue({
+        modus: "test",
+        schluessel: testSchluessel,
+        zeitstempelUrl: "https://tsa.example/tsr",
+      });
+      getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
+      downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
+    }
+
+    it("leaves the export unsigned, without footer note, when the signature is off", async () => {
+      getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
+      downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
+
+      const { pdfBuffer } = await generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: null });
+
+      expect(erzeugePdfMock.mock.calls[0]).toHaveLength(3);
+      expect(signierePdfMock).not.toHaveBeenCalled();
+      expect(uploadKundenDateiMock).toHaveBeenCalledTimes(1);
+      expect(pdfBuffer).toEqual(Buffer.from([1, 2, 3]));
+    });
+
+    it("in test mode: adds the TEST note, signs with the test key and returns the signed PDF", async () => {
+      testmodus();
+      signierePdfMock.mockResolvedValue(Buffer.from("signiert"));
+
+      const { pdfBuffer, dateiname } = await generatePruefberichtPdf({
+        firmaName: "Firma",
+        geraete: [geraet()],
+        lagerortFilter: null,
+      });
+
+      const [, , , optionen] = erzeugePdfMock.mock.calls[0];
+      expect(optionen.signaturVermerk).toMatch(/^TEST-Signatur – nicht gültig – OBSI Hofer GmbH, \d{2}\.\d{2}\.\d{4} \d{2}:\d{2}$/);
+      const [unsigniert, signierOptionen] = signierePdfMock.mock.calls[0];
+      expect(unsigniert).toEqual(Buffer.from([1, 2, 3]));
+      expect(signierOptionen.schluessel).toBe(testSchluessel);
+      expect(pdfBuffer).toEqual(Buffer.from("signiert"));
+      // Dateiname unverändert gegenüber PROJ-7.
+      expect(dateiname).toMatch(/Prüfbericht Absturzsicherungen - Firma\.pdf$/);
+    });
+
+    it("in test mode: requests the timestamp from the configured service", async () => {
+      testmodus();
+      signierePdfMock.mockResolvedValue(Buffer.from("signiert"));
+      await generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: null });
+
+      const [, { zeitstempel }] = signierePdfMock.mock.calls[0];
+      await zeitstempel(Buffer.from("sig"));
+      expect(holeZeitstempelMock).toHaveBeenCalledWith(Buffer.from("sig"), "https://tsa.example/tsr");
+    });
+
+    it("in test mode: never archives the PDF in SharePoint", async () => {
+      testmodus();
+      signierePdfMock.mockResolvedValue(Buffer.from("signiert"));
+      await generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: null });
+
+      expect(uploadKundenDateiMock).not.toHaveBeenCalled();
+    });
+
+    it("in test mode: a signing failure aborts the export — no unsigned fallback", async () => {
+      testmodus();
+      signierePdfMock.mockRejectedValue(new SignaturFehler("Zeitstempeldienst nicht erreichbar", "dienst"));
+
+      await expect(
+        generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: null })
+      ).rejects.toBeInstanceOf(SignaturFehler);
+      expect(uploadKundenDateiMock).not.toHaveBeenCalled();
+    });
+
+    it("aborts before any Dataverse/SharePoint call when the signature configuration is broken", async () => {
+      ermittleSignaturKonfigurationMock.mockImplementation(() => {
+        throw new SignaturFehler("PDF_SIGNATUR_TEST_SCHLUESSEL fehlt", "konfiguration");
+      });
+
+      await expect(
+        generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: null })
+      ).rejects.toBeInstanceOf(SignaturFehler);
+      expect(getAktuellstePruefberichteForGeraeteMock).not.toHaveBeenCalled();
+      expect(downloadKundenDateiMock).not.toHaveBeenCalled();
+    });
   });
 });

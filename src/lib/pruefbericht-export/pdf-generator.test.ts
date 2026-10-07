@@ -60,6 +60,28 @@ function zellFarbe(zeile: TableCell[], spalte: number): string | undefined {
 }
 
 describe("buildDocumentDefinition", () => {
+  // PROJ-9: sichtbarer Signaturvermerk nur, wenn signiert wird.
+  it("adds the signature note as a footer on every page only when one is given", () => {
+    const basis = {
+      headerZeile: HEADER,
+      mapping: mapping(),
+      letzteHeaderSpalte: HEADER.length,
+      farbRegeln: [],
+      zeilen: [leereZeile({ lagerort: "Trakt 1" })],
+      firmaName: "Beispiel-Firma",
+      logoDataUrl: null,
+    };
+
+    expect(buildDocumentDefinition(basis).footer).toBeUndefined();
+
+    const vermerk = "TEST-Signatur – nicht gültig – OBSI Hofer GmbH, 07.10.2026 14:30";
+    const mitVermerk = buildDocumentDefinition({ ...basis, signaturVermerk: vermerk });
+    expect(mitVermerk.footer).toMatchObject({ text: vermerk, alignment: "center" });
+    // Layout des Berichts selbst bleibt unverändert.
+    expect(mitVermerk.pageMargins).toEqual(buildDocumentDefinition(basis).pageMargins);
+    expect(tableFromContent(mitVermerk).widths).toEqual(tableFromContent(buildDocumentDefinition(basis)).widths);
+  });
+
   it("puts the header texts in the first table row, and marks it as the repeating header", () => {
     const doc = buildDocumentDefinition({
       headerZeile: HEADER,
