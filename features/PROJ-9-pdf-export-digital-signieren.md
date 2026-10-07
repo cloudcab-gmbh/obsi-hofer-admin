@@ -283,7 +283,7 @@ Die Umgebung (Production vs. Preview vs. lokal) erkennt die App an der von Verce
 - [x] Vermerk ist normaler Seiteninhalt (Fusszeile), unabhängig vom Viewer sichtbar
 
 #### EC-7 (zusätzlich): Sonderzeichen im Signatur-Grund
-- [ ] Siehe BUG-2
+- [x] BUG-2 behoben 2026-10-07
 
 #### EC-8 (zusätzlich): Nonce der Zeitstempel-Anfrage mit führendem Null-Byte
 - [x] BUG-1 behoben 2026-10-07
@@ -324,13 +324,14 @@ Die Umgebung (Production vs. Preview vs. lokal) erkennt die App an der von Verce
   2. Expected: "TEST-Signatur – nicht gültig"
   3. Actual: "–" wird als Steuerzeichen (Byte `0x13`) gespeichert, weil `@signpdf/placeholder-pdf-lib` den Grund ohne Unicode-Kodierung schreibt (`PDFString.of`); "ü" ist korrekt. Der sichtbare Vermerk in der Fusszeile ist nicht betroffen
 - **Priority:** Fix before deployment (klein: im Grund nur Zeichen aus dem PDF-Standardzeichensatz verwenden, z.B. "-")
+- **Status:** ✅ Behoben (2026-10-07) — neue Funktion `fuerPdfSignaturText()` in `signiere-pdf.ts`, angewendet auf den Signatur-Grund: typografische Striche → "-", typografische Anführungszeichen → ' bzw. ", alle übrigen Zeichen ausserhalb der druckbaren Latin-1-Zeichen (= PDFDocEncoding) → "?"; Umlaute bleiben. Greift damit auch für Phase 2. Tests in `signiere-pdf.test.ts` (Ersetzungen, Steuerzeichen/Emoji, Grund im fertigen PDF = "TEST-Signatur - nicht gültig")
 
 ### Summary
 - **Acceptance Criteria (Phase 1):** 8/8 erfüllt
-- **Bugs Found:** 2 total (0 critical, 0 high, 1 medium, 1 low) — BUG-1 behoben, BUG-2 offen
+- **Bugs Found:** 2 total (0 critical, 0 high, 1 medium, 1 low) — beide behoben (2026-10-07)
 - **Security:** Pass
 - **Production Ready (Phase 1):** YES — keine Critical/High-Bugs; in Production bleibt die Signatur ohnehin aus. PROJ-9 gilt laut Spec erst mit Phase 2 als "Deployed"
-- **Recommendation:** BUG-1 und BUG-2 vor dem Push beheben (beide klein), dann Phase 1 deployen
+- **Recommendation:** ~~BUG-1 und BUG-2 vor dem Push beheben~~ — beide behoben; Phase 1 deployen
 
 ## Deployment
 _To be added by /deploy_

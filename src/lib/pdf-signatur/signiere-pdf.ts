@@ -117,6 +117,22 @@ export class CadesSigner extends Signer {
   }
 }
 
+/**
+ * QA BUG-2 (Fix): `@signpdf/placeholder-pdf-lib` schreibt Texte im
+ * Signaturfeld ohne Unicode-Kodierung (`PDFString.of`) — Zeichen ausserhalb
+ * des Latin-1-Bereichs (z.B. "–") wurden dabei zu Steuerzeichen verstümmelt.
+ * Typografische Striche/Anführungszeichen werden daher ersetzt, alles übrige
+ * ausserhalb der druckbaren Latin-1-Zeichen (identisch mit PDFDocEncoding)
+ * wird zu "?". Umlaute (ä, ö, ü, …) bleiben erhalten.
+ */
+export function fuerPdfSignaturText(text: string): string {
+  return text
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/[\u2018\u2019\u201A]/g, "'")
+    .replace(/[\u201C\u201D\u201E]/g, '"')
+    .replace(/[^\x20-\x7E\xA0-\xFF]/gu, "?");
+}
+
 export interface SignierOptionen {
   schluessel: SignaturSchluessel;
   zeitstempel: ZeitstempelQuelle;
@@ -135,7 +151,7 @@ export async function signierePdf(pdfBuffer: Buffer, optionen: SignierOptionen):
     const pdfDoc = await PDFDocument.load(pdfBuffer);
     pdflibAddPlaceholder({
       pdfDoc,
-      reason: optionen.grund,
+      reason: fuerPdfSignaturText(optionen.grund),
       contactInfo: "info@obsi-hofer.ch",
       name: "OBSI Hofer GmbH",
       location: "Brittnau",

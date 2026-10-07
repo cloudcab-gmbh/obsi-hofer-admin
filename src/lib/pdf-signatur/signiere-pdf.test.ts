@@ -5,7 +5,7 @@ import { createHash, verify, X509Certificate } from "node:crypto";
 import * as pkijs from "pkijs";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { describe, it, expect, beforeAll } from "vitest";
-import { signierePdf } from "./signiere-pdf";
+import { fuerPdfSignaturText, signierePdf } from "./signiere-pdf";
 import { ermittleSignaturKonfiguration, SignaturFehler, type SignaturSchluessel } from "./konfiguration";
 import { pruefeZeitstempelAntwort } from "./zeitstempel";
 import { erzeugeTestZertifikat } from "./test-helfer";
@@ -122,5 +122,33 @@ describe("signierePdf", () => {
     await expect(
       signierePdf(Buffer.from("kein pdf"), { schluessel, zeitstempel: zeitstempelStub, grund: "Test", signierZeit: new Date() })
     ).rejects.toMatchObject({ name: "SignaturFehler", kategorie: "dienst" });
+  });
+});
+
+// QA BUG-2: Texte im Signaturfeld werden ohne Unicode-Kodierung geschrieben.
+describe("fuerPdfSignaturText", () => {
+  it("replaces typographic dashes and quotes, keeps umlauts", () => {
+    expect(fuerPdfSignaturText("TEST-Signatur – nicht gültig")).toBe("TEST-Signatur - nicht gültig");
+    expect(fuerPdfSignaturText("Prüfbericht — „OBSI“ ‚Hofer‘")).toBe(`Prüfbericht - "OBSI" 'Hofer'`);
+    expect(fuerPdfSignaturText("Äpfel Öl Übung ß é")).toBe("Äpfel Öl Übung ß é");
+  });
+
+  it("replaces control characters and characters outside Latin-1 with '?'", () => {
+    expect(fuerPdfSignaturText("a\u0013b\u0085c\u20ACd\u{1F600}")).toBe("a?b?c?d?");
+  });
+});
+
+describe("signierePdf — Signatur-Grund (QA BUG-2)", () => {
+  it("writes the reason without control characters into the signature field", async () => {
+    const signiert = await signierePdf(await beispielPdf(), {
+      schluessel,
+      zeitstempel: zeitstempelStub,
+      grund: "TEST-Signatur – nicht gültig",
+      signierZeit: new Date(),
+    });
+    const text = signiert.toString("latin1");
+    const start = text.indexOf("/Reason (");
+    const grund = text.slice(start + "/Reason (".length, text.indexOf(")", start));
+    expect(grund).toBe("TEST-Signatur - nicht gültig");
   });
 });
