@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { badgeVariants } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -37,9 +37,12 @@ function formatDauer(sekunden: number | null): string | null {
   return sekunden < 60 ? `${sekunden} s` : `${Math.floor(sekunden / 60)} min ${sekunden % 60} s`;
 }
 
+// QA BUG-1: als <span> mit den Badge-Styles statt shadcn <Badge> (ein <div>) —
+// das Badge steht auch innerhalb des Aufklapp-Buttons, und dort sind laut
+// HTML-Inhaltsmodell nur Inline-Elemente erlaubt.
 function StatusBadge({ status }: { status: SyncStatus }) {
   const { label, variant } = STATUS_BADGE[status];
-  return <Badge variant={variant}>{label}</Badge>;
+  return <span className={badgeVariants({ variant })}>{label}</span>;
 }
 
 function LaufEintrag({ lauf }: { lauf: SyncLauf }) {

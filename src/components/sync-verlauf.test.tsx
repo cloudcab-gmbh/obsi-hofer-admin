@@ -71,3 +71,14 @@ describe("SyncVerlauf", () => {
     expect(screen.queryByText("Noch kein Sync für diese Firma.")).not.toBeInTheDocument();
   });
 });
+
+// QA BUG-1: kein Block-Element (z.B. das <div> von shadcn Badge) im Aufklapp-Button.
+describe("SyncVerlauf — HTML-Gültigkeit", () => {
+  it("contains no div inside the expand buttons", () => {
+    render(<SyncVerlauf laeufe={[lauf()]} {...props} />);
+
+    const button = screen.getByRole("button", { name: /07.10.2026, 14:30/ });
+    expect(button.querySelector("div")).toBeNull();
+    expect(button).toHaveTextContent("Erfolg");
+  });
+});

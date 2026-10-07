@@ -224,6 +224,7 @@ Umgesetzt in einem Durchlauf (UI + Server Actions + Datenzugriff), wie bei PROJ-
 - **Erwartet:** Nur Inline-Elemente in einem `<button>` (HTML-Inhaltsmodell)
 - **Tatsächlich:** `<div>` im `<button>` — Browser stellen es korrekt dar, React warnt nicht; reiner Standardverstoss, kann bei strengen Accessibility-Prüfungen auffallen
 - **Priority:** Nice to have
+- **Status:** ✅ Fixed (2026-10-07) — `StatusBadge` in `sync-verlauf.tsx` rendert ein `<span>` mit den shadcn-Badge-Styles (`badgeVariants`) statt der `<div>`-Komponente. Regressionstest `sync-verlauf.test.tsx` ("contains no div inside the expand buttons"). `npm test` 260/260, Lint, TypeScript, Build grün
 
 ### Automatisierte Tests
 - `npm test`: 259/259 grün (PROJ-6: `sync-laeufe.test.ts` 11, `sync-verlauf.test.tsx` 5, `sync-freigabe/actions.test.ts` +7, `sync-ausloesen.test.tsx` +2)
@@ -233,7 +234,7 @@ Umgesetzt in einem Durchlauf (UI + Server Actions + Datenzugriff), wie bei PROJ-
 ### Summary
 - **Acceptance Criteria:** 11/11 erfüllt (Schreibweg live verifiziert)
 - **Edge Cases:** 7/7
-- **Bugs Found:** 1 (0 critical, 0 high, 0 medium, 1 low)
+- **Bugs Found:** 1 (0 critical, 0 high, 0 medium, 1 low) — behoben, keine offenen Bugs
 - **Security:** keine Findings
 - **Nebenbefund:** Die erste gemessene Dauer eines Firma-Syncs (8 s) beantwortet die offene Laufzeit-Frage aus PROJ-5
 - **Production Ready:** **JA** — Status **Approved**
