@@ -1,6 +1,6 @@
 # PROJ-6: Sync-Status/-Verlauf einsehen
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-10-07
 **Last Updated:** 2026-10-07
 
@@ -240,4 +240,12 @@ Umgesetzt in einem Durchlauf (UI + Server Actions + Datenzugriff), wie bei PROJ-
 - **Production Ready:** **JA** — Status **Approved**
 
 ## Deployment
-_To be added by /deploy_
+- **Production URL:** https://obsi-hofer-admin.vercel.app/sync-freigabe (Abschnitt "Sync-Verlauf", nur für Freigeber)
+- **Deployed:** 2026-10-07 (automatisch via Vercel bei Push auf `main`, letzter Code-Commit `dc9be01`)
+- **Tag:** `v1.7.0-PROJ-6`
+- **Voraussetzungen (vom Nutzer erledigt, verifiziert):** Dataverse-Tabelle `bmvcc_synclauf` angelegt; App-Benutzer mit Erstellen, Lesen, Anfügen auf Sync-Lauf und "Anfügen an" auf Firma (Organisation). Keine neuen Umgebungsvariablen.
+- **Verifiziert:**
+  - Pre-Deployment: `npm run build`, `npm run lint`, `npx tsc --noEmit`, `npm test` (260/260), `npm run test:e2e` (18/18) grün; keine Secrets im Repo
+  - Produktion: `/login` HTTP 200; `/sync-freigabe` ohne Session per 307 auf `/login`
+  - Funktion live: Sync-Lauf für "Cloudcab GmbH" korrekt in Dataverse protokolliert und im Verlauf angezeigt (siehe QA)
+  - Nicht separat live geprüft: der BUG-1-Fix (`<span>` statt `<div>`) — per Regressionstest abgedeckt, rein strukturell
