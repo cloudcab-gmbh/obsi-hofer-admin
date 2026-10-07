@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -11,11 +12,45 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getStatusBadgeVariant } from "@/lib/status-badge";
 import { formatDatum } from "@/lib/format";
-import { matchesGeraeteFilter, type Geraet, type Standort } from "@/lib/dataverse/geraete";
+import {
+  matchesGeraeteFilter,
+  sortiereGeraete,
+  type Geraet,
+  type GeraeteSortSpalte,
+  type GeraeteSortierung,
+  type Standort,
+} from "@/lib/dataverse/geraete";
 import { setGeraeteFilterState, type GeraeteFilterState } from "@/lib/geraete-filter-session";
 import { generatePdfAction } from "@/app/(protected)/geraete/actions";
 
 const ALLE = "__alle__";
+
+function SortierbarerKopf({
+  spalte,
+  label,
+  sortierung,
+  onSortieren,
+}: {
+  spalte: GeraeteSortSpalte;
+  label: string;
+  sortierung: GeraeteSortierung | null;
+  onSortieren: (spalte: GeraeteSortSpalte) => void;
+}) {
+  const aktiv = sortierung?.spalte === spalte ? sortierung.richtung : null;
+  const Icon = aktiv === "asc" ? ArrowUp : aktiv === "desc" ? ArrowDown : ArrowUpDown;
+  return (
+    <TableHead aria-sort={aktiv === "asc" ? "ascending" : aktiv === "desc" ? "descending" : "none"}>
+      <button
+        type="button"
+        onClick={() => onSortieren(spalte)}
+        className="-mx-1 inline-flex items-center gap-1 rounded px-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {label}
+        <Icon className={aktiv ? "size-3.5" : "size-3.5 opacity-40"} aria-hidden />
+      </button>
+    </TableHead>
+  );
+}
 
 export function GeraeteListe({
   geraete,
@@ -33,6 +68,7 @@ export function GeraeteListe({
   const [lagerort, setLagerort] = useState(initialFilter.lagerort || ALLE);
   const [standortId, setStandortId] = useState(initialFilter.standortId || ALLE);
   const [letztePruefungTage, setLetztePruefungTage] = useState(initialFilter.letztePruefungTage);
+  const [sortierung, setSortierung] = useState<GeraeteSortierung | null>(initialFilter.sortierung);
   const [pdfPending, startPdfTransition] = useTransition();
   const [pdfError, setPdfError] = useState<string | null>(null);
 
@@ -46,14 +82,15 @@ export function GeraeteListe({
         lagerort: lagerort === ALLE ? "" : lagerort,
         standortId: standortId === ALLE ? "" : standortId,
         letztePruefungTage,
+        sortierung,
       });
     }, 400);
     return () => clearTimeout(timeout);
-  }, [suche, lagerort, standortId, letztePruefungTage]);
+  }, [suche, lagerort, standortId, letztePruefungTage, sortierung]);
 
   const standortName = useMemo(() => {
     const map = new Map(standorte.map((s) => [s.id, s.name]));
-    return (id: string | null) => (id ? (map.get(id) ?? "—") : "—");
+    return (id: string | null) => (id ? (map.get(id) ?? null) : null);
   }, [standorte]);
 
   const lagerortOptionen = useMemo(() => {
@@ -61,8 +98,9 @@ export function GeraeteListe({
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [geraete]);
 
+  // Gefiltert UND sortiert — die Reihenfolge bestimmt auch die Reihenfolge im PDF-Export.
   const gefiltert = useMemo(() => {
-    return geraete.filter((g) =>
+    const treffer = geraete.filter((g) =>
       matchesGeraeteFilter(g, {
         suche,
         lagerort: lagerort === ALLE ? "" : lagerort,
@@ -70,7 +108,24 @@ export function GeraeteListe({
         letztePruefungTage,
       })
     );
-  }, [geraete, suche, lagerort, standortId, letztePruefungTage]);
+    if (!sortierung) return treffer;
+    return sortiereGeraete(treffer, sortierung, {
+      standortName,
+      pbBemerkung: (id) => pruefberichtBemerkungen.get(id) ?? null,
+    });
+  }, [geraete, suche, lagerort, standortId, letztePruefungTage, sortierung, standortName, pruefberichtBemerkungen]);
+
+  // Erster Klick auf eine Spalte sortiert aufsteigend, jeder weitere kehrt die Richtung um.
+  function handleSortieren(spalte: GeraeteSortSpalte) {
+    setSortierung((aktuell) =>
+      aktuell?.spalte === spalte
+        ? { spalte, richtung: aktuell.richtung === "asc" ? "desc" : "asc" }
+        : { spalte, richtung: "asc" }
+    );
+  }
+  const kopf = (spalte: GeraeteSortSpalte, label: string) => (
+    <SortierbarerKopf spalte={spalte} label={label} sortierung={sortierung} onSortieren={handleSortieren} />
+  );
 
   function handleGeneratePdf() {
     setPdfError(null);
@@ -179,14 +234,14 @@ export function GeraeteListe({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Gerät</TableHead>
-                  <TableHead>Kunden-ID</TableHead>
-                  <TableHead>Barcode</TableHead>
-                  {zeigeStandortSpalte && <TableHead>Standort</TableHead>}
-                  <TableHead>Lagerort</TableHead>
-                  <TableHead>Letzte Prüfung</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>PB_Bemerkung</TableHead>
+                  {kopf("name", "Gerät")}
+                  {kopf("kundenId", "Kunden-ID")}
+                  {kopf("barcode", "Barcode")}
+                  {zeigeStandortSpalte && kopf("standort", "Standort")}
+                  {kopf("lagerort", "Lagerort")}
+                  {kopf("letztePruefung", "Letzte Prüfung")}
+                  {kopf("status", "Status")}
+                  {kopf("pbBemerkung", "PB_Bemerkung")}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -202,7 +257,7 @@ export function GeraeteListe({
                     </TableCell>
                     <TableCell>{g.kundenId ?? "—"}</TableCell>
                     <TableCell>{g.barcode ?? "—"}</TableCell>
-                    {zeigeStandortSpalte && <TableCell>{standortName(g.standortId)}</TableCell>}
+                    {zeigeStandortSpalte && <TableCell>{standortName(g.standortId) ?? "—"}</TableCell>}
                     <TableCell>{g.lagerort ?? "—"}</TableCell>
                     <TableCell>{formatDatum(g.letztePruefung)}</TableCell>
                     <TableCell>

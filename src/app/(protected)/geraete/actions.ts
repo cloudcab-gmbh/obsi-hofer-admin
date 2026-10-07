@@ -77,8 +77,10 @@ export async function generatePdfAction(geraetIds: string[], lagerortFilter: str
     const firma = await getFirma(firmaId);
     const standorte = await listStandorteForFirma(firmaId);
     const geraeteDerFirma = await listGeraeteForStandorte(standorte.map((s) => s.id));
-    const idSet = new Set(geraetIds);
-    const geraete = geraeteDerFirma.filter((g) => idSet.has(g.id));
+    // Reihenfolge der Client-IDs übernehmen (= Sortierung der Geräteliste),
+    // die Daten selbst aber nur aus der Firma-gescopten Liste.
+    const geraetById = new Map(geraeteDerFirma.map((g) => [g.id, g]));
+    const geraete = [...new Set(geraetIds)].flatMap((id) => geraetById.get(id) ?? []);
 
     const { pdfBuffer, dateiname } = await generatePruefberichtPdf({
       firmaName: firma.name,

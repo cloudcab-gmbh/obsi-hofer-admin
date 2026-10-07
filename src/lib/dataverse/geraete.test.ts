@@ -19,6 +19,7 @@ import {
   listGeraeteForStandorte,
   listStandorteForFirma,
   matchesGeraeteFilter,
+  sortiereGeraete,
   updateGeraetStammdaten,
   type Geraet,
 } from "./geraete";
@@ -304,5 +305,77 @@ describe("matchesGeraeteFilter", () => {
     const filter = { ...EMPTY_FILTER, suche: "seil", lagerort: "Lager A", standortId: VALID_STANDORT_ID };
     expect(matchesGeraeteFilter(fixtureGeraet(), filter)).toBe(true);
     expect(matchesGeraeteFilter(fixtureGeraet({ lagerort: "Lager B" }), filter)).toBe(false);
+  });
+});
+
+describe("sortiereGeraete", () => {
+  const lookups = {
+    standortName: (id: string | null) => (id === VALID_STANDORT_ID ? "Zürich" : id === VALID_STANDORT_ID_2 ? "Bern" : null),
+    pbBemerkung: () => null,
+  };
+  const ids = (geraete: Geraet[]) => geraete.map((g) => g.id);
+
+  it("sorts text columns ascending/descending, case-insensitive and numeric-aware", () => {
+    const geraete = [
+      fixtureGeraet({ id: "a", kundenId: "KD-10" }),
+      fixtureGeraet({ id: "b", kundenId: "kd-2" }),
+      fixtureGeraet({ id: "c", kundenId: "KD-1" }),
+    ];
+    expect(ids(sortiereGeraete(geraete, { spalte: "kundenId", richtung: "asc" }, lookups))).toEqual(["c", "b", "a"]);
+    expect(ids(sortiereGeraete(geraete, { spalte: "kundenId", richtung: "desc" }, lookups))).toEqual(["a", "b", "c"]);
+  });
+
+  it("sorts letzte Prüfung by date, not by string", () => {
+    const geraete = [
+      fixtureGeraet({ id: "a", letztePruefung: "2026-09-01T00:00:00Z" }),
+      fixtureGeraet({ id: "b", letztePruefung: "2025-12-31T00:00:00Z" }),
+      fixtureGeraet({ id: "c", letztePruefung: "2026-10-01T00:00:00Z" }),
+    ];
+    expect(ids(sortiereGeraete(geraete, { spalte: "letztePruefung", richtung: "desc" }, lookups))).toEqual([
+      "c",
+      "a",
+      "b",
+    ]);
+  });
+
+  it("always puts empty values last, regardless of direction", () => {
+    const geraete = [
+      fixtureGeraet({ id: "leer", barcode: null }),
+      fixtureGeraet({ id: "b", barcode: "B" }),
+      fixtureGeraet({ id: "leer2", barcode: "" }),
+      fixtureGeraet({ id: "a", barcode: "A" }),
+    ];
+    expect(ids(sortiereGeraete(geraete, { spalte: "barcode", richtung: "asc" }, lookups))).toEqual([
+      "a",
+      "b",
+      "leer",
+      "leer2",
+    ]);
+    expect(ids(sortiereGeraete(geraete, { spalte: "barcode", richtung: "desc" }, lookups))).toEqual([
+      "b",
+      "a",
+      "leer",
+      "leer2",
+    ]);
+  });
+
+  it("sorts Standort and PB_Bemerkung via the lookups", () => {
+    const geraete = [
+      fixtureGeraet({ id: "z", standortId: VALID_STANDORT_ID }),
+      fixtureGeraet({ id: "b", standortId: VALID_STANDORT_ID_2 }),
+    ];
+    expect(ids(sortiereGeraete(geraete, { spalte: "standort", richtung: "asc" }, lookups))).toEqual(["b", "z"]);
+    const bemerkungen: Record<string, string> = { z: "alpha", b: "beta" };
+    expect(
+      ids(
+        sortiereGeraete(geraete, { spalte: "pbBemerkung", richtung: "asc" }, { ...lookups, pbBemerkung: (id) => bemerkungen[id] })
+      )
+    ).toEqual(["z", "b"]);
+  });
+
+  it("does not mutate the input array", () => {
+    const geraete = [fixtureGeraet({ id: "b", name: "B" }), fixtureGeraet({ id: "a", name: "A" })];
+    sortiereGeraete(geraete, { spalte: "name", richtung: "asc" }, lookups);
+    expect(ids(geraete)).toEqual(["b", "a"]);
   });
 });

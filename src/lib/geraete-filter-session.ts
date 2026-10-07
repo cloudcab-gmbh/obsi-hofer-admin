@@ -1,8 +1,9 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { GERAETE_SORT_SPALTEN, type GeraeteSortierung } from "./dataverse/geraete";
 
-// Hält den zuletzt auf /geraete gewählten Filter (Suche/Lagerort/Standort)
+// Hält den zuletzt auf /geraete gewählten Filter (Suche/Lagerort/Standort, dazu die Spaltensortierung)
 // session-weit fest, analog zu firma-session.ts — damit er beim Wechsel zu
 // /pruefberichte erhalten bleibt (Nutzerwunsch 2026-10-05).
 const COOKIE_NAME = "geraete_filter";
@@ -16,9 +17,25 @@ export interface GeraeteFilterState {
   standortId: string;
   /** Leerstring = keine Einschränkung; sonst Anzahl Tage als String (z.B. "7"). */
   letztePruefungTage: string;
+  /** null = Standardreihenfolge (Gerätename aufsteigend, wie aus Dataverse geladen). */
+  sortierung: GeraeteSortierung | null;
 }
 
-const DEFAULT_STATE: GeraeteFilterState = { suche: "", lagerort: "", standortId: "", letztePruefungTage: "" };
+const DEFAULT_STATE: GeraeteFilterState = {
+  suche: "",
+  lagerort: "",
+  standortId: "",
+  letztePruefungTage: "",
+  sortierung: null,
+};
+
+function parseSortierung(value: unknown): GeraeteSortierung | null {
+  if (!value || typeof value !== "object") return null;
+  const { spalte, richtung } = value as Record<string, unknown>;
+  if (!GERAETE_SORT_SPALTEN.includes(spalte as GeraeteSortierung["spalte"])) return null;
+  if (richtung !== "asc" && richtung !== "desc") return null;
+  return { spalte: spalte as GeraeteSortierung["spalte"], richtung };
+}
 
 export async function getGeraeteFilterState(): Promise<GeraeteFilterState> {
   const store = await cookies();
@@ -32,6 +49,7 @@ export async function getGeraeteFilterState(): Promise<GeraeteFilterState> {
       lagerort: typeof parsed.lagerort === "string" ? parsed.lagerort : "",
       standortId: typeof parsed.standortId === "string" ? parsed.standortId : "",
       letztePruefungTage: typeof parsed.letztePruefungTage === "string" ? parsed.letztePruefungTage : "",
+      sortierung: parseSortierung(parsed.sortierung),
     };
   } catch {
     return DEFAULT_STATE;

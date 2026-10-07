@@ -110,6 +110,67 @@ export function matchesGeraeteFilter(geraet: Geraet, filter: GeraeteFilter): boo
   );
 }
 
+export const GERAETE_SORT_SPALTEN = [
+  "name",
+  "kundenId",
+  "barcode",
+  "standort",
+  "lagerort",
+  "letztePruefung",
+  "status",
+  "pbBemerkung",
+] as const;
+export type GeraeteSortSpalte = (typeof GERAETE_SORT_SPALTEN)[number];
+export type SortRichtung = "asc" | "desc";
+
+export interface GeraeteSortierung {
+  spalte: GeraeteSortSpalte;
+  richtung: SortRichtung;
+}
+
+const textVergleich = new Intl.Collator("de-CH", { numeric: true, sensitivity: "base" });
+
+// Spaltensortierung der Geräteliste (Nutzerwunsch 2026-10-07). Standort und
+// PB_Bemerkung stehen nicht am Gerät selbst, daher kommen sie über Lookups.
+// Leere Werte landen unabhängig von der Richtung immer am Ende; bei Gleichstand
+// bleibt die Ausgangsreihenfolge (Gerätename aufsteigend) erhalten.
+export function sortiereGeraete(
+  geraete: Geraet[],
+  sortierung: GeraeteSortierung,
+  lookups: {
+    standortName: (standortId: string | null) => string | null;
+    pbBemerkung: (geraetId: string) => string | null;
+  }
+): Geraet[] {
+  const wert = (g: Geraet): string | number | null => {
+    switch (sortierung.spalte) {
+      case "standort":
+        return lookups.standortName(g.standortId);
+      case "pbBemerkung":
+        return lookups.pbBemerkung(g.id);
+      case "letztePruefung": {
+        const zeit = g.letztePruefung ? new Date(g.letztePruefung).getTime() : NaN;
+        return Number.isNaN(zeit) ? null : zeit;
+      }
+      default:
+        return g[sortierung.spalte];
+    }
+  };
+  const faktor = sortierung.richtung === "asc" ? 1 : -1;
+
+  return geraete
+    .map((g) => ({ g, w: wert(g) }))
+    .sort((a, b) => {
+      const aLeer = a.w === null || a.w === "";
+      const bLeer = b.w === null || b.w === "";
+      if (aLeer || bLeer) return aLeer === bLeer ? 0 : aLeer ? 1 : -1;
+      const diff =
+        typeof a.w === "number" && typeof b.w === "number" ? a.w - b.w : textVergleich.compare(String(a.w), String(b.w));
+      return diff * faktor;
+    })
+    .map(({ g }) => g);
+}
+
 export interface GeraetStammdatenInput {
   serienummer: string | null;
   barcode: string | null;

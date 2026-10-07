@@ -158,6 +158,19 @@ describe("generatePdfAction", () => {
     expect(uebergebeneGeraete.map((g: { id: string }) => g.id).sort()).toEqual(["g1", "g3"]);
   });
 
+  it("keeps the order of the ids passed by the client (the list's column sorting)", async () => {
+    getCurrentFirmaId.mockResolvedValue(FIRMA_ID);
+    getFirma.mockResolvedValue({ id: FIRMA_ID, name: "Rehaklinik Bellikon" });
+    listStandorteForFirma.mockResolvedValue([{ id: "s1", name: "Standort 1", firmaId: FIRMA_ID }]);
+    listGeraeteForStandorte.mockResolvedValue([geraet("g1"), geraet("g2"), geraet("g3")]);
+    generatePruefberichtPdf.mockResolvedValue({ pdfBuffer: new Uint8Array([1, 2, 3]).buffer, dateiname: "bericht.pdf" });
+
+    await generatePdfAction(["g3", "g1", "g2", "g3"], null);
+
+    const [{ geraete: uebergebeneGeraete }] = generatePruefberichtPdf.mock.calls[0];
+    expect(uebergebeneGeraete.map((g: { id: string }) => g.id)).toEqual(["g3", "g1", "g2"]);
+  });
+
   it("silently drops a requested id that doesn't belong to the current Firma's Geräte", async () => {
     getCurrentFirmaId.mockResolvedValue(FIRMA_ID);
     getFirma.mockResolvedValue({ id: FIRMA_ID, name: "Firma A" });

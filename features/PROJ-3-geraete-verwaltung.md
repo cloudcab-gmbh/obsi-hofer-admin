@@ -2,7 +2,7 @@
 
 ## Status: Deployed
 **Created:** 2026-10-05
-**Last Updated:** 2026-10-06
+**Last Updated:** 2026-10-07
 
 ## Dependencies
 - Requires: PROJ-1 (Entra-ID-Login mit Rollen) — für eingeloggte Nutzer mit Rolle Bearbeiter/Freigeber
@@ -196,6 +196,11 @@ Betrifft Component-Structure/Data-Model/Tech-Decisions im Tech-Design-Abschnitt 
 **Nachtrag (2026-10-06, Nutzerwunsch):** Beim Wechsel der Firma werden die Geräteliste-Filter (Suche, Lagerort, Standort, Letzte Prüfung) zurückgesetzt — Lagerorte/Standorte sind firmenspezifisch, ein übernommener Filter hätte bei der neuen Firma eine leere oder falsche Liste gezeigt. `setCurrentFirmaId()` (`firma-session.ts`) löscht das Filter-Cookie über das neue `clearGeraeteFilterState()`, wenn sich die Firma tatsächlich ändert (gleiche Firma erneut gewählt → Filter bleibt). Zusätzlich erhalten `GeraeteListe` und `PruefberichteUebersicht` `key={firmaId}`, damit ihr Client-State beim Firmenwechsel neu aus dem (jetzt leeren) Filter aufgebaut wird statt die alten Werte zu behalten. Tests in `firma-session.test.ts`.
 
 **Nachtrag (2026-10-05, Nutzerwunsch):** Zusätzliche Spalte "PB_Bemerkung" in der Geräteliste, direkt hinter "Status" — zeigt die Bemerkung des jeweils aktuellsten aktiven Prüfberichts (PROJ-4) je Gerät. Neue Funktion `getAktuelleBemerkungenForGeraete()` in `src/lib/dataverse/pruefberichte.ts`, holt alle betroffenen Prüfberichte gebatcht statt pro Gerät einzeln (nutzt die bereits vorhandene Chunking-Logik von `listPruefberichteForGeraete`).
+
+**Nachtrag (2026-10-07, Nutzerwunsch):** Die Geräteliste ist nach Spalten sortierbar. Ein Klick auf einen Spaltenkopf sortiert aufsteigend, jeder weitere Klick kehrt die Richtung um; ein Pfeil-Icon zeigt die aktive Sortierung (`aria-sort` für Screenreader). Sortierbar sind alle Spalten: Gerät, Kunden-ID, Barcode, Standort, Lagerort, Letzte Prüfung (nach Datum), Status und PB_Bemerkung. Die Sortierung läuft clientseitig auf der bereits geladenen Liste (keine zusätzlichen Dataverse-Abfragen) über die reine Funktion `sortiereGeraete()` in `src/lib/dataverse/geraete.ts`: Texte case-insensitiv und zahlenbewusst (`KD-2` vor `KD-10`), leere Werte unabhängig von der Richtung immer am Ende, bei Gleichstand bleibt die Ausgangsreihenfolge (Gerätename aufsteigend). Ohne gewählte Sortierung gilt wie bisher diese Ausgangsreihenfolge.
+- **Session-weit gespeichert:** Die Sortierung ist Teil des Filter-Cookies (`geraete-filter-session.ts`, neues Feld `sortierung`, ungültige/fehlende Werte → keine Sortierung) und wird damit wie der Filter beim Firmenwechsel zurückgesetzt.
+- **PDF-Export übernimmt die Reihenfolge:** `generatePdfAction` lädt die Geräte weiterhin firma-gescoped frisch aus Dataverse (QA BUG-1), ordnet sie aber jetzt in der Reihenfolge der vom Client übergebenen IDs an (vorher: Dataverse-Reihenfolge nach Gerätename). Doppelte IDs werden ignoriert.
+- Tests: `geraete.test.ts` (`sortiereGeraete`), `geraete-filter-session.test.ts`, `actions.test.ts` (Reihenfolge im PDF).
 
 ## QA Test Results
 
