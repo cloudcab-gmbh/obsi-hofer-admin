@@ -23,10 +23,11 @@
 | PROJ-6 | Sync-Status/-Verlauf einsehen | Deployed | [Spec](../features/PROJ-6-sync-status-verlauf.md) | 2026-09-25 |
 | PROJ-7 | PDF-Export Prüfberichte (kundenspezifisches Template) | Deployed | [Spec](../features/PROJ-7-pdf-export-pruefberichte.md) | 2026-10-05 |
 | PROJ-8 | Kundenportal-Zugang pro Kontakt | Deployed | [Spec](../features/PROJ-8-kundenportal-zugang-pro-kontakt.md) | 2026-10-06 |
+| PROJ-9 | PDF-Export digital signieren (Firmen-Siegel) | Roadmap | — | 2026-10-07 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-9
+## Next Available ID: PROJ-10
 
 ## Dependencies (für /write-spec)
 - PROJ-1: None
@@ -37,6 +38,7 @@
 - PROJ-6: Requires PROJ-5 (+ PROJ-1, PROJ-2) — Dataverse: neue Tabelle für Sync-Läufe (vom Nutzer anzulegen), Rechte Erstellen/Lesen/Anfügen für den App-Benutzer
 - PROJ-7: Requires PROJ-3, PROJ-4 (braucht Geräte- und Prüfbericht-Daten als Quelle für den PDF-Export)
 - PROJ-8: Requires PROJ-1, PROJ-2 — Dataverse-Rechte: Lesen auf `bmvcc_relation`, Schreiben auf `bmvcc_kontakt` (beide erteilt und verifiziert)
+- PROJ-9: Requires PROJ-7 (signiert das dort erzeugte PDF) — extern: Zertifikat einer von Adobe anerkannten Zertifizierungsstelle + Signierdienst mit API (kostenpflichtig, Anbieterwahl offen)
 
 ## Empfohlene Baureihenfolge
 1. PROJ-1 und PROJ-2 parallel (beide unabhängig, beide Grundlage für alles Weitere)
@@ -45,3 +47,4 @@
 4. PROJ-8 (Kundenportal-Zugang pro Kontakt), danach PROJ-5 (Sync-Freigabe pro Firma) — beide auf `/sync-freigabe`; vorher/parallel: Firma-Filter und Kontakt-Freigabe-Auswertung im Kundenportal-Repo umsetzen
 5. PROJ-6 (Sync-Status/-Verlauf, P1, kann auch später folgen)
 6. PROJ-7 (PDF-Export, kann unabhängig von PROJ-5/6 jederzeit nach PROJ-4 gebaut werden)
+7. PROJ-9 (PDF-Export digital signieren, P0) — als Nächstes; zuerst Anbieter/Zertifikat wählen
