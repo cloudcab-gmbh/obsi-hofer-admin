@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { istSyncKonfiguriert, starteFirmaSync } from "./kundenportal-sync";
+import { fehlendeSyncEinstellungen, istSyncKonfiguriert, starteFirmaSync } from "./kundenportal-sync";
 
 const FIRMA_ID = "37b3cb61-90c0-f111-aaaf-70a8a5061d7a";
 const fetchMock = vi.fn();
@@ -115,5 +115,28 @@ describe("starteFirmaSync", () => {
     const ergebnis = await starteFirmaSync(FIRMA_ID, "Firma");
 
     expect(ergebnis.status).toBe("unbekannt");
+  });
+});
+
+describe("fehlendeSyncEinstellungen", () => {
+  it("names (never shows values of) the missing settings", () => {
+    vi.stubEnv("KUNDENPORTAL_CRON_SECRET", "");
+    vi.stubEnv("KUNDENPORTAL_SYNC_AKTIV", "");
+
+    expect(fehlendeSyncEinstellungen()).toEqual(["KUNDENPORTAL_CRON_SECRET", "KUNDENPORTAL_SYNC_AKTIV=true"]);
+  });
+
+  // Live-Fund (2026-10-07): Werte aus der Vercel-Oberfläche können Leerzeichen
+  // oder eine andere Schreibweise enthalten.
+  it("accepts the switch case-insensitively and with surrounding whitespace", () => {
+    vi.stubEnv("KUNDENPORTAL_SYNC_AKTIV", " True ");
+
+    expect(fehlendeSyncEinstellungen()).toEqual([]);
+  });
+
+  it("treats a whitespace-only secret as missing", () => {
+    vi.stubEnv("KUNDENPORTAL_CRON_SECRET", "   ");
+
+    expect(fehlendeSyncEinstellungen()).toEqual(["KUNDENPORTAL_CRON_SECRET"]);
   });
 });

@@ -4,7 +4,7 @@ import { getCurrentFirmaId } from "@/lib/firma-session";
 import { getFirma } from "@/lib/dataverse/geraete";
 import { listKundenportalKontakteForFirma, type KundenportalKontakt } from "@/lib/dataverse/kontakte";
 import { SyncFreigabeBereich } from "@/components/sync-freigabe-bereich";
-import { istSyncKonfiguriert } from "@/lib/kundenportal-sync";
+import { fehlendeSyncEinstellungen } from "@/lib/kundenportal-sync";
 import { Card, CardContent } from "@/components/ui/card";
 
 function Hinweis({ children }: { children: React.ReactNode }) {
@@ -61,7 +61,7 @@ export default async function SyncFreigabePage() {
         firmaId={firmaId}
         firmaName={firmaName}
         kontakte={kontakte}
-        syncAktiv={istSyncKonfiguriert()}
+        fehlendeSyncEinstellungen={fehlendeSyncEinstellungen()}
       />
     </main>
   );

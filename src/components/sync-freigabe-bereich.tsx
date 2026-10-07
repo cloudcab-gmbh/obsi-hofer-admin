@@ -12,12 +12,13 @@ export function SyncFreigabeBereich({
   firmaId,
   firmaName,
   kontakte,
-  syncAktiv,
+  fehlendeSyncEinstellungen,
 }: {
   firmaId: string;
   firmaName: string;
   kontakte: KundenportalKontakt[];
-  syncAktiv: boolean;
+  /** Namen fehlender Sync-Einstellungen (leer = Sync bereit). */
+  fehlendeSyncEinstellungen: string[];
 }) {
   const [anzahlZugriffe, setAnzahlZugriffe] = useState(
     () => kontakte.filter((k) => k.freigegeben && k.email).length
@@ -26,7 +27,9 @@ export function SyncFreigabeBereich({
   return (
     <div className="space-y-6">
       <KundenportalKontakte kontakte={kontakte} firmaName={firmaName} onZugriffeChange={setAnzahlZugriffe} />
-      <SyncAusloesen firmaId={firmaId} firmaName={firmaName} anzahlZugriffe={anzahlZugriffe} syncAktiv={syncAktiv} />
+      <SyncAusloesen firmaId={firmaId} firmaName={firmaName} anzahlZugriffe={anzahlZugriffe}
+        fehlendeSyncEinstellungen={fehlendeSyncEinstellungen}
+      />
     </div>
   );
 }

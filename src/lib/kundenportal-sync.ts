@@ -50,12 +50,22 @@ const BEREICH_NAMEN: Record<string, string> = {
   artikel: "Artikel",
 };
 
+/**
+ * Namen (nie Werte!) der fehlenden bzw. nicht aktivierten Einstellungen —
+ * leer, wenn der Sync bereit ist. Live-Fund (2026-10-07): ein einfaches
+ * "nicht aktiviert" liess offen, welche Variable in Vercel fehlte.
+ */
+export function fehlendeSyncEinstellungen(): string[] {
+  const fehlend: string[] = [];
+  if (!process.env.KUNDENPORTAL_SYNC_URL?.trim()) fehlend.push("KUNDENPORTAL_SYNC_URL");
+  if (!process.env.KUNDENPORTAL_CRON_SECRET?.trim()) fehlend.push("KUNDENPORTAL_CRON_SECRET");
+  // Tolerant gegenüber Gross-/Kleinschreibung und Leerzeichen aus der Vercel-Oberfläche.
+  if (process.env.KUNDENPORTAL_SYNC_AKTIV?.trim().toLowerCase() !== "true") fehlend.push("KUNDENPORTAL_SYNC_AKTIV=true");
+  return fehlend;
+}
+
 export function istSyncKonfiguriert(): boolean {
-  return (
-    process.env.KUNDENPORTAL_SYNC_AKTIV === "true" &&
-    !!process.env.KUNDENPORTAL_SYNC_URL &&
-    !!process.env.KUNDENPORTAL_CRON_SECRET
-  );
+  return fehlendeSyncEinstellungen().length === 0;
 }
 
 function fehlerText(body: unknown): string | null {
@@ -73,8 +83,8 @@ export async function starteFirmaSync(firmaId: string, firmaName: string): Promi
     throw new Error(`firmaId muss eine gültige GUID sein, erhalten: "${firmaId}"`);
   }
 
-  const basisUrl = process.env.KUNDENPORTAL_SYNC_URL;
-  const secret = process.env.KUNDENPORTAL_CRON_SECRET;
+  const basisUrl = process.env.KUNDENPORTAL_SYNC_URL?.trim();
+  const secret = process.env.KUNDENPORTAL_CRON_SECRET?.trim();
   if (!istSyncKonfiguriert() || !basisUrl || !secret) {
     return { status: "fehler", meldung: "Der Sync ist nicht konfiguriert.", bereiche: [], probleme: [] };
   }

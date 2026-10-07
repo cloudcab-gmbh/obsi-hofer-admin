@@ -157,6 +157,8 @@ Umgesetzt in einem Durchlauf (UI + Server Action + Endpoint-Aufruf), wie bei PRO
 **Abweichung vom Tech Design:** Sicherheitsschalter `KUNDENPORTAL_SYNC_AKTIV` und die Mehr-als-eine-Firma-Erkennung zusätzlich eingeführt (siehe Technical Decisions). Die Sperre zählt nur freigegebene Kontakte **mit E-Mail** (nur diese können sich anmelden) — konsistent mit der serverseitigen Prüfung.
 
 **Nicht verifiziert:** Ein echter Aufruf des Kundenportal-Endpoints (bewusst nicht ausgeführt, solange dort der Firma-Filter nicht deployt ist) und die Oberfläche mit echtem Freigeber-Login.
+**Live-Fund (2026-10-07):** Nach dem Setzen der Variablen in Vercel zeigte die Seite weiterhin "noch nicht aktiviert", ohne erkennbaren Grund. Angepasst: der Hinweis nennt jetzt die **Namen** (nie Werte) der fehlenden Einstellungen (`fehlendeSyncEinstellungen()`); der Schalter akzeptiert `true` unabhängig von Gross-/Kleinschreibung und umgebenden Leerzeichen; URL und Secret werden vor der Verwendung getrimmt (ein Leerzeichen im Secret hätte sonst zu 401 geführt). Typische Ursache bleibt ein fehlendes Redeploy nach dem Setzen der Variablen bzw. die falsche Umgebung (nicht *Production*). +3 Tests, `npm test` 234/234.
+
 
 **Zum Aktivieren (in dieser Reihenfolge):**
 1. Kundenportal-Repo: die lokalen Commits (Firma-Filter PROJ-12 u.a.) pushen und Deploy abwarten

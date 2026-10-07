@@ -30,15 +30,16 @@ export function SyncAusloesen({
   firmaId,
   firmaName,
   anzahlZugriffe,
-  syncAktiv,
+  fehlendeSyncEinstellungen,
 }: {
   firmaId: string;
   firmaName: string;
   /** Freigegebene Kontakte mit E-Mail (live aus dem Kontakt-Bereich). */
   anzahlZugriffe: number;
-  /** Sync im Admin-Tool aktiviert und konfiguriert (KUNDENPORTAL_SYNC_AKTIV etc.). */
-  syncAktiv: boolean;
+  /** Namen fehlender Sync-Einstellungen in Vercel (leer = Sync bereit) — nie Werte. */
+  fehlendeSyncEinstellungen: string[];
 }) {
+  const syncAktiv = fehlendeSyncEinstellungen.length === 0;
   const [laeuft, setLaeuft] = useState(false);
   const [ergebnis, setErgebnis] = useState<SyncErgebnis | null>(null);
 
@@ -79,7 +80,8 @@ export function SyncAusloesen({
         {!syncAktiv ? (
           <p className="text-sm text-muted-foreground">
             Der Sync ist noch nicht aktiviert. Er wird freigeschaltet, sobald die Anpassung im Kundenportal ausgerollt
-            ist.
+            ist. Fehlende Einstellung in Vercel:{" "}
+            <span className="font-mono">{fehlendeSyncEinstellungen.join(", ")}</span>
           </p>
         ) : anzahlZugriffe === 0 ? (
           <p className="text-sm text-muted-foreground">

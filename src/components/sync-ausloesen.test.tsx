@@ -25,21 +25,22 @@ beforeEach(() => {
 
 describe("SyncAusloesen", () => {
   it("is disabled with a hint while no contact with email is granted", () => {
-    render(<SyncAusloesen firmaId={FIRMA_ID} firmaName="Beispiel AG" anzahlZugriffe={0} syncAktiv />);
+    render(<SyncAusloesen firmaId={FIRMA_ID} firmaName="Beispiel AG" anzahlZugriffe={0} fehlendeSyncEinstellungen={[]} />);
 
     expect(button()).toBeDisabled();
     expect(screen.getByText(/mindestens einen Kontakt/)).toBeInTheDocument();
   });
 
   it("is disabled with a hint while the sync is not activated", () => {
-    render(<SyncAusloesen firmaId={FIRMA_ID} firmaName="Beispiel AG" anzahlZugriffe={2} syncAktiv={false} />);
+    render(<SyncAusloesen firmaId={FIRMA_ID} firmaName="Beispiel AG" anzahlZugriffe={2} fehlendeSyncEinstellungen={["KUNDENPORTAL_SYNC_AKTIV=true"]} />);
 
     expect(button()).toBeDisabled();
     expect(screen.getByText(/noch nicht aktiviert/)).toBeInTheDocument();
+    expect(screen.getByText("KUNDENPORTAL_SYNC_AKTIV=true")).toBeInTheDocument();
   });
 
   it("asks for confirmation with Firma and number of contacts, and does nothing on cancel", async () => {
-    render(<SyncAusloesen firmaId={FIRMA_ID} firmaName="Beispiel AG" anzahlZugriffe={2} syncAktiv />);
+    render(<SyncAusloesen firmaId={FIRMA_ID} firmaName="Beispiel AG" anzahlZugriffe={2} fehlendeSyncEinstellungen={[]} />);
 
     fireEvent.click(button());
     expect(await screen.findByText(/„Beispiel AG“.*2 Kontakte haben danach Zugriff/)).toBeInTheDocument();
@@ -58,7 +59,7 @@ describe("SyncAusloesen", () => {
         probleme: [],
       },
     });
-    render(<SyncAusloesen firmaId={FIRMA_ID} firmaName="Beispiel AG" anzahlZugriffe={1} syncAktiv />);
+    render(<SyncAusloesen firmaId={FIRMA_ID} firmaName="Beispiel AG" anzahlZugriffe={1} fehlendeSyncEinstellungen={[]} />);
 
     await bestaetigen();
 
@@ -70,7 +71,7 @@ describe("SyncAusloesen", () => {
 
   it("shows the refusal message from the action as a failure", async () => {
     syncFirmaAction.mockResolvedValue({ success: false, message: "Der Sync ist noch nicht aktiviert bzw. nicht konfiguriert." });
-    render(<SyncAusloesen firmaId={FIRMA_ID} firmaName="Beispiel AG" anzahlZugriffe={1} syncAktiv />);
+    render(<SyncAusloesen firmaId={FIRMA_ID} firmaName="Beispiel AG" anzahlZugriffe={1} fehlendeSyncEinstellungen={[]} />);
 
     await bestaetigen();
 
@@ -79,7 +80,7 @@ describe("SyncAusloesen", () => {
 
   it("shows 'unknown' and unlocks the button when the action call itself throws", async () => {
     syncFirmaAction.mockRejectedValue(new Error("Failed to find Server Action"));
-    render(<SyncAusloesen firmaId={FIRMA_ID} firmaName="Beispiel AG" anzahlZugriffe={1} syncAktiv />);
+    render(<SyncAusloesen firmaId={FIRMA_ID} firmaName="Beispiel AG" anzahlZugriffe={1} fehlendeSyncEinstellungen={[]} />);
 
     await bestaetigen();
 
