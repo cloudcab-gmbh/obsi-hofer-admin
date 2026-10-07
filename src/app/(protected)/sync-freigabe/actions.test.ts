@@ -107,6 +107,7 @@ describe("syncFirmaAction", () => {
     listKundenportalKontakteForFirma.mockResolvedValue([kontakt()]);
     starteFirmaSync.mockResolvedValue(ERFOLG);
     erstelleSyncLauf.mockImplementation(async (l: { ergebnis: unknown }) => ({ id: "lauf-1", ergebnis: l.ergebnis }));
+    listSyncLaeufeForFirma.mockResolvedValue({ laeufe: [], hatMehr: false });
   }
 
   it("refuses a non-Freigeber without calling the Kundenportal", async () => {
@@ -199,6 +200,29 @@ describe("syncFirmaAction", () => {
     expect(erstelleSyncLauf).not.toHaveBeenCalled();
   });
 
+
+  // Nutzer-Entscheidung 2026-10-07: Entzug des letzten Kontakts muss ins Portal gelangen können.
+  it("allows a sync without granted contacts when the Firma was already transferred before", async () => {
+    bereit();
+    listKundenportalKontakteForFirma.mockResolvedValue([kontakt({ freigegeben: false })]);
+    listSyncLaeufeForFirma.mockResolvedValue({ laeufe: [{ ergebnis: { status: "erfolg" } }], hatMehr: false });
+
+    const result = await syncFirmaAction(FIRMA_ID);
+
+    expect(result.success).toBe(true);
+    expect(starteFirmaSync).toHaveBeenCalledWith(FIRMA_ID, "Beispiel AG");
+  });
+
+  it("still refuses a sync without granted contacts when earlier runs all failed (nothing reached the portal)", async () => {
+    bereit();
+    listKundenportalKontakteForFirma.mockResolvedValue([kontakt({ freigegeben: false })]);
+    listSyncLaeufeForFirma.mockResolvedValue({ laeufe: [{ ergebnis: { status: "fehler" } }], hatMehr: false });
+
+    const result = await syncFirmaAction(FIRMA_ID);
+
+    expect(result.success).toBe(false);
+    expect(starteFirmaSync).not.toHaveBeenCalled();
+  });
   it("still returns the sync result when saving the history entry fails (lauf: null)", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     bereit();

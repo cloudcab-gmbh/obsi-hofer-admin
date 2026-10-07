@@ -25,6 +25,7 @@ export function SyncAusloesen({
   anzahlZugriffe,
   fehlendeSyncEinstellungen,
   onNeuerLauf,
+  bereitsUebertragen = false,
 }: {
   firmaId: string;
   firmaName: string;
@@ -34,13 +35,17 @@ export function SyncAusloesen({
   fehlendeSyncEinstellungen: string[];
   /** PROJ-6: neuer, gespeicherter Verlaufseintrag — erscheint ohne Neuladen oben im Verlauf. */
   onNeuerLauf?: (lauf: SyncLauf) => void;
+  /** Firma wurde schon einmal ins Portal übertragen (Lauf im Verlauf ausser "fehler"). */
+  bereitsUebertragen?: boolean;
 }) {
   const syncAktiv = fehlendeSyncEinstellungen.length === 0;
   const [laeuft, setLaeuft] = useState(false);
   const [ergebnis, setErgebnis] = useState<SyncErgebnis | null>(null);
   const [verlaufNichtGespeichert, setVerlaufNichtGespeichert] = useState(false);
 
-  const gesperrt = !syncAktiv || anzahlZugriffe === 0 || laeuft;
+  // Ohne freigegebenen Kontakt nur gesperrt, solange die Firma noch nie übertragen wurde
+  // (sonst liesse sich der Entzug des letzten Kontakts nie ins Portal bringen).
+  const gesperrt = !syncAktiv || laeuft || (anzahlZugriffe === 0 && !bereitsUebertragen);
 
   async function synchronisieren() {
     setLaeuft(true);
@@ -85,9 +90,13 @@ export function SyncAusloesen({
             ist. Fehlende Einstellung in Vercel:{" "}
             <span className="font-mono">{fehlendeSyncEinstellungen.join(", ")}</span>
           </p>
-        ) : anzahlZugriffe === 0 ? (
+        ) : anzahlZugriffe === 0 && !bereitsUebertragen ? (
           <p className="text-sm text-muted-foreground">
             Zuerst mindestens einen Kontakt mit E-Mail-Adresse fürs Kundenportal freigeben.
+          </p>
+        ) : anzahlZugriffe === 0 ? (
+          <p className="text-sm text-status-warning">
+            Kein Kontakt ist freigegeben. Ein Sync entzieht allen bisherigen Kontakten den Zugang zum Kundenportal.
           </p>
         ) : null}
 
@@ -102,7 +111,13 @@ export function SyncAusloesen({
               <AlertDialogTitle>Daten ins Kundenportal übertragen?</AlertDialogTitle>
               <AlertDialogDescription>
                 Die Daten von „{firmaName}“ werden ins Kundenportal übertragen.{" "}
-                {anzahlZugriffe === 1 ? "1 Kontakt hat" : `${anzahlZugriffe} Kontakte haben`} danach Zugriff.
+                {anzahlZugriffe === 0 ? (
+                  <strong>Danach hat kein Kontakt mehr Zugriff — bestehende Zugänge werden entzogen.</strong>
+                ) : anzahlZugriffe === 1 ? (
+                  "1 Kontakt hat danach Zugriff."
+                ) : (
+                  `${anzahlZugriffe} Kontakte haben danach Zugriff.`
+                )}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

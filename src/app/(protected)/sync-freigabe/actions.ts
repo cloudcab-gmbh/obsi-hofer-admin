@@ -8,6 +8,7 @@ import { getFirma } from "@/lib/dataverse/geraete";
 import { DataverseError } from "@/lib/dataverse/errors";
 import { istSyncKonfiguriert, starteFirmaSync, type SyncErgebnis } from "@/lib/kundenportal-sync";
 import { erstelleSyncLauf, listSyncLaeufeForFirma, type SyncLauf } from "@/lib/dataverse/sync-laeufe";
+import { wurdeBereitsUebertragen } from "@/lib/sync-lauf-regeln";
 
 export type KontaktFreigabeResult = { success: true } | { success: false; message: string };
 
@@ -85,11 +86,17 @@ export async function syncFirmaAction(firmaId: string): Promise<FirmaSyncResult>
     const [firma, kontakte] = await Promise.all([getFirma(parsed.data), listKundenportalKontakteForFirma(parsed.data)]);
     firmaName = firma.name;
     // Serverseitige Wiederholung der Sperre (z.B. letzte Freigabe in einem anderen Tab entzogen).
+    // Nutzer-Entscheidung 2026-10-07: Ohne freigegebenen Kontakt ist der Sync
+    // trotzdem erlaubt, wenn die Firma schon einmal übertragen wurde — sonst
+    // liesse sich der Entzug des letzten Kontakts nie ins Portal bringen.
     if (!kontakte.some((k) => k.freigegeben && k.email)) {
-      return {
-        success: false,
-        message: "Zuerst mindestens einen Kontakt mit E-Mail-Adresse fürs Kundenportal freigeben.",
-      };
+      const { laeufe } = await listSyncLaeufeForFirma(parsed.data);
+      if (!wurdeBereitsUebertragen(laeufe)) {
+        return {
+          success: false,
+          message: "Zuerst mindestens einen Kontakt mit E-Mail-Adresse fürs Kundenportal freigeben.",
+        };
+      }
     }
   } catch (error) {
     const message = error instanceof DataverseError ? error.message : "Die Firmendaten konnten nicht geprüft werden.";

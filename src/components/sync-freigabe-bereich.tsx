@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { KundenportalKontakt } from "@/lib/dataverse/kontakte";
 import type { SyncLauf } from "@/lib/dataverse/sync-laeufe";
+import { wurdeBereitsUebertragen } from "@/lib/sync-lauf-regeln";
 import { KundenportalKontakte } from "@/components/kundenportal-kontakte";
 import { SyncAusloesen } from "@/components/sync-ausloesen";
 import { SyncVerlauf } from "@/components/sync-verlauf";
@@ -75,6 +76,7 @@ export function SyncFreigabeBereich({
         anzahlZugriffe={anzahlZugriffe}
         fehlendeSyncEinstellungen={fehlendeSyncEinstellungen}
         onNeuerLauf={neuerLauf}
+        bereitsUebertragen={wurdeBereitsUebertragen(laeufe)}
       />
       <SyncVerlauf
         laeufe={laeufe}

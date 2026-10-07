@@ -34,7 +34,8 @@
 **Format:** Angenommen [Vorbedingung] / Wenn [Aktion] / Dann [Ergebnis]
 
 - [ ] Angenommen ein Freigeber hat eine Firma gewählt und mindestens ein aktiver Kontakt dieser Firma ist fürs Kundenportal freigegeben, wenn er `/sync-freigabe` öffnet, dann sieht er unterhalb der Kontaktliste (PROJ-8) einen aktiven Button "Freigeben & synchronisieren"
-- [ ] Angenommen kein aktiver Kontakt der gewählten Firma ist freigegeben, wenn die Seite lädt, dann ist der Sync-Button deaktiviert und ein Hinweis "Zuerst mindestens einen Kontakt fürs Kundenportal freigeben" wird angezeigt
+- [x] Angenommen kein aktiver Kontakt der gewählten Firma ist freigegeben **und die Firma wurde noch nie übertragen**, wenn die Seite lädt, dann ist der Sync-Button deaktiviert und ein Hinweis "Zuerst mindestens einen Kontakt fürs Kundenportal freigeben" wird angezeigt
+- [x] *(ergänzt 2026-10-07, Nutzer-Entscheidung)* Angenommen kein Kontakt ist (mehr) freigegeben, die Firma wurde aber schon einmal ins Portal übertragen (Lauf im Sync-Verlauf mit Ergebnis ausser "fehlgeschlagen"), wenn die Seite lädt, dann ist der Sync-Button aktiv, ein Warnhinweis erklärt, dass ein Sync allen bisherigen Kontakten den Zugang entzieht, und der Bestätigungsdialog sagt ausdrücklich "Danach hat kein Kontakt mehr Zugriff — bestehende Zugänge werden entzogen"
 - [ ] Angenommen der Freigeber gibt auf derselben Seite den ersten Kontakt frei, wenn die Freigabe gespeichert ist, dann wird der Sync-Button ohne Neuladen der Seite aktiv
 - [ ] Angenommen der Sync-Button ist aktiv, wenn der Freigeber darauf klickt, dann erscheint ein Bestätigungsdialog mit dem Firmennamen und der Anzahl freigegebener Kontakte, und der Sync startet erst nach Bestätigung
 - [ ] Angenommen der Bestätigungsdialog ist offen, wenn der Freigeber abbricht, dann wird kein Sync ausgelöst
@@ -74,6 +75,7 @@ _Geklärt am 2026-10-07 durch Lesen des Kundenportal-Codes (dort PROJ-12, lokal 
 |----------|-----------|------|
 | Sync wird immer für die aktuell gewählte Session-Firma ausgelöst, keine Firmenliste auf der Seite | Konsistent mit Geräte/Prüfberichte; Firmenwechsel wie gewohnt über `/start` | 2026-10-06 |
 | Sync ist gesperrt, solange kein aktiver Kontakt der Firma fürs Kundenportal freigegeben ist | Verhindert, dass Daten im Portal landen, die niemand sehen kann; erzwingt die vom Nutzer gewünschte Reihenfolge "erst Kontakte freigeben, dann synchronisieren" | 2026-10-06 |
+| **Korrektur (2026-10-07, Live-Fund):** Ohne freigegebenen Kontakt ist der Sync erlaubt, sobald die Firma schon einmal übertragen wurde (Lauf im Verlauf ausser "fehlgeschlagen"); gesperrt bleibt nur der allererste Sync | Mit der ursprünglichen Regel liess sich der Entzug des letzten freigegebenen Kontakts nie ins Portal bringen — der Entzug wirkt erst mit dem nächsten Sync, und genau der war gesperrt. Auswahl unter drei Optionen durch den Nutzer (Alternativen: Sperre ganz aufheben; separater Button "Zugänge entziehen") | 2026-10-07 |
 | Bestätigungsdialog mit Zusammenfassung (Firma, Anzahl freigegebener Kontakte) vor dem Auslösen | Nach dem Sync sehen Kunden die Daten — Schutz vor versehentlichem Klick oder falscher Firma | 2026-10-06 |
 | Oberfläche wartet auf das Ergebnis des Endpoints und zeigt Erfolg/Fehler direkt an | Freigeber bekommt sofort Gewissheit; ein dauerhafter Verlauf bleibt PROJ-6 vorbehalten | 2026-10-06 |
 | Kontakt-Freigabe (PROJ-8) und Sync-Auslösung (PROJ-5) auf derselben Seite `/sync-freigabe` | Ein zusammenhängender Arbeitsablauf für den Freigeber; der Menüpunkt existiert bereits (PROJ-1) | 2026-10-06 |
@@ -236,3 +238,10 @@ Keine (0 critical, 0 high, 0 medium, 0 low).
   - Produktion: `/login` HTTP 200; `/sync-freigabe` ohne Session per 307 auf `/login`
   - Funktion live: Sync für "Cloudcab GmbH" überträgt genau 1 Firma inkl. 8 Geräte / 18 Prüfberichte, grüne Erfolgsmeldung mit Zahlen
 - **Offen im Kundenportal-Repo (empfohlen):** `firmaId` verpflichtend machen (fehlend → 400); `ignoreCommand` auf `VERCEL_GIT_PREVIOUS_SHA` umstellen (falls noch nicht erfolgt); Kontakt-Freigabe-Auswertung (dort PROJ-13) umsetzen, damit das Häkchen aus PROJ-8 im Portal wirkt
+
+## Nachtrag (2026-10-07): Entzug des letzten Kontakts
+- **Live-Fund:** War nur ein Kontakt freigegeben und wurde dieser entzogen, sperrte der Sync-Button — der Entzug konnte so nie ins Portal gelangen.
+- **Umsetzung:** Neue reine Regel `wurdeBereitsUebertragen()` in `src/lib/sync-lauf-regeln.ts` (bewusst server-frei, da sie im Browser und in der Server Action läuft; nicht in `dataverse/sync-laeufe.ts`, das den Dataverse-Client importiert). `SyncAusloesen` erhält `bereitsUebertragen` aus dem Verlauf (PROJ-6): bei 0 Kontakten Button aktiv, orangefarbener Warnhinweis, fett hervorgehobene Warnung im Dialog. `syncFirmaAction` prüft serverseitig dieselbe Regel anhand der ersten Verlaufsseite, bevor sie bei 0 Kontakten den Sync zulässt.
+- **Einschränkung:** Firmen, die nur vor dem Deploy des Sync-Verlaufs (PROJ-6) übertragen wurden, gelten als "noch nie übertragen" — betrifft nur den Fall, dass bei einer solchen Firma der letzte Kontakt entzogen wird, bevor sie erneut synchronisiert wurde. Ein erneuter Sync mit mindestens einem freigegebenen Kontakt hebt das auf.
+- **Hinweis:** Im Portal wirkt der Entzug erst, wenn dort PROJ-13 (Auswertung des Häkchens) umgesetzt ist.
+- **Tests:** `sync-lauf-regeln.test.ts` (5), `sync-freigabe/actions.test.ts` (+2), `sync-ausloesen.test.tsx` (+2) — `npm test` 269/269, Lint, TypeScript, Build grün; Client-Bundle frei von Secrets/Dataverse-Login (geprüft)

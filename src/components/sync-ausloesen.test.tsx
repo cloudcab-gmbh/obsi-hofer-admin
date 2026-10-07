@@ -112,3 +112,23 @@ describe("SyncAusloesen", () => {
     expect(button()).not.toBeDisabled();
   });
 });
+
+// Nutzer-Entscheidung 2026-10-07: Entzug des letzten Kontakts muss ins Portal gelangen können.
+describe("SyncAusloesen — ohne freigegebenen Kontakt", () => {
+  it("stays enabled with a warning when the Firma was already transferred", async () => {
+    render(<SyncAusloesen firmaId={FIRMA_ID} firmaName="Beispiel AG" anzahlZugriffe={0} fehlendeSyncEinstellungen={[]} bereitsUebertragen />);
+
+    expect(button()).not.toBeDisabled();
+    expect(screen.getByText(/entzieht allen bisherigen Kontakten den Zugang/)).toBeInTheDocument();
+
+    fireEvent.click(button());
+    expect(await screen.findByText(/Danach hat kein Kontakt mehr Zugriff — bestehende Zugänge werden entzogen/)).toBeInTheDocument();
+  });
+
+  it("stays disabled for the very first sync of a Firma", () => {
+    render(<SyncAusloesen firmaId={FIRMA_ID} firmaName="Beispiel AG" anzahlZugriffe={0} fehlendeSyncEinstellungen={[]} bereitsUebertragen={false} />);
+
+    expect(button()).toBeDisabled();
+    expect(screen.getByText(/Zuerst mindestens einen Kontakt/)).toBeInTheDocument();
+  });
+});
