@@ -200,3 +200,8 @@ Keine.
   - Nutzer hat die Produktions-Redirect-URI (`https://obsi-hofer-admin.vercel.app/api/auth/callback/microsoft-entra-id`) zusätzlich zur lokalen in der Entra-App-Registrierung ergänzt
 - **Verifiziert:** `npm run build`/Lint lokal fehlerfrei vor dem Deploy; strukturell per Skript geprüft, dass der Login-Button in Produktion korrekt mit der richtigen `redirect_uri` zu Microsoft führt; **kompletter echter Login-Flow in Produktion vom Nutzer bestätigt** (landet korrekt auf `/start`)
 - **Tag:** `v1.0.0-PROJ-1`
+
+## Nachtrag (2026-10-07): Header auf dem Handy
+- **Nutzer-Fund:** Auf dem Handy sah der Header schlecht aus. Ursache: feste Höhe `h-14` kombiniert mit `flex-wrap` — die umgebrochene Zeile (Menüpunkte, Abmelden, Dark-Mode-Schalter) ragte aus dem Header in den Seiteninhalt; Firma und Firmenwechsel waren unterhalb von `sm` ganz ausgeblendet und damit auf dem Handy nicht erreichbar.
+- **Umsetzung:** Unterhalb von `lg` zeigt der Header nur Logo, Dark-Mode-Schalter und einen Menü-Button. Der öffnet ein seitliches Menü (`src/components/mobile-nav.tsx`, shadcn `Sheet`) mit den Menüpunkten (Freigabe weiterhin nur für Freigeber), der aktuellen Firma inkl. Link "wechseln" zu `/start`, dem Benutzernamen und "Abmelden" (gleiche Server Action `signOutEverywhere`). Ab `lg` die bisherige einzeilige Darstellung, ohne `flex-wrap`; der Firmenname wird bei Platzmangel gekürzt (vollständig im Tooltip), der Benutzername erst ab `xl` gezeigt.
+- **Tests:** `mobile-nav.test.tsx` (4: geschlossen bis zum Klick, alle Links + Firma + Name + Abmelden, "keine ausgewählt", schliesst nach Linkwahl) — `npm test` 273/273, Build und E2E grün. Visuell nicht selbst geprüft (Header nur nach Login sichtbar).
