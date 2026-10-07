@@ -1,6 +1,6 @@
 # PROJ-6: Sync-Status/-Verlauf einsehen
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-10-07
 **Last Updated:** 2026-10-07
 
@@ -62,7 +62,8 @@
 - Der Verlauf darf das Auslösen des Syncs nicht verzögern oder verhindern
 
 ## Open Questions
-- [ ] Struktur und Name der neuen Dataverse-Tabelle (Spalten, Lookup auf die Firma, Speichergrenze für Zahlen/Probleme) — festzulegen in `/architecture`, anzulegen durch den Nutzer
+- [x] Struktur und Name der neuen Dataverse-Tabelle — **festgelegt in `/architecture`** (siehe Tech Design B)
+- [ ] Tabelle "Sync-Lauf" im Maker anlegen und Rechte vergeben (inkl. "Anfügen an" auf Firma) — durch den Nutzer; danach die technischen Spaltennamen aus den Metadaten verifizieren
 - [ ] Aufbewahrungsdauer — vorerst unbegrenzt (wenige Läufe pro Tag zu erwarten); ob später alte Einträge automatisch entfernt werden sollen, ist offen
 
 ## Decision Log
@@ -84,12 +85,71 @@
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Neue eigene Dataverse-Tabelle "Sync-Lauf" mit wenigen festen Spalten plus einer mehrzeiligen Spalte "Details" für Zahlen und Probleme | Zahlen je Bereich und Problemlisten sind variabel (Anzahl Bereiche/Probleme); eine Detailspalte hält die Tabelle schlank und das Anlegen im Maker einfach, während Firma/Zeitpunkt/Ergebnis als eigene Spalten filter- und sortierbar bleiben | 2026-10-07 |
+| Ergebnis als Text-Spalte mit vier festen Werten statt Auswahl-Spalte (Choice) | Gleiches Muster wie das Prüfergebnis (`bmvcc_inspectionresult`, String); keine numerischen Choice-Codes, die im Maker vergeben und im Code nachgeführt werden müssten | 2026-10-07 |
+| Eigene Spalte "Gestartet am" statt des Systemfelds "Erstellt am" | Der Eintrag wird erst nach dem Sync geschrieben; der fachlich relevante Zeitpunkt ist der Start | 2026-10-07 |
+| Eigene Spalte "Dauer (Sekunden)" | Beantwortet nebenbei die offene PROJ-5-Frage nach der realen Laufzeit eines Firma-Syncs | 2026-10-07 |
+| Der Eintrag wird in derselben Server Action geschrieben, die den Sync auslöst — direkt nach der Antwort des Kundenportals, in einem eigenen Fehlerpfad | Erfasst jeden Aufruf genau einmal, unabhängig davon, ob der Browser die Antwort noch empfängt (Edge Case Verbindungsabbruch); ein Fehler beim Schreiben darf das Sync-Ergebnis nicht verdecken | 2026-10-07 |
+| "Mehr anzeigen" lädt die nächsten 20 Läufe, die älter sind als der zuletzt angezeigte (Startzeitpunkt) | Einfache, stabile Fortsetzung ohne Seitennummern; neue Läufe oben verschieben die Liste nicht | 2026-10-07 |
+| Lesen des Verlaufs über die Seite (erste 20) und eine eigene Server Action ("Mehr anzeigen"), beide mit Freigeber-Prüfung | Gleiche Absicherung wie PROJ-5/PROJ-8 | 2026-10-07 |
+| Darstellung der Details als gemeinsame Komponente mit dem Sync-Ergebnis aus PROJ-5 | Spec verlangt dieselbe Darstellung wie direkt nach dem Sync; eine Komponente statt zwei auseinanderlaufender Kopien | 2026-10-07 |
+| shadcn `collapsible` für das Aufklappen der Einträge (neu zu installieren) | shadcn-first-Regel; leichtgewichtiger als ein Accordion | 2026-10-07 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### A) Component Structure
+```
+/sync-freigabe (bestehend, nur Freigeber)
++-- Kundenportal-Zugang (PROJ-8, unverändert)
++-- Ins Kundenportal übertragen (PROJ-5)
+|   +-- nach dem Sync zusätzlich: Hinweis, falls der Lauf nicht im Verlauf gespeichert werden konnte
++-- NEU: Sync-Verlauf
+    +-- Letzter Lauf (hervorgehoben): Zeitpunkt, Ergebnis-Badge, ausgelöst von
+    +-- Liste der Läufe (neueste zuerst, 20 pro Ladevorgang)
+    |   +-- Zeile: Datum/Uhrzeit · ausgelöst von · Ergebnis-Badge · Dauer
+    |   +-- aufklappbar: Meldung + Problemliste + Zahlentabelle (gleiche Komponente wie in PROJ-5)
+    +-- "Mehr anzeigen" (nur wenn ältere Läufe existieren)
+    +-- Leer-Zustand: "Noch kein Sync für diese Firma"
+    +-- Fehler-Zustand: "Der Verlauf konnte nicht geladen werden" (Rest der Seite bleibt bedienbar)
+
+Nach einem Sync erscheint der neue Lauf sofort oben in der Liste (ohne Neuladen).
+```
+
+### B) Data Model — neue Dataverse-Tabelle (vom Nutzer anzulegen)
+
+**Tabelle:** Anzeigename "Sync-Lauf" (Mehrzahl "Sync-Läufe"), im selben Herausgeber/Präfix wie die übrigen Tabellen (`bmvcc_`)
+
+| Spalte (Anzeigename) | Typ | Inhalt |
+|---|---|---|
+| Name *(Primärspalte)* | Text, 200 | Lesbare Bezeichnung, z.B. "Cloudcab GmbH – 07.10.2026 14:32" |
+| Firma | Lookup → Firma (`bmvcc_firma`) | Die synchronisierte Firma |
+| Gestartet am | Datum und Uhrzeit | Zeitpunkt, an dem der Sync ausgelöst wurde |
+| Dauer (Sekunden) | Ganze Zahl | Laufzeit bis zur Antwort des Kundenportals |
+| Ausgelöst von | Text, 200 | Name des Freigebers zum Zeitpunkt des Syncs |
+| Ergebnis | Text, 20 | genau einer von: `erfolg`, `teilweise`, `fehler`, `unbekannt` |
+| Meldung | Text, 500 | Kurzmeldung wie in der Anzeige |
+| Details | Mehrzeiliger Text, max. 100'000 Zeichen | Zahlen je Bereich + Problemliste in maschinenlesbarer Form; bei Überschreitung gekürzt mit Vermerk |
+
+**Rechte für den App-Benutzer "# OBSI Hofer Admin"** (Organisation):
+- Tabelle Sync-Lauf: **Erstellen, Lesen, Anfügen**
+- Tabelle Firma (`bmvcc_firma`): zusätzlich **"Anfügen an"** — heute nur Lesen (verifiziert 2026-10-07); ohne dieses Recht scheitert das Setzen des Firma-Lookups (gleiche Ursache wie beim ersten Prüfbericht in PROJ-4)
+
+Nicht nötig: Schreiben/Löschen auf Sync-Lauf (Einträge werden nie geändert oder gelöscht).
+
+### C) Tech Decisions (für PM erklärt)
+- **Speicherort Dataverse:** Keine eigene Datenbank (PRD); eine schlanke neue Tabelle, die der Nutzer selbst im Maker anlegt.
+- **Wenige feste Spalten + eine Detailspalte:** Alles, wonach gefiltert oder sortiert wird (Firma, Zeitpunkt, Ergebnis), hat eine eigene Spalte; die variablen Zahlen und Probleme liegen gesammelt in "Details".
+- **Protokolliert wird auf dem Server, direkt nach der Antwort des Kundenportals:** So wird jeder Lauf erfasst, auch wenn der Browser die Antwort nicht mehr empfängt. Scheitert das Speichern, sieht der Freigeber trotzdem das Sync-Ergebnis — mit einem Hinweis.
+- **Dauer wird mitgespeichert:** Damit lässt sich die bisher offene Frage beantworten, wie lange ein Firma-Sync tatsächlich dauert.
+- **Gleiche Ergebnis-Darstellung wie direkt nach dem Sync:** Eine gemeinsame Anzeige-Komponente für "gerade eben" und "im Verlauf".
+
+### D) Dependencies
+- Neue shadcn-Komponente: `collapsible` (Aufklappen der Einträge)
+- Keine neuen npm-Pakete
+- Dataverse: neue Tabelle + Rechte (siehe B), vom Nutzer einzurichten; die tatsächlichen technischen Spaltennamen werden nach dem Anlegen aus den Dataverse-Metadaten gelesen, bevor `/frontend` startet
 
 ## QA Test Results
 _To be added by /qa_
