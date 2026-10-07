@@ -4,6 +4,8 @@
 **An:** Repo Kundenportal (`obsi-hoferkundenportal.vercel.app`)
 **Stand:** 2026-10-06
 
+> **Status 2026-10-07: vollständig umgesetzt und deployt.** Im Kundenportal-Repo als PROJ-12 (Firma-Filter, inzwischen Pflichtparameter — ohne `firmaId` wird abgelehnt) und PROJ-13 (Portal-Zugang nur für Kontakte mit Häkchen `bmvcc_kundenportal`). Bemerkungen kommen aus `bmvcc_bemerkungen`, der nächtliche Sync-Cron ist entfernt, das `ignoreCommand` nutzt `VERCEL_GIT_PREVIOUS_SHA`. Die vier Rückmeldepunkte sind in der Admin-Spec PROJ-5 beantwortet (Laufzeit eines Firma-Syncs gemessen: 8 s). Dieses Dokument bleibt als Übergabe-Historie erhalten.
+
 Dieses Dokument beschreibt, was im Kundenportal-Repo geändert werden muss, damit das Admin-Tool den Sync gezielt pro Firma auslösen kann. Es ist die Grundlage für eine eigene Spec im Kundenportal-Repo. Die Umsetzung erfolgt dort, im Kundenportal-Repo; das Admin-Tool ruft nur den Endpoint auf.
 
 ## Hintergrund

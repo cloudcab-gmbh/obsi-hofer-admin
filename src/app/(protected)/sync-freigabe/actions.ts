@@ -71,7 +71,7 @@ export async function syncFirmaAction(firmaId: string): Promise<FirmaSyncResult>
     return { success: false, message: "Nur Freigeber dürfen den Sync ins Kundenportal auslösen." };
   }
 
-  // Ohne geprüfte Firma-ID nie aufrufen: der Endpoint würde sonst ALLE Firmen synchronisieren.
+  // Ohne geprüfte Firma-ID nie aufrufen (Verteidigungslinie gegen einen Gesamt-Sync, siehe kundenportal-sync.ts).
   const parsed = z.guid().safeParse(firmaId);
   if (!parsed.success) {
     return { success: false, message: "Ungültige Firma-ID." };

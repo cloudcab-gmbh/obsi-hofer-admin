@@ -9,7 +9,7 @@
 - Requires: PROJ-2 (Dataverse-Web-API-Anbindung) — Lesen der Kontakte/Firmen-Zuordnung, Schreiben des Freigabe-Häkchens
 - Nutzt die globale Firma-Session aus PROJ-3 (`firma-session.ts`)
 - Wird vorausgesetzt von: PROJ-5 (Sync-Freigabe pro Firma) — ein Sync ist erst möglich, wenn mindestens ein Kontakt der Firma freigegeben ist
-- **Cross-Repo-Abhängigkeit:** Der Sync im Kundenportal-Repo muss künftig nur Kontakte mit gesetztem Freigabe-Häkchen als Portal-Benutzer übernehmen und den Zugang entzogener Kontakte sperren — dort separat umzusetzen (zusammen mit dem Firma-Filter aus PROJ-5)
+- **Cross-Repo-Abhängigkeit:** Der Sync im Kundenportal-Repo muss künftig nur Kontakte mit gesetztem Freigabe-Häkchen als Portal-Benutzer übernehmen und den Zugang entzogener Kontakte sperren — dort separat umzusetzen (zusammen mit dem Firma-Filter aus PROJ-5) **— erledigt 2026-10-07 (dort PROJ-13, deployt).**
 - **Dataverse-Voraussetzung:** Der App-Benutzer "# OBSI Hofer Admin" braucht zusätzlich **Lesen auf `bmvcc_relation`** (Firma↔Kontakt-Zuordnung — vom Nutzer am 2026-10-06 erteilt, Lesezugriff verifiziert) und **Schreiben auf `bmvcc_kontakt`** (vom Nutzer am 2026-10-06 erteilt). Per `RetrieveUserPrivileges` verifiziert: prvReadbmvcc_relation, prvReadbmvcc_Kontakt und prvWritebmvcc_Kontakt jeweils auf Organisationsebene — mehr ist nicht nötig, da nur ein Feld eines bestehenden Kontakts geändert wird (kein Erstellen/Anfügen)
 
 ## Datengrundlage (verifiziert gegen Dataverse, 2026-10-06, rein lesend)
@@ -235,3 +235,4 @@ Umgesetzt in einem Durchlauf (UI + Server Action + Datenzugriff), wie bei PROJ-3
   - Funktion live in Produktion durch den Nutzer: Freigeben + Entziehen, in Dataverse bestätigt (siehe QA)
   - Nicht separat live geprüft: der BUG-1-Fix (Rücksetzen bei fehlgeschlagenem Aufruf) — per Komponententest abgedeckt
 - **Hinweis für den Betrieb:** Noch kein Kontakt ist fürs Kundenportal freigegeben (Ausnahme: Testkontakt wieder entzogen). Wirksam im Portal wird die Freigabe erst mit PROJ-5 und der Cross-Repo-Anpassung des Kundenportal-Syncs.
+- **Betriebshinweis (Stand 2026-10-07):** Seit PROJ-13 im Kundenportal deployt ist, wertet der Portal-Sync das Häkchen aus. Beim nächsten Sync einer Firma verlieren alle ihre Kontakte **ohne** Häkchen den Portal-Zugang — vor dem Sync die Kontakte der Firma freigeben.

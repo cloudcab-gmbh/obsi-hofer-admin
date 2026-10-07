@@ -2,11 +2,12 @@
 // (`/api/cron/sync-dataverse`, dort PROJ-12). Läuft ausschliesslich
 // serverseitig — das Secret darf nie in den Browser.
 //
-// ACHTUNG: Der Endpoint synchronisiert OHNE `firmaId` weiterhin ALLE Firmen
-// (Filter dort bewusst optional). Ein Aufruf ohne geprüfte Firma-ID ist hier
-// deshalb ausgeschlossen, und vor dem Kundenportal-Deploy des Firma-Filters
-// bleibt der Sync über KUNDENPORTAL_SYNC_AKTIV ausgeschaltet (ein alter
-// Endpoint würde den Parameter ignorieren und global synchronisieren).
+// Absicherung gegen einen Gesamt-Sync aller Firmen (Live-Vorfall 2026-10-07,
+// siehe PROJ-5): Seit dem Kundenportal-Deploy ist `firmaId` dort Pflicht
+// (fehlend → Ablehnung). Die GUID-Prüfung hier, der Schalter
+// KUNDENPORTAL_SYNC_AKTIV und die Mehr-als-eine-Firma-Erkennung bleiben als
+// zusätzliche Verteidigungslinie bestehen — etwa falls im Kundenportal je
+// wieder ein veralteter Stand deployt wird, der den Parameter ignoriert.
 
 const GUID_PATTERN = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
