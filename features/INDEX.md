@@ -20,7 +20,7 @@
 | PROJ-3 | Geräte-Verwaltung | Deployed | [Spec](../features/PROJ-3-geraete-verwaltung.md) | 2026-09-25 |
 | PROJ-4 | Prüfberichte-Verwaltung | Deployed | [Spec](../features/PROJ-4-pruefberichte-verwaltung.md) | 2026-09-25 |
 | PROJ-5 | Sync-Freigabe pro Firma | Deployed | [Spec](../features/PROJ-5-sync-freigabe-pro-firma.md) | 2026-09-25 |
-| PROJ-6 | Sync-Status/-Verlauf einsehen | Roadmap | — | 2026-09-25 |
+| PROJ-6 | Sync-Status/-Verlauf einsehen | Planned | [Spec](../features/PROJ-6-sync-status-verlauf.md) | 2026-09-25 |
 | PROJ-7 | PDF-Export Prüfberichte (kundenspezifisches Template) | Deployed | [Spec](../features/PROJ-7-pdf-export-pruefberichte.md) | 2026-10-05 |
 | PROJ-8 | Kundenportal-Zugang pro Kontakt | Deployed | [Spec](../features/PROJ-8-kundenportal-zugang-pro-kontakt.md) | 2026-10-06 |
 
@@ -34,7 +34,7 @@
 - PROJ-3: Requires PROJ-1, PROJ-2
 - PROJ-4: Requires PROJ-1, PROJ-2, PROJ-3 (Prüfbericht gehört zu einem Gerät)
 - PROJ-5: Requires PROJ-1, PROJ-2, PROJ-8 (Sync erst möglich, wenn mind. ein Kontakt freigegeben ist) — zusätzlich Cross-Repo-Abhängigkeit: Firma-Filter-Erweiterung des Sync-Endpoints im Kundenportal-Repo, der dort auch nur freigegebene Kontakte übernimmt (separates Projekt, dort separat einzuplanen)
-- PROJ-6: Requires PROJ-5
+- PROJ-6: Requires PROJ-5 (+ PROJ-1, PROJ-2) — Dataverse: neue Tabelle für Sync-Läufe (vom Nutzer anzulegen), Rechte Erstellen/Lesen/Anfügen für den App-Benutzer
 - PROJ-7: Requires PROJ-3, PROJ-4 (braucht Geräte- und Prüfbericht-Daten als Quelle für den PDF-Export)
 - PROJ-8: Requires PROJ-1, PROJ-2 — Dataverse-Rechte: Lesen auf `bmvcc_relation`, Schreiben auf `bmvcc_kontakt` (beide erteilt und verifiziert)
 
