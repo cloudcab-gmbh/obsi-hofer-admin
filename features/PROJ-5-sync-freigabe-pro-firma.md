@@ -1,6 +1,6 @@
 # PROJ-5: Sync-Freigabe pro Firma
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-10-06
 **Last Updated:** 2026-10-07
 
@@ -226,4 +226,13 @@ Keine (0 critical, 0 high, 0 medium, 0 low).
 - **Production Ready:** **JA** — Status **Approved**, bereit für `/deploy`
 
 ## Deployment
-_To be added by /deploy_
+- **Production URL:** https://obsi-hofer-admin.vercel.app/sync-freigabe (Menüpunkt "Freigabe", nur für Freigeber)
+- **Deployed:** 2026-10-07 (automatisch via Vercel bei Push auf `main`)
+- **Tag:** `v1.6.0-PROJ-5`
+- **Konfiguration (vom Nutzer gesetzt, Vercel Production):** `KUNDENPORTAL_SYNC_URL`, `KUNDENPORTAL_CRON_SECRET` (= `CRON_SECRET` des Kundenportals), `KUNDENPORTAL_SYNC_AKTIV=true` — letzteres erst nach dem tatsächlichen Deploy des Firma-Filters im Kundenportal
+- **Cross-Repo-Voraussetzung (erledigt):** Firma-Filter im Kundenportal (dort PROJ-12) deployt; Build zunächst durch dessen `ignoreCommand` übersprungen (siehe Live-Vorfall), danach korrekt ausgerollt
+- **Verifiziert:**
+  - Pre-Deployment: `npm run build`, `npm run lint`, `npx tsc --noEmit`, `npm test` (234/234), `npm run test:e2e` (18/18) grün; keine Secrets im Repo oder im Client-Bundle; alle Umgebungsvariablen dokumentiert
+  - Produktion: `/login` HTTP 200; `/sync-freigabe` ohne Session per 307 auf `/login`
+  - Funktion live: Sync für "Cloudcab GmbH" überträgt genau 1 Firma inkl. 8 Geräte / 18 Prüfberichte, grüne Erfolgsmeldung mit Zahlen
+- **Offen im Kundenportal-Repo (empfohlen):** `firmaId` verpflichtend machen (fehlend → 400); `ignoreCommand` auf `VERCEL_GIT_PREVIOUS_SHA` umstellen (falls noch nicht erfolgt); Kontakt-Freigabe-Auswertung (dort PROJ-13) umsetzen, damit das Häkchen aus PROJ-8 im Portal wirkt
