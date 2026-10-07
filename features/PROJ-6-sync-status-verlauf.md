@@ -1,6 +1,6 @@
 # PROJ-6: Sync-Status/-Verlauf einsehen
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-10-07
 **Last Updated:** 2026-10-07
 
@@ -171,7 +171,72 @@ Umgesetzt in einem Durchlauf (UI + Server Actions + Datenzugriff), wie bei PROJ-
 **Bekannte Einschränkung:** Zwei Läufe derselben Firma mit exakt gleichem Startzeitpunkt (Sekundengenauigkeit von Dataverse) könnten beim "Mehr anzeigen"-Übergang einmal übersprungen werden — praktisch ausgeschlossen, da ein Sync Sekunden dauert und der Button währenddessen gesperrt ist.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-10-07
+**Tester:** QA Engineer (AI)
+**Testmethode:** Nutzer hat nach dem Deploy einen Sync für "Cloudcab GmbH" ausgelöst und den Verlauf geprüft. QA hat den resultierenden Dataverse-Datensatz rein lesend verifiziert, den Code gegen alle Kriterien/Edge Cases geprüft und die Testsuiten ausgeführt. Keine eigenen Schreibzugriffe.
+
+### Live-Nachweis (Tabelle `bmvcc_synclauf`)
+| Feld | Wert |
+|---|---|
+| Name | "Cloudcab GmbH – 07.10.2026, 10:19" (Schweizer Zeit; Start 08:19:39 UTC → korrekt umgerechnet) |
+| Firma | verknüpft (Lookup über `bmvcc_Firma@odata.bind` funktioniert) |
+| Dauer | 8 s |
+| Ausgelöst von | Robert Bienz |
+| Ergebnis / Meldung | `erfolg` / "„Cloudcab GmbH“ wurde ins Kundenportal übertragen." |
+| Details | 7 Bereiche, 0 Probleme (gültiges JSON) |
+| Erstellt von | "# OBSI Hofer Admin" (serverseitig protokolliert) |
+
+### Acceptance Criteria Status
+- [x] Verlaufseintrag mit allen Feldern nach jedem Portal-Aufruf — **live verifiziert** (Erfolg); übrige Ergebnisse per Unit-Test ("also logs failed and unknown results")
+- [x] Keine Einträge bei Ablehnungen vor dem Aufruf — Unit-Test
+- [x] Letzter Lauf hervorgehoben + Verlauf neueste zuerst — Komponententest; vom Nutzer im Browser bestätigt
+- [x] >20 Läufe: neueste 20, "Mehr anzeigen" lädt ältere — Unit-Test (Datenschicht, `hatMehr`) + Komponententest; Abfrage gegen echtes Dataverse akzeptiert
+- [x] Aufklappen zeigt Zahlentabelle + Probleme wie direkt nach dem Sync — gemeinsame Komponente `SyncErgebnisAnzeige` + Komponententest
+- [x] Ergebnisfarben grün/orange/rot/orange — Code-Review (Badge-Varianten success/warning/destructive/warning)
+- [x] Neuer Lauf erscheint ohne Neuladen oben — Code-Review (Hülle) + Komponententest (`onNeuerLauf`); vom Nutzer bestätigt
+- [x] Leer-Hinweis "Noch kein Sync für diese Firma" — Komponententest
+- [x] Speichern schlägt fehl → Ergebnis trotzdem + Hinweis — Unit-Test (`lauf: null`) + Komponententest
+- [x] Verlauf nicht ladbar → Rest der Seite bedienbar, Fehler nur im Verlaufsbereich — Code-Review (eigener Fehlerpfad in `page.tsx`) + Komponententest
+- [x] Bearbeiter serverseitig abgewiesen — Seite (Freigeber-Prüfung vor dem Laden) + Unit-Test `ladeSyncLaeufeAction`
+
+### Edge Cases Status
+- [x] "Unbekannt" wird protokolliert, ohne Zahlen — Unit-Test
+- [x] Abbruch des Action-Aufrufs im Browser → Server hat bereits protokolliert, erscheint nach Neuladen — Code-Review (Protokoll im Server-Pfad)
+- [x] Parallele Läufe → zwei Einträge — keine Deduplizierung, by design
+- [x] Ungewollter Gesamt-Sync → Eintrag mit "teilweise" + Problemhinweis — Unit-Test (Erkennung PROJ-5) + Protokollierung des Ergebnisses
+- [x] Sehr viele Probleme → gekürzt mit Vermerk, Grenze 100'000 eingehalten — Unit-Test `serialisiereDetails`
+- [x] Firmenwechsel → `key={firmaId}` — Code-Review
+- [x] Name als Momentaufnahme — gespeicherter Text, kein Benutzer-Lookup
+
+### Security Audit (Red Team)
+- [x] Lesen (Seite + "Mehr anzeigen") nur für Freigeber
+- [x] Firma-ID (GUID) und Zeitstempel werden vor dem Einsetzen in den OData-Filter validiert → keine Injection (Unit-Tests mit Injektionsversuchen)
+- [x] Kein Schreibzugang von aussen: Einträge entstehen ausschliesslich innerhalb von `syncFirmaAction`
+- [x] Gespeicherte Texte (Meldung, Probleme aus dem Kundenportal) werden von React escaped dargestellt — keine XSS-Fläche
+- [x] Nur Erstellen/Lesen-Rechte auf der Tabelle — Einträge können über das Admin-Tool weder geändert noch gelöscht werden
+
+### Bugs Found
+
+#### BUG-1: Badge (`div`) innerhalb des Aufklapp-Buttons
+- **Severity:** Low
+- **Steps to Reproduce:** Verlauf mit mindestens einem Eintrag anzeigen; im DOM enthält der `<button>` des Eintrags ein `<div>` (shadcn `Badge`)
+- **Erwartet:** Nur Inline-Elemente in einem `<button>` (HTML-Inhaltsmodell)
+- **Tatsächlich:** `<div>` im `<button>` — Browser stellen es korrekt dar, React warnt nicht; reiner Standardverstoss, kann bei strengen Accessibility-Prüfungen auffallen
+- **Priority:** Nice to have
+
+### Automatisierte Tests
+- `npm test`: 259/259 grün (PROJ-6: `sync-laeufe.test.ts` 11, `sync-verlauf.test.tsx` 5, `sync-freigabe/actions.test.ts` +7, `sync-ausloesen.test.tsx` +2)
+- `npm run test:e2e`: 18/18 grün; Zugriffsschutz der Seite durch `tests/PROJ-8-…spec.ts` abgedeckt. Kein eigenes E2E für den Verlauf (setzt einen echten Sync bzw. Login voraus)
+- Nicht durchgeführt: Cross-Browser-/Responsive-Test der eingeloggten Seite; Einträge umbrechen per `flex-wrap` auf schmalen Bildschirmen
+
+### Summary
+- **Acceptance Criteria:** 11/11 erfüllt (Schreibweg live verifiziert)
+- **Edge Cases:** 7/7
+- **Bugs Found:** 1 (0 critical, 0 high, 0 medium, 1 low)
+- **Security:** keine Findings
+- **Nebenbefund:** Die erste gemessene Dauer eines Firma-Syncs (8 s) beantwortet die offene Laufzeit-Frage aus PROJ-5
+- **Production Ready:** **JA** — Status **Approved**
 
 ## Deployment
 _To be added by /deploy_
