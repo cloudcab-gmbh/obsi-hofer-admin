@@ -1,8 +1,8 @@
 # PROJ-5: Sync-Freigabe pro Firma
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-10-06
-**Last Updated:** 2026-10-06
+**Last Updated:** 2026-10-07
 
 ## Dependencies
 - Requires: PROJ-1 (Entra-ID-Login mit Rollen) — nur Freigeber dürfen den Sync auslösen
@@ -60,10 +60,12 @@
 - Performance: abhängig vom Kundenportal-Endpoint; die Oberfläche muss während der gesamten Laufzeit einen klaren Ladezustand zeigen
 
 ## Open Questions
-- [ ] Schnittstelle des erweiterten Kundenportal-Endpoints: Wie wird die Firma übergeben (Parameter/Format), und was liefert die Antwort (Erfolg/Fehler, Anzahl übertragener Datensätze)? — wird im Kundenportal-Repo festgelegt
-- [ ] Wie lange dauert ein Sync einer typischen/grossen Firma? Passt das in die maximale Laufzeit einer Server-Anfrage auf Vercel, oder muss der Endpoint asynchron arbeiten?
-- [ ] Wie verhält sich der Endpoint, wenn er ohne bzw. mit unbekanntem Firma-Filter aufgerufen wird? (Muss sicherstellen, dass nie versehentlich global synchronisiert wird)
-- [ ] Ist der Endpoint gegen zwei parallele Läufe für dieselbe Firma robust (idempotent)?
+_Geklärt am 2026-10-07 durch Lesen des Kundenportal-Codes (dort PROJ-12, lokal committet, noch nicht gepusht):_
+- [x] Schnittstelle — `GET {KUNDENPORTAL_SYNC_URL}?firmaId=<GUID>` mit Header `Authorization: Bearer <CRON_SECRET>`. Antwort 200: `{ entities: [{ slug, fetched, added, updated, deleted, skippedDueToThreshold }], warnings: [], errors: [] }` (Slugs: firmen, artikel, kontakte, standorte, geraete, pruefberichte, relationen). **Auch bei 200 können `errors` Teilfehler enthalten** (eine Entität scheitert, die übrigen laufen weiter). Fehler: 400 ungültige GUID, 404 Firma unbekannt, 401 falsches Secret, 500 `{ error, message }` bei Abbruch
+- [x] Ohne/mit unbekanntem Firma-Filter — unbekannte Firma → 404, ungültige ID → 400, leerer Parameter → 400. **Aber: ganz ohne `firmaId`-Parameter läuft weiterhin ein globaler Sync aller Firmen** (Filter dort bewusst optional). Das Admin-Tool muss daher selbst sicherstellen, dass es nie ohne geprüfte Firma-ID aufruft (siehe Tech Design)
+- [x] Parallele Läufe — keine Sperre im Endpoint; zwei Läufe derselben Firma schreiben dieselben Daten (Upserts) → unkritisch, akzeptiert
+- [ ] Tatsächliche Laufzeit eines Firma-Syncs — nicht gemessen. Endpoint erlaubt bis 300 s (`maxDuration`). Ob das Admin-Tool auf seinem Vercel-Plan ebenfalls bis 300 s warten darf, ist beim ersten Live-Test zu prüfen
+- [ ] Wirkung des Kundenportal-Häkchens — im Portal erst mit dessen PROJ-13 (aktuell Roadmap). Bis dahin erhält dort weiterhin jeder aktive Kontakt mit passender E-Mail Zugang (`access.ts`). Der Firma-Sync verschlechtert das nicht (der bisherige nächtliche Gesamt-Sync hat bereits alle Kontakte übertragen), die Freigabe aus PROJ-8 wirkt aber erst danach
 
 ## Decision Log
 
@@ -80,12 +82,62 @@
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Aufruf des Kundenportal-Endpoints ausschliesslich serverseitig in einer Server Action | Das Secret darf nie in den Browser; konsistent mit allen bisherigen Schreibaktionen (PROJ-3/4/8) | 2026-10-07 |
+| Das Admin-Tool ruft den Endpoint nie ohne geprüfte Firma-ID auf (GUID-Prüfung vor dem Aufruf, Parameter immer gesetzt) | Der Endpoint synchronisiert ohne `firmaId` weiterhin **alle** Firmen — der Schutz vor einem versehentlichen Gesamt-Sync muss daher im Admin-Tool liegen | 2026-10-07 |
+| Die Firma-ID kommt vom Bestätigungsdialog (die angezeigte Firma), nicht erneut aus der Session | Erfüllt den Edge Case "Firmenwechsel während des Syncs betrifft weiterhin die bestätigte Firma"; ein Freigeber darf ohnehin jede Firma synchronisieren, also kein zusätzliches Berechtigungsrisiko | 2026-10-07 |
+| Serverseitige Wiederholung der Voraussetzung "mindestens ein aktiver, freigegebener Kontakt mit E-Mail" unmittelbar vor dem Aufruf, über dieselbe Kontakt-Abfrage wie PROJ-8 | Sperre darf sich nicht über einen anderen Tab oder einen Direktaufruf umgehen lassen; keine zweite, abweichende Logik | 2026-10-07 |
+| Freigeber-Prüfung über die bestehende Funktion aus PROJ-8 (`lib/auth/freigeber.ts`) | Bereits vorhanden und getestet | 2026-10-07 |
+| Ergebnis in vier Stufen: Erfolg / mit Teilfehlern abgeschlossen / fehlgeschlagen / Ergebnis unbekannt (Zeitüberschreitung oder Verbindungsabbruch) | Der Endpoint meldet Teilfehler mit HTTP 200; ein reines "OK/Fehler" würde einen teilweise misslungenen Sync als Erfolg anzeigen | 2026-10-07 |
+| Gemeinsame Client-Hülle für Kontakt-Bereich (PROJ-8) und Sync-Bereich, die die aktuelle Anzahl freigegebener Kontakte hält | Der Sync-Button muss sofort aktiv werden, sobald im Kontakt-Bereich das erste Häkchen gespeichert ist — ohne Neuladen (Akzeptanzkriterium) | 2026-10-07 |
+| Maximale Laufzeit der Seite auf 300 s angehoben, Wartezeit auf den Endpoint knapp darunter begrenzt | Gleiche Obergrenze wie der Endpoint; die eigene Begrenzung sorgt für eine verständliche "Ergebnis unbekannt"-Meldung statt eines harten Plattform-Abbruchs | 2026-10-07 |
+| Bestätigungsdialog mit shadcn `alert-dialog` (bereits installiert) | Gleiche Komponente wie beim Stornieren in PROJ-4 | 2026-10-07 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### A) Component Structure
+```
+/sync-freigabe (bestehende Seite aus PROJ-8, nur Freigeber)
++-- Zugriffsprüfung "nur Freigeber" + Hinweis ohne Firma (unverändert aus PROJ-8)
++-- NEU: gemeinsame Hülle (hält "Anzahl freigegebener Kontakte" live)
+    +-- Bereich "Kundenportal-Zugang" (PROJ-8, unverändert, meldet jede gespeicherte Änderung an die Hülle)
+    +-- NEU: Bereich "Ins Kundenportal übertragen"
+        +-- Kurztext: was übertragen wird (Firma, Standorte, Geräte, Prüfberichte, Kontakte + alle Artikel)
+        +-- Kein Kontakt freigegeben → Button deaktiviert + Hinweis
+        |   "Zuerst mindestens einen Kontakt fürs Kundenportal freigeben"
+        +-- Button "Freigeben & synchronisieren"
+        |   +-- Bestätigungsdialog: "Daten von <Firma> ins Kundenportal übertragen?
+        |       <N> Kontakte haben Zugriff." [Abbrechen] [Übertragen]
+        +-- Während des Syncs: Button "Synchronisiere…", gesperrt
+        +-- Ergebnis-Meldung (bleibt bis zum nächsten Sync sichtbar)
+            +-- Erfolg: "<Firma> wurde ins Kundenportal übertragen." + Zahlen je Bereich
+            |   (z.B. Geräte: 12 aktualisiert, 1 neu)
+            +-- Mit Teilfehlern: Hinweis + Liste der gemeldeten Fehler
+            +-- Fehlgeschlagen: verständlicher Grund (Firma unbekannt, nicht konfiguriert, Portal-Fehler)
+            +-- Ergebnis unbekannt: "Keine Antwort vom Kundenportal erhalten — der Sync kann trotzdem
+                durchgelaufen sein." (Kontrolle später über PROJ-6)
+```
+
+### B) Data Model (plain language)
+Kein eigenes Datenmodell, nichts wird im Admin-Tool gespeichert:
+- **Eingabe:** die Firma-ID der bestätigten Firma.
+- **Vor dem Aufruf geprüft:** Benutzer ist Freigeber; Firma-ID ist eine gültige GUID; die Firma hat mindestens einen aktiven, freigegebenen Kontakt mit E-Mail (gleiche Abfrage wie PROJ-8); Ziel-URL und Secret sind konfiguriert.
+- **Aufruf:** an den Kundenportal-Endpoint, immer mit Firma-ID.
+- **Antwort:** pro Datenbereich die Zahlen geladen/neu/aktualisiert/gelöscht, plus Listen von Warnungen und Fehlern — wird in eine der vier Ergebnisstufen übersetzt und angezeigt, nicht gespeichert (Verlauf = PROJ-6).
+
+### C) Tech Decisions (für PM erklärt)
+- **Das Secret bleibt auf dem Server:** Der Browser löst nur eine Aktion im Admin-Tool aus; erst der Server spricht mit dem Kundenportal.
+- **Schutz vor dem Gesamt-Sync liegt im Admin-Tool:** Der Kundenportal-Endpoint würde ohne Firma-Angabe alle Firmen übertragen. Das Admin-Tool prüft die Firma-ID deshalb vor jedem Aufruf und schickt sie immer mit.
+- **Die Sperre wird doppelt geprüft:** Der Button ist ohne freigegebenen Kontakt deaktiviert, und der Server prüft es beim Auslösen noch einmal — falls in einem anderen Tab gerade die letzte Freigabe entzogen wurde.
+- **Ehrliche Ergebnisanzeige:** Das Kundenportal meldet auch teilweise misslungene Läufe als "erledigt". Das Admin-Tool unterscheidet deshalb Erfolg, Teilfehler, Fehler und "keine Antwort erhalten".
+- **Button wird live freigeschaltet:** Kontakt- und Sync-Bereich teilen sich die Zahl der freigegebenen Kontakte, damit der Button nach dem ersten Häkchen ohne Neuladen aktiv wird.
+
+### D) Dependencies
+- Keine neuen Pakete, keine neuen shadcn-Komponenten (`alert-dialog`, `button`, `card` vorhanden)
+- Umgebungsvariablen (bereits dokumentiert): `KUNDENPORTAL_SYNC_URL`, `KUNDENPORTAL_CRON_SECRET` — Werte in Vercel (Production) prüfen; das Secret muss dem `CRON_SECRET` des Kundenportals entsprechen
+- **Cross-Repo vor dem Live-Test:** Die 5 lokalen Commits im Kundenportal-Repo (u.a. Firma-Filter PROJ-12) müssen gepusht und deployt sein, sonst ignoriert der Produktions-Endpoint den `firmaId`-Parameter und würde **alle** Firmen synchronisieren
 
 ## QA Test Results
 _To be added by /qa_
