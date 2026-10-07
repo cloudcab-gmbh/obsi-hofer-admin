@@ -334,4 +334,11 @@ Die Umgebung (Production vs. Preview vs. lokal) erkennt die App an der von Verce
 - **Recommendation:** ~~BUG-1 und BUG-2 vor dem Push beheben~~ — beide behoben; Phase 1 deployen
 
 ## Deployment
-_To be added by /deploy_
+
+### Phase 1 (Testmodus) — deployt 2026-10-07
+- **Production URL:** https://obsi-hofer-admin.vercel.app (`/geraete` → "PDF generieren")
+- **Commit:** `a49856a`, **Tag:** `v1.8.0-PROJ-9-phase1`
+- **Wirkung in Production: keine** — `PDF_SIGNATUR_MODUS` ist in Vercel in keiner Umgebung gesetzt (per `vercel env ls` geprüft, nur Namen gelesen); der Export läuft dort unverändert unsigniert inkl. Archiv-Ablage. Selbst ein versehentlich gesetztes `test` würde in Production ignoriert.
+- **Neue Umgebungsvariablen** (in `.env.local.example` dokumentiert): `PDF_SIGNATUR_MODUS`, `PDF_SIGNATUR_TEST_ZERTIFIKAT`, `PDF_SIGNATUR_TEST_SCHLUESSEL`, `PDF_SIGNATUR_ZEITSTEMPEL_URL` (optional). Für Tests in Previews nur in der Vercel-Umgebung **Preview** hinterlegen, nie in Production.
+- **Verifikation:** Lokaler Build, Lint und 323 Unit-Tests grün; Vercel-Production-Build "Ready"; `/geraete` antwortet unauthentifiziert weiterhin mit 307 → `/login`.
+- **Status:** bleibt "Approved" — PROJ-9 gilt laut Product Decision erst mit Phase 2 (echtes Firmen-Siegel, Modus `produktiv`) als "Deployed".
