@@ -1,6 +1,6 @@
 # PROJ-9: PDF-Export digital signieren (Firmen-Siegel)
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-10-07
 **Last Updated:** 2026-10-07
 
@@ -88,7 +88,7 @@ Der Wechsel von Phase 1 zu Phase 2 erfolgt über die Konfiguration (Zertifikat, 
 ## Open Questions
 - [ ] Anbieter von Zertifikat und Signierdienst (z.B. Swisscom Trust Services, SwissSign, internationale Zertifizierungsstellen) — Angebote einholen; Kosten und Konditionen klären. Die Wahl bestimmt die Schnittstelle zum Signierdienst und ist Voraussetzung für **Phase 2**; `/architecture` für Phase 1 kann ohne sie starten (Refinement 2026-10-07)
 - [ ] Siegel-Stufe nach Schweizer Recht (geregeltes elektronisches Siegel nach ZertES vs. fortgeschrittenes Siegel) — mit dem Anbieter klären, was für den Zweck "Herkunft + Unverfälschtheit nachweisen" angemessen ist
-- [ ] Genauer Wortlaut und Position des sichtbaren Vermerks (Fusszeile jeder Seite angenommen)
+- [ ] Genauer Wortlaut und Position des sichtbaren Vermerks (Fusszeile jeder Seite angenommen; Architektur: unten, klein, grau) — am ersten Test-PDF festlegen
 
 ## Anbieter-Recherche (2026-10-07, öffentliche Webseiten — Preise bei keinem Anbieter veröffentlicht)
 
@@ -130,12 +130,84 @@ Quellen: trustservices.swisscom.com (ZertES-Siegel, Service-Pakete, Hilfe-Center
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Signaturformat PAdES mit Zeitstempel (Baseline B-T) | Von Adobe Reader geprüft und von allen recherchierten Anbietern unterstützt; Zeitstempel für Langzeit-Prüfbarkeit | 2026-10-07 |
+| Signatur-Ablauf im eigenen Server-Code, nur das Unterschreiben der Prüfsumme über austauschbaren Schlüssel-Baustein | Phase 1 → Phase 2 ohne Umbau; in Phase 2 bleibt der Schlüssel beim Anbieter (nur Prüfsumme wird übertragen) | 2026-10-07 |
+| `@signpdf` (Signaturfeld/Einbetten) + `pkijs`/`asn1js` (Signatur-Container, Zeitstempel) | Verbreitete, aktiv gepflegte Bibliotheken; die mitgelieferten `@signpdf`-Signer (P12/node-forge) können keinen Zeitstempel und kein Unterschreiben beim Anbieter, daher eigener Signer auf `pkijs`-Basis | 2026-10-07 |
+| Signaturfeld nachträglich in das fertige pdfmake-PDF statt Signatur im pdfmake-Layout | PROJ-7-Layout bleibt unangetastet; pdfmake bietet keinen Zugang zum Signieren | 2026-10-07 |
+| Sichtbarer Vermerk als pdfmake-Fusszeile auf jeder Seite, Signaturfeld selbst unsichtbar | Vermerk auf jeder Seite verlangt (Spec), sichtbare Signaturfelder gäbe es nur auf einer Seite | 2026-10-07 |
+| Signatur-Modus `aus`/`test`/`produktiv` per Umgebungsvariable, Umgebung über Vercels automatische Kennung | Muster wie `KUNDENPORTAL_SYNC_AKTIV` (PROJ-5); die automatische Kennung kann nicht versehentlich falsch gepflegt werden | 2026-10-07 |
+| Test-Zertifikat/-Schlüssel nur in `.env.local` und Vercel-Preview-Umgebung | Physische Trennung zusätzlich zur Modus-Regel: in Production existiert der Test-Schlüssel gar nicht | 2026-10-07 |
+| Begrenzte Wartezeit (ca. 10–15 s) auf den Zeitstempeldienst, danach Abbruch | "Nie unsigniert" bei gleichzeitig vorhersehbarer Antwortzeit des Exports | 2026-10-07 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+> Stand 2026-10-07: Fokus Phase 1 (Test-Zertifikat). Phase 2 ist so vorbereitet, dass nur der "Schlüssel-Baustein" und die Konfiguration getauscht werden.
+
+### A) Ablauf / Bausteine
+Keine neue Seite und keine neuen Bedienelemente — die Signatur hängt sich in den bestehenden Export (PROJ-7) zwischen "PDF erzeugen" und "Download/Archiv":
+
+```
+"PDF generieren" (Geräteliste, unverändert)
++-- Server Action generatePdfAction (bestehend)
+    +-- Signatur-Modus bestimmen (NEU)
+    |     aus | test | produktiv  — aus Konfiguration + Umgebung (Produktion/Preview/lokal)
+    +-- PDF erzeugen (bestehend, pdfmake)
+    |     + Fusszeile mit Signaturvermerk auf jeder Seite (NEU, nur wenn Modus ≠ aus)
+    +-- PDF signieren (NEU, Baustein "PDF-Signatur")
+    |   +-- Signaturfeld ins fertige PDF einfügen (unsichtbar, der sichtbare Teil ist die Fusszeile)
+    |   +-- Prüfsumme des PDFs berechnen
+    |   +-- Schlüssel-Baustein unterschreibt die Prüfsumme
+    |   |     Phase 1: Test-Schlüssel aus der Server-Konfiguration
+    |   |     Phase 2: Signierdienst des Anbieters (nur die Prüfsumme wird übertragen)
+    |   +-- Zeitstempel für die Unterschrift beim Zeitstempeldienst holen
+    |   |     Phase 1: Gratis-Dienst (z.B. freetsa.org) · Phase 2: Dienst des Anbieters
+    |   +-- Unterschrift + Zertifikat + Zeitstempel ins PDF einbetten
+    +-- Archiv-Ablage im SharePoint (bestehend) — im Testmodus übersprungen (NEU)
+    +-- Download an den Browser (bestehend)
+        Fehler beim Signieren → kein Download, Meldung "Der Prüfbericht konnte nicht signiert werden. Bitte später erneut versuchen."
+```
+
+### B) Datenmodell (in Worten)
+Keine Datenbank, keine neuen Dataverse-Felder. Neu ist nur Server-Konfiguration (Umgebungsvariablen, in `.env.local.example` dokumentiert):
+- **Signatur-Modus:** `aus` (Standard, wenn nicht gesetzt) / `test` / später `produktiv`
+- **Test-Zertifikat und Test-Schlüssel** (Phase 1): einmalig selbst erstellt; Name im Zertifikat "OBSI Hofer GmbH (TEST)". Nur in `.env.local` und in den Vercel-Umgebungsvariablen für **Preview** hinterlegt — nie für Production, nie im Repo
+- **Adresse des Zeitstempeldienstes**
+- Phase 2 zusätzlich: Zugangsdaten zum Signierdienst des Anbieters (Art je nach Anbieter, z.B. Client-Zertifikat)
+
+**Modus-Regel:**
+
+| Konfiguration | Lokal / Preview | Production |
+|---|---|---|
+| nicht gesetzt / `aus` | unsigniert wie bisher | unsigniert wie bisher |
+| `test` | Test-Signatur, Test-Vermerk, kein Archiv | **wird ignoriert** → unsigniert wie bisher + Warnung im Server-Log |
+| `produktiv` (Phase 2) | echtes Siegel | echtes Siegel |
+| unbekannter Wert / Zugangsdaten fehlen bei aktivem Modus | Export abgebrochen mit verständlicher Meldung (ohne Details zu Zugangsdaten) | ebenso |
+
+Die Umgebung (Production vs. Preview vs. lokal) erkennt die App an der von Vercel automatisch gesetzten Umgebungskennung — nicht an einer selbst gepflegten Variable, damit sie nicht versehentlich falsch gesetzt werden kann.
+
+### C) Technische Entscheidungen (Begründung)
+- **Signatur nach PAdES (europäischer PDF-Signaturstandard), Stufe "mit Zeitstempel"**: genau das, was Adobe Reader prüft und als gültig anzeigt, und was die Anbieter (Swisscom, GlobalSign, SwissSign) in Phase 2 liefern. Der Zeitstempel sorgt dafür, dass die Signatur auch nach Ablauf des Zertifikats prüfbar bleibt.
+- **Signieren im eigenen Server-Code, Unterschreiben über austauschbaren Schlüssel-Baustein**: Alles rund ums PDF (Signaturfeld, Prüfsumme, Einbetten, Zeitstempel) ist in beiden Phasen gleich. Nur das eigentliche Unterschreiben der Prüfsumme wechselt: Phase 1 lokal mit dem Test-Schlüssel, Phase 2 beim Anbieter (dort verlässt der Schlüssel nie dessen Hardware — erfüllt die Security-Anforderung). So entsteht in Phase 2 kein Umbau.
+- **Sichtbarer Vermerk als Fusszeile über pdfmake, nicht als sichtbares Signaturfeld**: Die Fusszeile wird beim Erzeugen auf jede Seite gesetzt und ist damit Teil des signierten Inhalts; ein sichtbares Signaturfeld gäbe es nur auf einer Seite. Datum/Uhrzeit im Vermerk in Schweizer Zeit, unmittelbar vor dem Signieren bestimmt (kann vom Zeitstempel um Sekunden abweichen — der Zeitstempel ist der rechtlich massgebliche Zeitpunkt). Wortlaut/Position: unten auf jeder Seite, klein und grau — bleibt bis zum ersten Test-PDF als offene Frage stehen.
+- **Signaturfeld nachträglich ins fertige PDF**: Das Layout aus PROJ-7 (Spaltenbreiten, Seitenumbrüche) bleibt unangetastet; das Signieren ergänzt das PDF nur, statt es neu aufzubauen.
+- **Testmodus in Production wird ignoriert statt Export zu blockieren**: Eine Fehlkonfiguration darf weder Test-PDFs an Kunden ausliefern noch den Export für alle Bearbeiter lahmlegen (Spec-Entscheidung).
+- **Kein Ausweichen auf "ohne Zeitstempel" oder "unsigniert"** bei Ausfall im aktiven Modus: Spec-Entscheidung "nie unsigniert"; die Wartezeit auf den Zeitstempeldienst ist begrenzt (ca. 10–15 Sekunden), danach Abbruch mit Meldung.
+- **Kein UI-Umbau**: Der Bearbeiter merkt die Signatur nur an der Fusszeile und ggf. an einer neuen Fehlermeldung — konsistent mit "ohne zusätzlichen Schritt".
+
+### D) Abhängigkeiten (Pakete)
+- `@signpdf/signpdf`, `@signpdf/placeholder-plain`, `@signpdf/utils` — Signaturfeld ins fertige PDF einfügen und die Signatur an der richtigen Stelle einbetten
+- `pkijs` + `asn1js` — Signatur-Container nach PAdES aufbauen, Zeitstempel beim Zeitstempeldienst anfordern und einbauen; erlaubt das Unterschreiben "von aussen" (Phase 2: beim Anbieter)
+- Kein Paket für die Test-Schlüssel selbst — Signieren mit der in Node eingebauten Krypto-Schnittstelle
+- Test-Zertifikat: einmalig mit OpenSSL erstellt (Anleitung kommt in `.env.local.example`/Implementation Notes)
+
+### E) Tests
+- Unit-Tests für die Modus-Regel (alle Zeilen der Tabelle oben, insbesondere "test in Production → aus")
+- Unit-Test: signiertes Test-PDF enthält Signatur, Zertifikat und Zeitstempel; nach Veränderung eines Bytes ist die Signatur ungültig (Zeitstempeldienst im Test simuliert)
+- Archiv-Ablage im Testmodus übersprungen; Fehler beim Signieren → kein Download, richtige Meldung
+- Manuell: Test-PDF lokal in Adobe Acrobat Reader öffnen (Signatur vorhanden, "unverändert", Warnung zum Unterzeichner erwartet)
 
 ## QA Test Results
 _To be added by /qa_
