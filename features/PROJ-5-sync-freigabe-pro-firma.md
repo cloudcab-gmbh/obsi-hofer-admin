@@ -1,6 +1,6 @@
 # PROJ-5: Sync-Freigabe pro Firma
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-10-06
 **Last Updated:** 2026-10-07
 
@@ -167,7 +167,63 @@ Umgesetzt in einem Durchlauf (UI + Server Action + Endpoint-Aufruf), wie bei PRO
 2. Vercel (Admin-Tool, Production): `KUNDENPORTAL_SYNC_URL` und `KUNDENPORTAL_CRON_SECRET` prüfen (Secret = `CRON_SECRET` des Kundenportals), dann `KUNDENPORTAL_SYNC_AKTIV=true` setzen und neu deployen
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-10-07
+**Tester:** QA Engineer (AI)
+**Testmethode:** Zwei echte Sync-Läufe durch den Nutzer in Produktion (Screenshots), Code-Review gegen alle Kriterien und Edge Cases, Prüfung des Client-Bundles auf Secrets, Unit-/E2E-Suiten. Keine eigenen Sync-Aufrufe (jeder Aufruf schreibt ins produktive Kundenportal).
+
+### Live-Nachweise
+| Lauf | Ergebnis | Bewertung |
+|---|---|---|
+| 1 — Cloudcab GmbH, Kundenportal noch ohne deployten Firma-Filter | 305 Firmen, 8358 Geräte, 25397 Prüfberichte übertragen, 0 gelöscht; Anzeige **orange** "meldet aber Probleme" + "305 Firmen statt nur einer … Firma-Filter offenbar nicht aktiv" | Ursache im Kundenportal-Deploy (siehe Live-Vorfall). Die Admin-Erkennung hat korrekt gegriffen — der Lauf wurde nicht als Erfolg gemeldet |
+| 2 — Cloudcab GmbH, nach echtem Kundenportal-Deploy | Firma 1, Standorte 1, Geräte 8, Prüfberichte 18, Kontakt-Zuordnungen 1, Kontakte 1, Artikel 1290; Anzeige **grün** "wurde ins Kundenportal übertragen" | Firma-Filter greift, Ergebnis + Zahlen korrekt dargestellt |
+
+### Acceptance Criteria Status
+- [x] Aktiver Button "Freigeben & synchronisieren" bei mind. einem freigegebenen Kontakt — **live**
+- [x] Ohne freigegebenen Kontakt: Button deaktiviert + Hinweis — Komponententest
+- [x] Button wird nach dem ersten gespeicherten Häkchen ohne Neuladen aktiv — Code-Review (gemeinsame Hülle, `onZugriffeChange`) + Komponententests beider Teile
+- [x] Bestätigungsdialog mit Firmenname und Anzahl Kontakte; Sync erst nach Bestätigung — **live** + Komponententest
+- [x] Abbrechen löst keinen Sync aus — Komponententest
+- [x] "Synchronisiere…", gesperrt bis zur Antwort — Code-Review + Komponententest (Button danach wieder frei)
+- [x] Erfolgsmeldung mit Firmenname und Anzahl übertragener Datensätze — **live** (Lauf 2)
+- [x] Verständliche Fehlermeldung, Button wieder aktiv — Unit-Tests für 401/404/500/Timeout + Komponententests (gemeldeter und geworfener Fehler)
+- [x] Nur Daten der gewählten Firma (plus Artikel) — **live** (Lauf 2); Admin sendet immer `?firmaId=` (Unit-Test)
+- [x] Bearbeiter serverseitig abgewiesen (Seite + Action) — Unit-Test
+- [x] Ohne Firma: Hinweis mit Link zu `/start` — Code-Review (unverändert aus PROJ-8)
+
+### Edge Cases Status
+- [x] Zeitüberschreitung → "Ergebnis unbekannt" statt technischem Fehler (Timeout 285 s < `maxDuration` 300; Unit-Test)
+- [x] Parallele Läufe → nicht verhindert, laut Kundenportal-Code unkritisch (Upserts)
+- [x] Firmenwechsel während des Syncs → betrifft die bestätigte Firma (Firma-ID aus dem Dialog). Hinweis: der Firmenwechsel navigiert weg von der Seite, die Ergebnismeldung ist danach nicht mehr sichtbar; der Sync läuft serverseitig trotzdem zu Ende — akzeptiert, Kontrolle später über PROJ-6
+- [x] Freigabe in anderem Tab entzogen → serverseitige Wiederholung der Sperre (Unit-Test)
+- [x] Secret/URL fehlen → Hinweis nennt die fehlende Einstellung (nur Name), Button gesperrt (Unit- + Komponententest)
+- [ ] **Endpoint ohne Firma-Filter darf nie global synchronisieren** — im Live-Lauf 1 **doch passiert** (siehe Restrisiko unten). Admin-seitig nicht vollständig verhinderbar; abgefedert durch Schalter + Erkennung
+- [x] Firma ohne Geräte/Prüfberichte → erlaubt (keine Sonderbehandlung nötig)
+
+### Security Audit (Red Team)
+- [x] Secret, Sync-URL und `Bearer`-Header erscheinen **nicht** im Client-Bundle (`.next/static` durchsucht, 0 Treffer); Client-Komponenten importieren aus `kundenportal-sync.ts` nur Typen
+- [x] Freigeber-Prüfung in der Action vor jedem Zugriff (Unit-Test: Bearbeiter → kein Aufruf)
+- [x] Firma-ID per `z.guid()` + zusätzlicher GUID-Prüfung in `starteFirmaSync` (wirft, bevor ein Aufruf entsteht); Injektionsversuche ("x' or 1 eq 1") abgewiesen (Unit-Test)
+- [x] Hinweis zeigt nur Variablennamen, nie Werte
+- [x] Mehrfachauslösung durch denselben Benutzer gesperrt; Missbrauch durch Freigeber selbst ausserhalb des Bedrohungsmodells (dürfen ohnehin jede Firma synchronisieren)
+
+### Restrisiko (kein Admin-Bug, Cross-Repo-Empfehlung)
+Der Kundenportal-Endpoint synchronisiert **ohne** `firmaId` weiterhin alle Firmen, und ein veralteter Deploy ignoriert den Parameter. Das Admin-Tool kann das vorab nicht gefahrlos prüfen (jeder Testaufruf an einen alten Endpoint wäre selbst der Gesamt-Sync). **Empfehlung fürs Kundenportal-Repo:** Seit der nächtliche Cron entfernt ist, gibt es keinen legitimen Aufruf ohne Firma mehr → `firmaId` dort **verpflichtend** machen (fehlend → 400). Zusammen mit der bereits empfohlenen `ignoreCommand`-Korrektur (`VERCEL_GIT_PREVIOUS_SHA`) schliesst das die Lücke dauerhaft.
+
+### Bugs Found
+Keine (0 critical, 0 high, 0 medium, 0 low).
+
+### Automatisierte Tests
+- `npm test`: 234/234 grün (PROJ-5: `kundenportal-sync.test.ts` 15, `sync-freigabe/actions.test.ts` +8, `sync-ausloesen.test.tsx` 6)
+- `npm run test:e2e`: 18/18 grün; der Zugriffsschutz von `/sync-freigabe` ist bereits durch `tests/PROJ-8-…spec.ts` abgedeckt. Den Sync selbst als E2E zu automatisieren wird bewusst unterlassen (schreibt ins produktive Kundenportal; Microsoft-Login nicht automatisierbar)
+- Nicht durchgeführt: Cross-Browser-/Responsive-Test der eingeloggten Seite; Ergebnistabelle ist per `overflow-x-auto` für schmale Bildschirme vorbereitet
+
+### Summary
+- **Acceptance Criteria:** 11/11 erfüllt (4 davon live verifiziert)
+- **Edge Cases:** 6/7 erfüllt; 1 (kein Gesamt-Sync bei veraltetem Endpoint) als Restrisiko mit Cross-Repo-Empfehlung
+- **Bugs Found:** 0
+- **Security:** keine Findings
+- **Production Ready:** **JA** — Status **Approved**, bereit für `/deploy`
 
 ## Deployment
 _To be added by /deploy_

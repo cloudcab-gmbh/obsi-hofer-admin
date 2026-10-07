@@ -19,7 +19,7 @@
 | PROJ-2 | Dataverse-Web-API-Anbindung | Deployed | [Spec](../features/PROJ-2-dataverse-web-api-anbindung.md) | 2026-09-25 |
 | PROJ-3 | Geräte-Verwaltung | Deployed | [Spec](../features/PROJ-3-geraete-verwaltung.md) | 2026-09-25 |
 | PROJ-4 | Prüfberichte-Verwaltung | Deployed | [Spec](../features/PROJ-4-pruefberichte-verwaltung.md) | 2026-09-25 |
-| PROJ-5 | Sync-Freigabe pro Firma | In Progress | [Spec](../features/PROJ-5-sync-freigabe-pro-firma.md) | 2026-09-25 |
+| PROJ-5 | Sync-Freigabe pro Firma | Approved | [Spec](../features/PROJ-5-sync-freigabe-pro-firma.md) | 2026-09-25 |
 | PROJ-6 | Sync-Status/-Verlauf einsehen | Roadmap | — | 2026-09-25 |
 | PROJ-7 | PDF-Export Prüfberichte (kundenspezifisches Template) | Deployed | [Spec](../features/PROJ-7-pdf-export-pruefberichte.md) | 2026-10-05 |
 | PROJ-8 | Kundenportal-Zugang pro Kontakt | Deployed | [Spec](../features/PROJ-8-kundenportal-zugang-pro-kontakt.md) | 2026-10-06 |
