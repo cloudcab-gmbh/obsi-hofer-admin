@@ -63,7 +63,8 @@
 
 ## Open Questions
 - [x] Struktur und Name der neuen Dataverse-Tabelle — **festgelegt in `/architecture`** (siehe Tech Design B)
-- [ ] Tabelle "Sync-Lauf" im Maker anlegen und Rechte vergeben (inkl. "Anfügen an" auf Firma) — durch den Nutzer; danach die technischen Spaltennamen aus den Metadaten verifizieren
+- [x] Tabelle "Sync-Lauf" angelegt (Nutzer, 2026-10-07) — **per Metadaten verifiziert:** Tabelle `bmvcc_synclauf`, Entity-Set `bmvcc_synclaufs`; Spalten `bmvcc_name` (Text 200, Primär), `bmvcc_firma` (Lookup → `bmvcc_firma`, Navigationseigenschaft `bmvcc_Firma`), `bmvcc_gestartedam` (Datum+Uhrzeit, UserLocal; Anzeigename mit Tippfehler "Gestarted am"), `bmvcc_dauersekunden` (Ganzzahl), `bmvcc_ausgelostvon` (Text 200), `bmvcc_ergebnis` (Text 20), `bmvcc_meldung` (Text 500), `bmvcc_details` (Memo 100'000)
+- [ ] Rechte: Erstellen + Lesen auf Sync-Lauf und "Anfügen an" auf Firma sind gesetzt (verifiziert); **"Anfügen" (prvAppendbmvcc_SyncLauf) auf Sync-Lauf fehlt noch** — stattdessen wurde dort "Anfügen an" gesetzt (unnötig, harmlos). Ohne "Anfügen" scheitert das Setzen des Firma-Lookups
 - [ ] Aufbewahrungsdauer — vorerst unbegrenzt (wenige Läufe pro Tag zu erwarten); ob später alte Einträge automatisch entfernt werden sollen, ist offen
 
 ## Decision Log
