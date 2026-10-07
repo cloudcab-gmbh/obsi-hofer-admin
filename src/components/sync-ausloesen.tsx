@@ -128,7 +128,8 @@ export function SyncAusloesen({
                       <TableHead>Bereich</TableHead>
                       <TableHead className="text-right">Geladen</TableHead>
                       <TableHead className="text-right">Neu</TableHead>
-                      <TableHead className="text-right">Aktualisiert</TableHead>
+                      {/* Das Kundenportal zählt jeden geschriebenen Datensatz, auch unveränderte — daher "Abgeglichen". */}
+                      <TableHead className="text-right">Abgeglichen</TableHead>
                       <TableHead className="text-right">Gelöscht</TableHead>
                     </TableRow>
                   </TableHeader>
