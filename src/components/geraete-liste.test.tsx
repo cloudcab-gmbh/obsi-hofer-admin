@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import type { Geraet, Standort } from "@/lib/dataverse/geraete";
+import type { Geraet } from "@/lib/dataverse/geraete";
 
 vi.mock("@/lib/geraete-filter-session", () => ({ setGeraeteFilterState: vi.fn() }));
 vi.mock("@/app/(protected)/geraete/actions", () => ({ generatePdfAction: vi.fn() }));
@@ -17,11 +17,9 @@ import { GeraeteListe } from "./geraete-liste";
 const LEER_FILTER = {
   suche: "",
   lagerort: "",
-  standortId: "",
   letztePruefungTage: "",
   sortierung: { spalte: "letztePruefung" as const, richtung: "desc" as const },
 };
-const STANDORTE: Standort[] = [{ id: "s1", name: "Standort 1", firmaId: "f1" } as Standort];
 
 function geraet(overrides: Partial<Geraet>): Geraet {
   return {
@@ -60,7 +58,7 @@ const GERAETE = [
 
 function zeige(filter = LEER_FILTER) {
   return render(
-    <GeraeteListe geraete={GERAETE} standorte={STANDORTE} initialFilter={filter} pruefberichtBemerkungen={new Map()} />
+    <GeraeteListe geraete={GERAETE} initialFilter={filter} pruefberichtBemerkungen={new Map()} />
   );
 }
 

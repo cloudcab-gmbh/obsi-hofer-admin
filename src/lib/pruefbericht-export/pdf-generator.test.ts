@@ -60,6 +60,24 @@ function zellFarbe(zeile: TableCell[], spalte: number): string | undefined {
 }
 
 describe("buildDocumentDefinition", () => {
+  // PROJ-10: Standort unter dem Firmennamen, nur wenn angegeben.
+  it("shows the Standort below the Firma name in the header only when given", () => {
+    const basis = {
+      headerZeile: HEADER,
+      mapping: mapping(),
+      letzteHeaderSpalte: HEADER.length,
+      farbRegeln: [],
+      zeilen: [leereZeile({ lagerort: "Trakt 1" })],
+      firmaName: "Beispiel-Firma",
+      logoDataUrl: null,
+    };
+    const kopfTexte = (doc: ReturnType<typeof buildDocumentDefinition>) =>
+      JSON.stringify((doc.content as unknown[])[0]);
+
+    expect(kopfTexte(buildDocumentDefinition(basis))).not.toContain("Haupthaus");
+    expect(kopfTexte(buildDocumentDefinition({ ...basis, standortName: "Haupthaus" }))).toContain('"text":"Haupthaus"');
+  });
+
   // PROJ-9: sichtbarer Signaturvermerk nur, wenn signiert wird.
   it("adds the signature note as a footer on every page only when one is given", () => {
     const basis = {

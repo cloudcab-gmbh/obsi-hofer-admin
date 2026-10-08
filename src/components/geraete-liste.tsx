@@ -18,7 +18,6 @@ import {
   type Geraet,
   type GeraeteSortSpalte,
   type GeraeteSortierung,
-  type Standort,
 } from "@/lib/dataverse/geraete";
 import { setGeraeteFilterState, type GeraeteFilterState } from "@/lib/geraete-filter-session";
 import { generatePdfAction } from "@/app/(protected)/geraete/actions";
@@ -54,19 +53,17 @@ function SortierbarerKopf({
 
 export function GeraeteListe({
   geraete,
-  standorte,
   initialFilter,
   pruefberichtBemerkungen,
 }: {
+  /** Geräte des aktuellen Standorts (PROJ-10). */
   geraete: Geraet[];
-  standorte: Standort[];
   initialFilter: GeraeteFilterState;
   /** Bemerkung des jeweils aktuellsten aktiven Prüfberichts, pro Gerät-ID. */
   pruefberichtBemerkungen: Map<string, string | null>;
 }) {
   const [suche, setSuche] = useState(initialFilter.suche);
   const [lagerort, setLagerort] = useState(initialFilter.lagerort || ALLE);
-  const [standortId, setStandortId] = useState(initialFilter.standortId || ALLE);
   const [letztePruefungTage, setLetztePruefungTage] = useState(initialFilter.letztePruefungTage);
   const [sortierung, setSortierung] = useState<GeraeteSortierung>(initialFilter.sortierung);
   const [pdfPending, startPdfTransition] = useTransition();
@@ -80,18 +77,12 @@ export function GeraeteListe({
       void setGeraeteFilterState({
         suche,
         lagerort: lagerort === ALLE ? "" : lagerort,
-        standortId: standortId === ALLE ? "" : standortId,
         letztePruefungTage,
         sortierung,
       });
     }, 400);
     return () => clearTimeout(timeout);
-  }, [suche, lagerort, standortId, letztePruefungTage, sortierung]);
-
-  const standortName = useMemo(() => {
-    const map = new Map(standorte.map((s) => [s.id, s.name]));
-    return (id: string | null) => (id ? (map.get(id) ?? null) : null);
-  }, [standorte]);
+  }, [suche, lagerort, letztePruefungTage, sortierung]);
 
   const lagerortOptionen = useMemo(() => {
     const set = new Set(geraete.map((g) => g.lagerort).filter((v): v is string => !!v));
@@ -104,15 +95,13 @@ export function GeraeteListe({
       matchesGeraeteFilter(g, {
         suche,
         lagerort: lagerort === ALLE ? "" : lagerort,
-        standortId: standortId === ALLE ? "" : standortId,
         letztePruefungTage,
       })
     );
     return sortiereGeraete(treffer, sortierung, {
-      standortName,
       pbBemerkung: (id) => pruefberichtBemerkungen.get(id) ?? null,
     });
-  }, [geraete, suche, lagerort, standortId, letztePruefungTage, sortierung, standortName, pruefberichtBemerkungen]);
+  }, [geraete, suche, lagerort, letztePruefungTage, sortierung, pruefberichtBemerkungen]);
 
   // Erster Klick auf eine Spalte sortiert aufsteigend, jeder weitere kehrt die Richtung um.
   function handleSortieren(spalte: GeraeteSortSpalte) {
@@ -151,13 +140,11 @@ export function GeraeteListe({
     return (
       <Card>
         <CardContent className="py-10 text-center text-sm text-muted-foreground">
-          Keine Geräte für diese Firma gefunden.
+          Keine Geräte für diesen Standort gefunden.
         </CardContent>
       </Card>
     );
   }
-
-  const zeigeStandortSpalte = standorte.length > 1;
 
   return (
     <div>
@@ -168,21 +155,6 @@ export function GeraeteListe({
           onChange={(e) => setSuche(e.target.value)}
           className="sm:max-w-xs"
         />
-        {zeigeStandortSpalte && (
-          <Select value={standortId} onValueChange={setStandortId}>
-            <SelectTrigger className="sm:w-48">
-              <SelectValue placeholder="Standort" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALLE}>Alle Standorte</SelectItem>
-              {standorte.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
         {lagerortOptionen.length > 0 && (
           <Select value={lagerort} onValueChange={setLagerort}>
             <SelectTrigger className="sm:w-48">
@@ -242,7 +214,6 @@ export function GeraeteListe({
                   {kopf("name", "Gerät")}
                   {kopf("kundenId", "Kunden-ID")}
                   {kopf("barcode", "Barcode")}
-                  {zeigeStandortSpalte && kopf("standort", "Standort")}
                   {kopf("lagerort", "Lagerort")}
                   {kopf("letztePruefung", "Letzte Prüfung")}
                   {kopf("status", "Status")}
@@ -262,7 +233,6 @@ export function GeraeteListe({
                     </TableCell>
                     <TableCell>{g.kundenId ?? "—"}</TableCell>
                     <TableCell>{g.barcode ?? "—"}</TableCell>
-                    {zeigeStandortSpalte && <TableCell>{standortName(g.standortId) ?? "—"}</TableCell>}
                     <TableCell>{g.lagerort ?? "—"}</TableCell>
                     <TableCell>{formatDatum(g.letztePruefung)}</TableCell>
                     <TableCell>

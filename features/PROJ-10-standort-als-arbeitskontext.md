@@ -1,6 +1,6 @@
 # PROJ-10: Standort als Arbeitskontext
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-10-08
 **Last Updated:** 2026-10-08
 
@@ -56,10 +56,11 @@
 - [ ] Angenommen eine Firma mit mehreren Standorten ist gewählt, aber kein Standort, dann sieht der Nutzer auf der Prüfberichte-Übersicht denselben Hinweis wie auf der Geräteliste
 
 **PDF-Export**
-- [ ] Angenommen die Firma hat mehrere Standorte, wenn ein PDF erzeugt wird, dann enthält der Dateiname den Standort, z.B. "2026-10-08 Prüfbericht Absturzsicherungen - Rehaklinik Bellikon - Haupthaus.pdf" (bei Lagerort-Filter zusätzlich wie bisher " - <Lagerort>")
+- [ ] Angenommen die Firma hat mehrere Standorte oder weitere aktive Firmen heissen gleich, wenn ein PDF erzeugt wird, dann enthält der Dateiname den Standort-Kurznamen, z.B. "2026-10-08 Prüfbericht Absturzsicherungen - Bilfinger Industrial Services Schweiz AG - Pratteln.pdf" (bei Lagerort-Filter zusätzlich wie bisher " - <Lagerort>")
 - [ ] Angenommen die Firma hat mehrere Standorte, wenn ein PDF erzeugt wird, dann steht der Standort auch im Titel/Kopfbereich des PDFs neben dem Firmennamen
-- [ ] Angenommen die Firma hat mehrere Standorte, wenn das PDF im SharePoint archiviert wird, dann landet es in "<Firma>/Prüfberichte/<Standort>/<Jahr>/"; fehlende Ordner werden automatisch angelegt
-- [ ] Angenommen die Firma hat genau einen Standort, wenn ein PDF erzeugt wird, dann sind Dateiname, Titel und Ablageort unverändert wie bisher ("<Firma>/Prüfberichte/<Jahr>/", kein Standort im Namen)
+- [ ] Angenommen die Firma hat mehrere Standorte **oder weitere aktive Firmen heissen gleich** (z.B. Bilfinger-Niederlassungen), wenn das PDF im SharePoint archiviert wird, dann landet es in "<Firma>/Standort <Kurzname>/Prüfberichte/<Jahr>/" (Kurzname = Standortname ohne vorangestellten Firmennamen, z.B. "Standort Pratteln"); fehlende Ordner werden automatisch angelegt *(geändert 2026-10-08, vorher "<Firma>/Prüfberichte/<Standort>/<Jahr>/")*
+- [ ] Angenommen der Standort heisst genau wie die Firma (Kurzname leer, z.B. Bilfinger-Hauptstandort), dann wird wie bisher in "<Firma>/Prüfberichte/<Jahr>/" archiviert, ohne Standort im Dateinamen
+- [ ] Angenommen die Firma hat genau einen Standort und ihr Name ist eindeutig, wenn ein PDF erzeugt wird, dann sind Dateiname, Titel und Ablageort unverändert wie bisher ("<Firma>/Prüfberichte/<Jahr>/", kein Standort im Namen)
 - [ ] Angenommen ein PDF wird erzeugt, dann wird die Vorlage wie bisher pro Firma gesucht ("<Firma>/Prüfberichte/vorlage_pruefberichtraport.xlsx", sonst Standard-Vorlage)
 - [ ] Angenommen der PDF-Export wird ausgelöst, dann enthält er nur Geräte des aktuellen Standorts — auch wenn ein manipulierter Aufruf Geräte-IDs eines anderen Standorts oder einer anderen Firma mitschickt (serverseitige Einschränkung wie bisher auf Firmenebene, jetzt auf Standortebene)
 
@@ -86,6 +87,8 @@
 - [x] Gibt es in echten Daten Firmen mit zwei gleichnamigen Standorten? → Ja, genau ein Fall (in einer Testfirma). Lösung: unterscheidender Zusatz " (2)" usw. in fester Reihenfolge, siehe Tech Design (2026-10-08)
 - [x] Welches Dataverse-Feld eignet sich als Anzeigename des Standorts? → `bmvcc_displayname`: bei allen 207 Standorten gefüllt, max. 51 Zeichen; Sonderzeichen werden wie beim Firmennamen ersetzt (2026-10-08)
 
+- [x] Gleichnamige Firmen (z.B. die drei Bilfinger-Niederlassungen) teilen sich denselben SharePoint-Ordner `<Firma>/` → gewollt (bestehende Struktur); das Archiv wird über "Standort <Kurzname>" darin getrennt (2026-10-08)
+
 ## Decision Log
 
 ### Product Decisions
@@ -97,10 +100,12 @@
 | Bei genau einem Standort automatische Auswahl | Für die grosse Mehrheit der Firmen ändert sich die Bedienung nicht | 2026-10-08 |
 | Auswahl nur auf der Startseite, Anzeige im Header; kein Schnellwechsel auf den Listen | Gleiches Muster wie die Firma-Auswahl, weniger Bedienelemente (Nutzer-Entscheidung) | 2026-10-08 |
 | Standortwechsel setzt die Filter der Geräteliste zurück | Lagerorte sind standortspezifisch — gleiche Begründung wie beim Firmenwechsel (PROJ-3, Nachtrag 2026-10-06) | 2026-10-08 |
-| PDF-Ablage bei mehreren Standorten in "<Firma>/Prüfberichte/<Standort>/<Jahr>/", Vorlage bleibt pro Firma | Berichte verschiedener Niederlassungen getrennt archiviert, ohne Mehraufwand bei der Vorlagen-Pflege (Nutzer-Entscheidung) | 2026-10-08 |
+| ~~PDF-Ablage bei mehreren Standorten in "<Firma>/Prüfberichte/<Standort>/<Jahr>/"~~ → **"<Firma>/Standort <Kurzname>/Prüfberichte/<Jahr>/"**, auch für gleichnamige Firmen; Vorlage bleibt pro Firma | Beim ersten Test gesehen: Mehr-Standort-Kunden haben im SharePoint bereits Standort-Ordner direkt unter der Firma mit eigenem "Prüfberichte"-Ordner (Bilfinger: "Standort Pratteln", …). Automatisch gebildeter Ordnername statt Zuordnungsfeld in Dataverse; dass bei abweichend benannten Ordnern (z.B. "Objekt - …") ein zusätzlicher Ordner entsteht, wird in Kauf genommen (Nutzer-Entscheidung) | 2026-10-08 |
 | Bei genau einem Standort bleiben Dateiname, Titel und Ablage unverändert | Bestehende Archive der grossen Mehrheit bleiben einheitlich, kein Bruch in der Ordnerstruktur (Nutzer-Entscheidung) | 2026-10-08 |
 | Standort-Filter und -Spalte der Geräteliste entfallen (heute nur bei Firmen mit mehreren Standorten sichtbar, siehe PROJ-3) | Bei genau einem aktiven Standort ohne Funktion | 2026-10-08 |
 | Kontakte, Sync und Sync-Verlauf bleiben in PROJ-10 pro Firma | Getrennte Folge-Features PROJ-11/12 mit eigenen externen Abhängigkeiten | 2026-10-08 |
+| Gleichnamige Firmen bleiben in Dataverse getrennt (z.B. drei "Bilfinger Industrial Services Schweiz AG" für drei Niederlassungen, je mit einem Standort); das Tool macht sie in Auswahl und Header mit dem Standort unterscheidbar | Live-Fund beim ersten Test: Firma erschien mehrfach in der Auswahl. Laut Nutzer ist die Zuordnung in Dataverse bewusst so (Nutzer-Entscheidung) | 2026-10-08 |
+| Inaktive Firmen werden in der Auswahl nicht mehr angezeigt | Fehler seit PROJ-3 (kein Statusfilter); u.a. ein vierter, deaktivierter Bilfinger-Datensatz ohne Standort erschien in der Auswahl | 2026-10-08 |
 
 ### Technical Decisions
 | Decision | Rationale | Date |
@@ -158,10 +163,12 @@ Keine Datenbank, keine Dataverse-Änderung. Neu ist nur ein zweiter Sitzungswert
 - Beim Wechsel des Standorts werden die Geräte-Filter geleert (wie beim Firmenwechsel). Das bisherige Filterfeld "Standort" in der Filter-Sitzung entfällt.
 - Ältere Sitzungen ohne gespeicherten Standort: bei Firmen mit genau einem Standort automatisch gültig, sonst Hinweis zur Auswahl.
 
-**Regel für Namen bei mehreren Standorten:**
-- Dateiname: `<Datum> Prüfbericht Absturzsicherungen - <Firma> - <Standort>[ - <Lagerort>].pdf`
-- Ablage: `<Firma>/Prüfberichte/<Standort>/<Jahr>/` — fehlende Ordner legt SharePoint beim Hochladen automatisch an (so entstehen schon heute die Jahresordner)
-- Kopfbereich des PDFs: Standort unter dem Firmennamen
+**Regel für Namen bei mehreren Standorten bzw. gleichnamigen Firmen** *(Ablage geändert 2026-10-08 nach Blick in die bestehende SharePoint-Struktur)*:
+- Kurzname: Standortname ohne vorangestellten Firmennamen ("Bilfinger … AG - Pratteln" → "Pratteln"); leer, wenn der Standort wie die Firma heisst → dann alles wie bisher
+- Dateiname: `<Datum> Prüfbericht Absturzsicherungen - <Firma> - <Kurzname>[ - <Lagerort>].pdf`
+- Ablage: `<Firma>/Standort <Kurzname>/Prüfberichte/<Jahr>/` — folgt der bestehenden manuellen Konvention (z.B. `Bilfinger …/Standort Pratteln/Prüfberichte/`); fehlende Ordner legt SharePoint beim Hochladen automatisch an
+- Kopfbereich des PDFs: Kurzname unter dem Firmennamen
+- Bekannte Einschränkung: Kunden, deren bestehende Ordner anders heissen (z.B. Ramseyer und Dilger: "Objekt - Hotel Alpin Palace, Mürren" vs. Dataverse-Standort "Hotel Mürren Palace"), erhalten einen neuen Ordner "Standort <Kurzname>" neben dem bestehenden (Nutzer-Entscheidung, bewusst ohne Zuordnungsfeld in Dataverse)
 - Verbotene Zeichen werden wie beim Firmennamen ersetzt
 - Gleichnamige Standorte einer Firma erhalten in Auswahl, Header, Dateiname und Ordner einen unterscheidenden Zusatz " (2)", " (3)" … — in fester Reihenfolge (nach Erstellungsdatum), damit derselbe Standort immer denselben Ordner bekommt
 
@@ -182,6 +189,40 @@ Keine neuen Pakete.
 - Server-Action-Test: Geräte-IDs eines anderen Standorts werden ignoriert
 - Komponententests: Standort-Auswahl auf der Startseite, Header-Anzeige, Hinweis-Zustände auf Geräteliste/Prüfberichten
 - Manuell: Firma mit einem Standort (unverändert) und Firma mit mehreren Standorten (Auswahl, Liste, PDF-Ablage im SharePoint)
+
+## Implementation Notes (Frontend + Backend)
+
+**Umgesetzt 2026-10-08** — Oberfläche und Server-Logik in einem Durchgang (die Seiten sind Server-Komponenten und brauchen den Arbeitskontext direkt; kein separates `/backend`).
+
+**Arbeitskontext & Sitzung**
+- Neu `src/lib/arbeitskontext.ts`: reine Regel `bestimmeArbeitskontext()` (Zustände `keine-firma`, `firma-ohne-standort`, `standort-waehlen`, `bereit` inkl. `mehrereStandorte`), `ladeArbeitskontext()` (React `cache` — Header und Seite teilen sich pro Aufruf ein Ergebnis; nicht mehr existierende Firma → `keine-firma`, andere Dataverse-Fehler werden durchgereicht) und `kontextBezeichnung()` für Header/Menü.
+- `src/lib/firma-session.ts`: zweites Cookie `aktueller_standort_id`. `setCurrentFirmaId()` verwirft bei Firmenwechsel Standort und Filter, speichert bei genau einem Standort diesen sofort mit und meldet `standortWaehlen` zurück. Neu `setCurrentStandortId()` — übernimmt nur Standorte der aktuellen Firma (Server Actions sind direkt aufrufbar), setzt bei echtem Wechsel die Geräte-Filter zurück.
+- `listStandorteForFirma()` liefert zusätzlich `erstelltAm` (`createdon`); neu `eindeutigeStandortNamen()` vergibt bei gleichnamigen Standorten " (2)", " (3)" … nach Erstellungsdatum.
+
+**Oberfläche**
+- Neu `DurchsuchbareAuswahl` (aus der bisherigen Firma-Combobox herausgelöst), genutzt von `FirmaCombobox` und neu `StandortCombobox`. Nach Firmenwahl: bei mehreren Standorten bleibt der Nutzer auf `/start`, sonst direkt zu `/geraete`.
+- Startseite: Feld "Aktueller Standort" nur bei mehreren Standorten; Hinweis bei Firma ohne Standort bzw. Ladefehler; "Weiter zu Geräte (Firma · Standort)" erst bei feststehendem Standort.
+- Header und mobiles Menü: "Firma · Standort" (bei einem Standort nur Firma, bei offener Wahl "Firma · Standort wählen"); Platz für den Text im Header leicht vergrössert. Auf Nutzerwunsch (2026-10-08) steht "Firma: …" im Desktop-Header jetzt fett **vor** den Menüpunkten (Geräte, Prüfberichte, Freigabe) statt rechts neben dem Namen.
+- Neu `KontextHinweis` für Geräteliste und Prüfberichte-Übersicht (keine Firma / Standort wählen / Firma ohne Standort).
+- Geräteliste: lädt nur Geräte des Standorts; Standort-Filter, Standort-Spalte und Sortierung nach Standort entfernt; Leer-Text "Keine Geräte für diesen Standort gefunden."; Liste wird bei Standortwechsel neu aufgebaut (`key`).
+- Prüfberichte-Übersicht: nur Prüfberichte von Geräten des Standorts; Hinweistext auf "(Lagerort/Letzte Prüfung)" angepasst.
+- Geräte-Filter-Sitzung: Feld `standortId` entfernt (ältere Cookies mit dem Feld werden einfach ignoriert).
+
+**PDF-Export**
+- `generatePdfAction`: Geräte nur aus dem Standort der Sitzung (QA BUG-1 aus PROJ-7 jetzt auf Standortebene); "Kein Standort ausgewählt." bei offener Wahl; `standortName` nur bei mehreren Standorten an den Export.
+- `generatePruefberichtPdf`: Standort im Dateinamen (`… - <Firma> - <Standort>[ - <Lagerort>].pdf`), im Kopfbereich unter dem Firmennamen und als Ablage-Unterordner `<Firma>/Prüfberichte/<Standort>/<Jahr>/`; verbotene Zeichen ersetzt; Vorlage weiterhin pro Firma. Ohne Standort exakt wie bisher.
+
+**Live-Fund beim ersten Test (2026-10-08): gleichnamige Firmen.** "Bilfinger Industrial Services Schweiz AG" erschien viermal in der Firmenauswahl. Analyse (nur lesend): 10 Firmennamen kommen mehrfach vor; bei Bilfinger sind es drei aktive Firmen mit je einem Standort (Hauptstandort, Pratteln, Boningen) plus ein deaktivierter Datensatz ohne Standort. Laut Nutzer ist die Trennung in Dataverse gewollt. Umsetzung:
+- `listFirmen()` liefert nur noch aktive Firmen (`statecode eq 0`) — Fehler seit PROJ-3.
+- Neu `firmenAnzeigenamen()` (rein, getestet): gleichnamige Firmen erhalten " · <Standort>" ohne vorangestellten Firmennamen ("… AG - Pratteln" → "Pratteln"); leerer Zusatz erlaubt, solange eindeutig (Bilfinger-Hauptstandort heisst wie die Firma); "ohne Standort" bzw. "n Standorte"; verbleibende Gleichheit wird nach ID nummeriert. Startseite lädt dafür einmal alle Standorte (`listAlleStandorte()`, ~200).
+- Arbeitskontext: `firma.anzeigename` (Header, mobiles Menü, Button auf `/start`) nach derselben Regel — nur wenn weitere aktive Firmen gleich heissen (`listAktiveFirmenMitNamen()`, `listStandorteForFirmen()`). `firma.name` bleibt der echte Name: PDF-Dateiname und SharePoint-Ordner unverändert.
+- PDF-Ablage geändert (nach Blick in die SharePoint-Struktur, nur lesend): `<Firma>/Standort <Kurzname>/Prüfberichte/<Jahr>/` statt `<Firma>/Prüfberichte/<Standort>/<Jahr>/`, angewendet bei mehreren Standorten **und** bei gleichnamigen Firmen (`firma.mehrdeutig`); Kurzname über `standortKurzname()`, Entscheidung in `pdfStandortZusatz()` (arbeitskontext.ts). Leerer Kurzname (Bilfinger-Hauptstandort) → Ablage wie bisher.
+
+**Unverändert:** `/sync-freigabe` (Kontakte, Sync, Verlauf weiterhin pro Firma, bis PROJ-11/12), Geräte- und Prüfbericht-Detailseiten.
+
+**Tests:** neu `arbeitskontext.test.ts` (alle Zustände, alte Sitzungen, umgehängte Standorte, gleichnamige Standorte, Bezeichnung, Laden inkl. gelöschter Firma/Dataverse-Fehler); erweitert `firma-session.test.ts` (Standort bei Firmenwahl, Validierung von `setCurrentStandortId`, Filter-Reset), `geraete.test.ts` (`eindeutigeStandortNamen`), `export.test.ts` (Dateiname, Ablage, Sonderzeichen, Vorlage pro Firma, unverändert ohne Standort), `actions.test.ts` (Standort-Scope, "Kein Standort ausgewählt.", Standortname nur bei mehreren), `pdf-generator.test.ts` (Kopfbereich). 366 Tests grün, Typecheck/Lint/Build sauber.
+
+**Noch nicht im Browser geprüft** — siehe Übergabe an den Nutzer.
 
 ## QA Test Results
 _To be added by /qa_

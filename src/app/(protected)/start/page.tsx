@@ -1,15 +1,28 @@
 import Link from "next/link";
 import { auth } from "@/auth";
-import { getCurrentFirmaId } from "@/lib/firma-session";
-import { listFirmen, getFirma } from "@/lib/dataverse/geraete";
+import { ladeArbeitskontext, kontextBezeichnung, type Arbeitskontext } from "@/lib/arbeitskontext";
+import { firmenAnzeigenamen, listAlleStandorte, listFirmen } from "@/lib/dataverse/geraete";
 import { FirmaCombobox } from "@/components/firma-combobox";
+import { StandortCombobox } from "@/components/standort-combobox";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 export default async function ProtectedHomePage() {
   const session = await auth();
-  const [firmen, currentFirmaId] = await Promise.all([listFirmen(), getCurrentFirmaId()]);
-  const currentFirma = currentFirmaId ? await getFirma(currentFirmaId).catch(() => null) : null;
+  const [firmen, alleStandorte, kontext] = await Promise.all([
+    listFirmen(),
+    listAlleStandorte(),
+    ladeArbeitskontext().catch((): Arbeitskontext | null => null),
+  ]);
+  // Gleichnamige Firmen mit Standort-Zusatz unterscheidbar (z.B. "Bilfinger … AG · Pratteln").
+  const anzeigenamen = firmenAnzeigenamen(firmen, alleStandorte);
+  const firmenOptionen = firmen.map((f) => ({ id: f.id, name: anzeigenamen.get(f.id) ?? f.name }));
+  const firma = kontext && kontext.zustand !== "keine-firma" ? kontext.firma : null;
+  // PROJ-10: Standort-Auswahl nur bei Firmen mit mehreren Standorten.
+  const standortAuswahl =
+    kontext?.zustand === "standort-waehlen" || (kontext?.zustand === "bereit" && kontext.mehrereStandorte)
+      ? kontext
+      : null;
 
   return (
     <main className="flex flex-col items-center gap-8 px-4 py-16">
@@ -22,11 +35,26 @@ export default async function ProtectedHomePage() {
         <CardContent className="space-y-4 py-6">
           <div>
             <p className="mb-1 text-sm font-medium">Aktuelle Firma</p>
-            <FirmaCombobox firmen={firmen} selectedFirmaId={currentFirmaId ?? undefined} />
+            <FirmaCombobox firmen={firmenOptionen} selectedFirmaId={firma?.id} />
           </div>
-          {currentFirma && (
+          {standortAuswahl && (
+            <div>
+              <p className="mb-1 text-sm font-medium">Aktueller Standort</p>
+              <StandortCombobox
+                standorte={standortAuswahl.standorte}
+                selectedStandortId={standortAuswahl.zustand === "bereit" ? standortAuswahl.standort.id : undefined}
+              />
+            </div>
+          )}
+          {kontext?.zustand === "firma-ohne-standort" && (
+            <p className="text-sm text-muted-foreground">Für diese Firma sind keine Standorte erfasst.</p>
+          )}
+          {kontext === null && (
+            <p className="text-sm text-destructive">Die Standorte der Firma konnten nicht geladen werden.</p>
+          )}
+          {kontext?.zustand === "bereit" && (
             <Button asChild className="w-full">
-              <Link href="/geraete">Weiter zu Geräte ({currentFirma.name})</Link>
+              <Link href="/geraete">Weiter zu Geräte ({kontextBezeichnung(kontext)})</Link>
             </Button>
           )}
         </CardContent>

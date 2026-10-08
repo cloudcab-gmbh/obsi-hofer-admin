@@ -11,6 +11,8 @@ const GERAETE_ENTITY = "bmvcc_equipmentrecords";
 const STANDORTE_ENTITY = "bmvcc_organizationlocations";
 const FIRMEN_ENTITY = "bmvcc_firmas";
 const ARTIKEL_ENTITY = "bmvcc_artikels";
+const AKTIV = 0;
+const STANDORT_SELECT = ["bmvcc_organizationlocationid", "bmvcc_displayname", "_bmvcc_bexiofirma_value", "createdon"];
 
 const GERAET_SELECT = [
   "bmvcc_equipmentrecordid",
@@ -44,6 +46,30 @@ export interface Standort {
   id: string;
   name: string;
   firmaId: string;
+  /** Erstellungszeitpunkt (ISO) — feste Reihenfolge für gleichnamige Standorte (PROJ-10). */
+  erstelltAm?: string | null;
+}
+
+/**
+ * PROJ-10: Eindeutige Anzeigenamen für die Standorte einer Firma. Gleichnamige
+ * Standorte (laut Datenanalyse selten) erhalten " (2)", " (3)" … in fester
+ * Reihenfolge nach Erstellungsdatum (dann ID), damit derselbe Standort in
+ * Auswahl, Header, Dateiname und Archivordner immer gleich heisst.
+ */
+export function eindeutigeStandortNamen(standorte: Standort[]): Map<string, string> {
+  const gruppen = new Map<string, Standort[]>();
+  for (const s of standorte) {
+    const schluessel = s.name.trim().toLowerCase();
+    gruppen.set(schluessel, [...(gruppen.get(schluessel) ?? []), s]);
+  }
+  const namen = new Map<string, string>();
+  for (const gruppe of gruppen.values()) {
+    const sortiert = [...gruppe].sort(
+      (a, b) => (a.erstelltAm ?? "").localeCompare(b.erstelltAm ?? "") || a.id.localeCompare(b.id)
+    );
+    sortiert.forEach((s, i) => namen.set(s.id, i === 0 ? s.name.trim() : `${s.name.trim()} (${i + 1})`));
+  }
+  return namen;
 }
 
 export interface ArtikelInfo {
@@ -81,18 +107,15 @@ export interface GeraeteFilter {
   suche: string;
   /** Leerstring = "alle Lagerorte". */
   lagerort: string;
-  /** Leerstring = "alle Standorte". */
-  standortId: string;
   /** Leerstring = keine Einschränkung; sonst nur Geräte, deren letzte Prüfung höchstens so viele Tage zurückliegt. */
   letztePruefungTage: string;
 }
 
 // Gemeinsame Filter-Regel für Geräte — genutzt sowohl von der Geräteliste
-// (PROJ-3) als auch von der firmenweiten Prüfberichte-Übersicht (PROJ-4),
+// (PROJ-3) als auch von der Prüfberichte-Übersicht (PROJ-4),
 // damit ein auf /geraete gewählter Filter dort dieselbe Geräte-Teilmenge
 // ergibt (siehe geraete-filter-session.ts, Nutzerwunsch 2026-10-05).
 export function matchesGeraeteFilter(geraet: Geraet, filter: GeraeteFilter): boolean {
-  if (filter.standortId && geraet.standortId !== filter.standortId) return false;
   if (filter.lagerort && geraet.lagerort !== filter.lagerort) return false;
 
   const tage = Number(filter.letztePruefungTage);
@@ -114,7 +137,6 @@ export const GERAETE_SORT_SPALTEN = [
   "name",
   "kundenId",
   "barcode",
-  "standort",
   "lagerort",
   "letztePruefung",
   "status",
@@ -141,14 +163,11 @@ export function sortiereGeraete(
   geraete: Geraet[],
   sortierung: GeraeteSortierung,
   lookups: {
-    standortName: (standortId: string | null) => string | null;
     pbBemerkung: (geraetId: string) => string | null;
   }
 ): Geraet[] {
   const wert = (g: Geraet): string | number | null => {
     switch (sortierung.spalte) {
-      case "standort":
-        return lookups.standortName(g.standortId);
       case "pbBemerkung":
         return lookups.pbBemerkung(g.id);
       case "letztePruefung": {
@@ -223,16 +242,117 @@ function mapGeraet(raw: Record<string, unknown>): Geraet {
   };
 }
 
+function zuFirma(r: Record<string, unknown>): Firma {
+  return { id: r.bmvcc_firmaid as string, name: asString(r.bmvcc_name) ?? "(ohne Name)" };
+}
+
+function zuStandort(r: Record<string, unknown>): Standort {
+  return {
+    id: r.bmvcc_organizationlocationid as string,
+    name: asString(r.bmvcc_displayname) ?? "(ohne Name)",
+    firmaId: r._bmvcc_bexiofirma_value as string,
+    erstelltAm: asString(r.createdon),
+  };
+}
+
+// Nur aktive Firmen (PROJ-10, Live-Fund 2026-10-08): deaktivierte Datensätze
+// erschienen bisher ebenfalls in der Auswahl, u.a. als vierte "Bilfinger".
 export async function listFirmen(): Promise<Firma[]> {
   const { records } = await listRecords(FIRMEN_ENTITY, {
     select: ["bmvcc_firmaid", "bmvcc_name"],
+    filter: `statecode eq ${AKTIV}`,
     orderBy: "bmvcc_name asc",
     top: 500,
   });
-  return records.map((r) => ({
-    id: r.bmvcc_firmaid as string,
-    name: asString(r.bmvcc_name) ?? "(ohne Name)",
-  }));
+  return records.map(zuFirma);
+}
+
+/** Aktive Firmen mit exakt diesem Namen (für die Erkennung gleichnamiger Firmen im Header). */
+export async function listAktiveFirmenMitNamen(name: string): Promise<Firma[]> {
+  const { records } = await listRecords(FIRMEN_ENTITY, {
+    select: ["bmvcc_firmaid", "bmvcc_name"],
+    // OData-Stringliteral: einfaches Anführungszeichen wird verdoppelt.
+    filter: `bmvcc_name eq '${name.replace(/'/g, "''")}' and statecode eq ${AKTIV}`,
+  });
+  return records.map(zuFirma);
+}
+
+/** Alle Standorte aller Firmen (für die Kennzeichnung gleichnamiger Firmen in der Auswahl, ~200 Einträge). */
+export async function listAlleStandorte(): Promise<Standort[]> {
+  const { records } = await listRecords(STANDORTE_ENTITY, { select: STANDORT_SELECT, top: 5000 });
+  return records.map(zuStandort);
+}
+
+/** Standorte mehrerer Firmen in einer Abfrage. */
+export async function listStandorteForFirmen(firmaIds: string[]): Promise<Standort[]> {
+  if (firmaIds.length === 0) return [];
+  firmaIds.forEach((id) => requireValidGuid(id, "firmaId"));
+  const { records } = await listRecords(STANDORTE_ENTITY, {
+    select: STANDORT_SELECT,
+    filter: firmaIds.map((id) => `_bmvcc_bexiofirma_value eq ${id}`).join(" or "),
+  });
+  return records.map(zuStandort);
+}
+
+/**
+ * Anzeigenamen für Firmen (PROJ-10, Nutzer-Entscheidung 2026-10-08): In
+ * Dataverse gibt es bewusst gleichnamige Firmen (z.B. drei "Bilfinger …"
+ * für drei Niederlassungen). Gleichnamige Firmen erhalten einen Zusatz aus
+ * ihrem Standort — ohne den vorangestellten Firmennamen ("… AG - Pratteln" →
+ * "Pratteln"); "ohne Standort" bzw. "n Standorte"; ein leerer Zusatz ist
+ * erlaubt, solange der Name damit eindeutig bleibt. Bleiben Namen trotzdem
+ * gleich, werden sie nach ID durchnummeriert. Eindeutige Namen bleiben unverändert.
+ */
+export function firmenAnzeigenamen(firmen: Firma[], standorte: Standort[]): Map<string, string> {
+  const standorteProFirma = new Map<string, Standort[]>();
+  for (const s of standorte) standorteProFirma.set(s.firmaId, [...(standorteProFirma.get(s.firmaId) ?? []), s]);
+
+  const gruppen = new Map<string, Firma[]>();
+  for (const f of firmen) {
+    const schluessel = f.name.trim().toLowerCase();
+    gruppen.set(schluessel, [...(gruppen.get(schluessel) ?? []), f]);
+  }
+
+  const namen = new Map<string, string>();
+  for (const gruppe of gruppen.values()) {
+    if (gruppe.length === 1) {
+      namen.set(gruppe[0].id, gruppe[0].name);
+      continue;
+    }
+    const kandidaten = gruppe.map((f) => {
+      const eigene = standorteProFirma.get(f.id) ?? [];
+      let zusatz: string;
+      if (eigene.length === 0) zusatz = "ohne Standort";
+      else if (eigene.length > 1) zusatz = `${eigene.length} Standorte`;
+      else zusatz = standortKurzname(eigene[0].name, f.name);
+      return { firma: f, name: zusatz ? `${f.name} · ${zusatz}` : f.name };
+    });
+    const vorkommen = new Map<string, number>();
+    for (const k of kandidaten) vorkommen.set(k.name, (vorkommen.get(k.name) ?? 0) + 1);
+    const zaehler = new Map<string, number>();
+    for (const k of [...kandidaten].sort((a, b) => a.firma.id.localeCompare(b.firma.id))) {
+      if ((vorkommen.get(k.name) ?? 0) > 1) {
+        const n = (zaehler.get(k.name) ?? 0) + 1;
+        zaehler.set(k.name, n);
+        namen.set(k.firma.id, `${k.name} (${n})`);
+      } else {
+        namen.set(k.firma.id, k.name);
+      }
+    }
+  }
+  return namen;
+}
+
+/**
+ * Standortname ohne vorangestellten Firmennamen ("Bilfinger … AG - Pratteln"
+ * → "Pratteln"); leer, wenn der Standort genau wie die Firma heisst. Genutzt
+ * für Anzeigenamen gleichnamiger Firmen und für den SharePoint-Ordner
+ * "Standort <Kurzname>" (PROJ-10).
+ */
+export function standortKurzname(standortName: string, firmaName: string): string {
+  const standort = standortName.trim();
+  if (!standort.toLowerCase().startsWith(firmaName.trim().toLowerCase())) return standort;
+  return standort.slice(firmaName.trim().length).replace(/^[\s,\-–—:]+/, "").trim();
 }
 
 export async function getFirma(id: string): Promise<Firma> {
@@ -244,14 +364,10 @@ export async function listStandorteForFirma(firmaId: string): Promise<Standort[]
   requireValidGuid(firmaId, "firmaId");
 
   const { records } = await listRecords(STANDORTE_ENTITY, {
-    select: ["bmvcc_organizationlocationid", "bmvcc_displayname", "_bmvcc_bexiofirma_value"],
+    select: STANDORT_SELECT,
     filter: `_bmvcc_bexiofirma_value eq ${firmaId}`,
   });
-  return records.map((r) => ({
-    id: r.bmvcc_organizationlocationid as string,
-    name: asString(r.bmvcc_displayname) ?? "(ohne Name)",
-    firmaId: r._bmvcc_bexiofirma_value as string,
-  }));
+  return records.map(zuStandort);
 }
 
 export async function getStandort(id: string): Promise<Standort> {

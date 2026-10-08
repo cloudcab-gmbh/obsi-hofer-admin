@@ -1,59 +1,47 @@
-import Link from "next/link";
-import { listStandorteForFirma, listGeraeteForStandorte, type Geraet, type Standort } from "@/lib/dataverse/geraete";
+import { listGeraeteForStandorte, type Geraet } from "@/lib/dataverse/geraete";
 import { getAktuelleBemerkungenForGeraete } from "@/lib/dataverse/pruefberichte";
-import { getCurrentFirmaId } from "@/lib/firma-session";
+import { ladeArbeitskontext, type Arbeitskontext } from "@/lib/arbeitskontext";
 import { getGeraeteFilterState } from "@/lib/geraete-filter-session";
 import { GeraeteListe } from "@/components/geraete-liste";
+import { KontextHinweis } from "@/components/kontext-hinweis";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default async function GeraetePage() {
-  const [firmaId, initialFilter] = await Promise.all([getCurrentFirmaId(), getGeraeteFilterState()]);
-
-  if (!firmaId) {
-    return (
-      <main className="mx-auto max-w-5xl px-4 py-8">
-        <h1 className="mb-6 text-xl font-semibold">Geräte-Verwaltung</h1>
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Bitte zuerst auf der{" "}
-            <Link href="/start" className="font-medium text-primary underline-offset-2 hover:underline">
-              Startseite
-            </Link>{" "}
-            eine Firma auswählen.
-          </CardContent>
-        </Card>
-      </main>
-    );
-  }
-
-  let standorte: Standort[] = [];
+  let kontext: Arbeitskontext | null = null;
   let geraete: Geraet[] = [];
   let pruefberichtBemerkungen = new Map<string, string | null>();
   let loadError: string | null = null;
 
+  const initialFilter = await getGeraeteFilterState();
   try {
-    standorte = await listStandorteForFirma(firmaId);
-    geraete = await listGeraeteForStandorte(standorte.map((s) => s.id));
-    pruefberichtBemerkungen = await getAktuelleBemerkungenForGeraete(geraete.map((g) => g.id));
+    kontext = await ladeArbeitskontext();
+    // PROJ-10: nur die Geräte des aktuellen Standorts.
+    if (kontext.zustand === "bereit") {
+      geraete = await listGeraeteForStandorte([kontext.standort.id]);
+      pruefberichtBemerkungen = await getAktuelleBemerkungenForGeraete(geraete.map((g) => g.id));
+    }
   } catch {
     loadError = "Die Gerätedaten konnten nicht geladen werden.";
+  }
+
+  if (kontext && kontext.zustand !== "bereit") {
+    return <KontextHinweis titel="Geräte-Verwaltung" kontext={kontext} />;
   }
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
       <h1 className="mb-6 text-xl font-semibold">Geräte-Verwaltung</h1>
 
-      {loadError ? (
+      {loadError || !kontext ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">{loadError}</CardContent>
         </Card>
       ) : (
         <GeraeteListe
-          // Neu aufbauen bei Firmenwechsel, sonst behält der Client-State die
-          // Filter der vorherigen Firma (der Cookie wird serverseitig geleert).
-          key={firmaId ?? ""}
+          // Neu aufbauen bei Standortwechsel, sonst behält der Client-State die
+          // Filter des vorherigen Standorts (der Cookie wird serverseitig geleert).
+          key={kontext.standort.id}
           geraete={geraete}
-          standorte={standorte}
           initialFilter={initialFilter}
           pruefberichtBemerkungen={pruefberichtBemerkungen}
         />

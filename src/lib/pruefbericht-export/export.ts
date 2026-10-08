@@ -35,9 +35,10 @@ function heutigesDatum(): string {
   return `${jahr}-${monat}-${tag}`;
 }
 
-function buildDateiname(firmaName: string, lagerortFilter: string | null): string {
+function buildDateiname(firmaName: string, standortName: string | null, lagerortFilter: string | null): string {
+  const standort = standortName ? ` - ${bereinigeFuerDateinamen(standortName)}` : "";
   const zusatz = lagerortFilter ? ` - ${bereinigeFuerDateinamen(lagerortFilter)}` : "";
-  return `${heutigesDatum()} Prüfbericht Absturzsicherungen - ${bereinigeFuerDateinamen(firmaName)}${zusatz}.pdf`;
+  return `${heutigesDatum()} Prüfbericht Absturzsicherungen - ${bereinigeFuerDateinamen(firmaName)}${standort}${zusatz}.pdf`;
 }
 
 // Live-Fund (2026-10-06): Dataverse liefert Datumsfelder als volle ISO-
@@ -108,6 +109,12 @@ async function ladeVorlage(firmaOrdner: string): Promise<ArrayBuffer> {
 
 export interface GeneratePdfParams {
   firmaName: string;
+  /**
+   * PROJ-10: Standort-Kurzname, nur bei Firmen mit mehreren Standorten bzw.
+   * gleichnamigen Firmen gesetzt — dann im Dateinamen, im Kopfbereich und als
+   * Ablageordner "Standort <Name>". `null`: alles wie bisher.
+   */
+  standortName?: string | null;
   geraete: Geraet[];
   lagerortFilter: string | null;
 }
@@ -119,6 +126,7 @@ export interface GeneratePdfResult {
 
 export async function generatePruefberichtPdf(params: GeneratePdfParams): Promise<GeneratePdfResult> {
   const { firmaName, geraete, lagerortFilter } = params;
+  const standortName = params.standortName ?? null;
   if (geraete.length === 0) {
     throw new ExportFehler("Keine Geräte für diesen Export gefunden.");
   }
@@ -145,11 +153,18 @@ export async function generatePruefberichtPdf(params: GeneratePdfParams): Promis
   );
 
   const firmaOrdner = bereinigeFuerDateinamen(firmaName);
-  // Archiv der erzeugten PDFs weiterhin im Jahresordner.
-  const ordnerPfad = `${firmaOrdner}/Prüfberichte/${new Date().getFullYear()}`;
+  // Archiv der erzeugten PDFs im Jahresordner. Mit Standort nach der
+  // bestehenden SharePoint-Konvention der Mehr-Standort-Kunden (PROJ-10,
+  // z.B. "Bilfinger …/Standort Pratteln/Prüfberichte/"): "<Firma>/Standort
+  // <Name>/Prüfberichte/<Jahr>". Fehlende Ordner legt SharePoint beim
+  // Hochladen über den Pfad selbst an.
+  const standortOrdner = standortName ? `/Standort ${bereinigeFuerDateinamen(standortName)}` : "";
+  const ordnerPfad = `${firmaOrdner}${standortOrdner}/Prüfberichte/${new Date().getFullYear()}`;
 
+  // Vorlage bleibt pro Firma (PROJ-10 Product Decision).
   const vorlageBuffer = await ladeVorlage(firmaOrdner);
-  const dateiname = buildDateiname(firmaName, lagerortFilter);
+  const dateiname = buildDateiname(firmaName, standortName, lagerortFilter);
+  const kopfOptionen = standortName ? { standortName } : {};
 
   if (signatur.modus === "test") {
     // PROJ-9 Phase 1: Vermerk mit Test-Kennzeichnung, Signatur mit dem
@@ -158,6 +173,7 @@ export async function generatePruefberichtPdf(params: GeneratePdfParams): Promis
     // wird der Fehler durchgereicht: nie ein unsigniertes PDF bei aktiver Signatur.
     const signierZeit = new Date();
     const unsigniert = await erzeugePdf(vorlageBuffer, zeilen, firmaName, {
+      ...kopfOptionen,
       signaturVermerk: baueSignaturVermerk("test", signierZeit),
     });
     const pdfBuffer = await signierePdf(unsigniert, {
@@ -169,7 +185,10 @@ export async function generatePruefberichtPdf(params: GeneratePdfParams): Promis
     return { pdfBuffer, dateiname };
   }
 
-  const pdfBuffer = await erzeugePdf(vorlageBuffer, zeilen, firmaName);
+  // Ohne Standort exakt der bisherige Aufruf (drei Argumente).
+  const pdfBuffer = standortName
+    ? await erzeugePdf(vorlageBuffer, zeilen, firmaName, kopfOptionen)
+    : await erzeugePdf(vorlageBuffer, zeilen, firmaName);
   try {
     // QA BUG-3: Ein Fehler bei der zusätzlichen Archiv-Ablage darf dem
     // Bearbeiter nicht den bereits fertig generierten Download verwehren.

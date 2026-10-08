@@ -329,7 +329,7 @@ function buildTableBody(
   return [headerRow, ...datenZeilen];
 }
 
-function buildKopfbereich(firmaName: string, logoDataUrl: string | null): Content {
+function buildKopfbereich(firmaName: string, standortName: string | null, logoDataUrl: string | null): Content {
   const spalten: Column[] = [];
   if (logoDataUrl) {
     spalten.push({ image: logoDataUrl, width: 70 });
@@ -338,6 +338,8 @@ function buildKopfbereich(firmaName: string, logoDataUrl: string | null): Conten
     stack: [
       { text: "Prüfbericht Absturzsicherungen", bold: true, fontSize: 14 },
       { text: firmaName, bold: true, fontSize: 14, margin: [0, 6, 0, 0] },
+      // PROJ-10: Standort unter dem Firmennamen, nur bei Firmen mit mehreren Standorten.
+      ...(standortName ? [{ text: standortName, fontSize: 12, margin: [0, 2, 0, 0] as [number, number, number, number] }] : []),
     ],
     width: "*",
   });
@@ -362,6 +364,8 @@ export interface PdfBuildInput {
   textMesser?: TextMesser;
   /** PROJ-9: sichtbarer Signaturvermerk in der Fusszeile jeder Seite; fehlt → keine Fusszeile (unsigniert). */
   signaturVermerk?: string;
+  /** PROJ-10: Standort im Kopfbereich (nur bei Firmen mit mehreren Standorten). */
+  standortName?: string;
 }
 
 /**
@@ -401,7 +405,7 @@ export function buildDocumentDefinition(input: PdfBuildInput): TDocumentDefiniti
         }
       : {}),
     content: [
-      buildKopfbereich(firmaName, logoDataUrl),
+      buildKopfbereich(firmaName, input.standortName ?? null, logoDataUrl),
       {
         // `margin` (oben 20pt) erzeugt den vom Nutzer gewünschten optischen
         // Abstand zwischen Kopfbereich und Tabelle — anders als die vorherige
@@ -447,7 +451,7 @@ export async function erzeugePdf(
   vorlageBuffer: ArrayBuffer,
   zeilen: ExportZeile[],
   firmaName: string,
-  optionen: { signaturVermerk?: string } = {}
+  optionen: { signaturVermerk?: string; standortName?: string } = {}
 ): Promise<Buffer> {
   registriereFontsFallsNoetig();
 
@@ -465,6 +469,7 @@ export async function erzeugePdf(
     logoDataUrl: ladeLogoDataUrl(),
     textMesser: erstelleTextMesser(),
     signaturVermerk: optionen.signaturVermerk,
+    standortName: optionen.standortName,
   });
 
   return pdfMake.createPdf(docDefinition).getBuffer();

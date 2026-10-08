@@ -2,9 +2,9 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { getFirma, listGeraeteForStandorte, listStandorteForFirma, updateGeraetStammdaten } from "@/lib/dataverse/geraete";
+import { listGeraeteForStandorte, updateGeraetStammdaten } from "@/lib/dataverse/geraete";
 import { DataverseError } from "@/lib/dataverse/errors";
-import { getCurrentFirmaId } from "@/lib/firma-session";
+import { ladeArbeitskontext, pdfStandortZusatz } from "@/lib/arbeitskontext";
 import { generatePruefberichtPdf, ExportFehler } from "@/lib/pruefbericht-export/export";
 import { SharePointError } from "@/lib/sharepoint/errors";
 import {
@@ -67,28 +67,27 @@ export type GeneratePdfResult =
 /**
  * QA BUG-1 (Fix): `geraetIds` kommt vom Client (der bereits gefilterten
  * Anzeige), bestimmt aber nur noch AUSWAHL — die tatsächlichen Gerätedaten
- * werden hier immer frisch aus Dataverse geladen und zusätzlich auf die
- * Standorte der aktuellen Session-Firma eingeschränkt. Ein manipulierter
- * Aufruf (Server Actions sind direkt aufrufbar) kann damit weder Daten
- * fälschen noch Geräte einer anderen Firma einschleusen.
+ * werden hier immer frisch aus Dataverse geladen und auf den aktuellen
+ * Standort der Sitzung eingeschränkt (PROJ-10; vorher: Firma). Ein
+ * manipulierter Aufruf (Server Actions sind direkt aufrufbar) kann damit
+ * weder Daten fälschen noch Geräte eines anderen Standorts einschleusen.
  */
 export async function generatePdfAction(geraetIds: string[], lagerortFilter: string | null): Promise<GeneratePdfResult> {
-  const firmaId = await getCurrentFirmaId();
-  if (!firmaId) {
-    return { success: false, message: "Keine Firma ausgewählt." };
-  }
-
   try {
-    const firma = await getFirma(firmaId);
-    const standorte = await listStandorteForFirma(firmaId);
-    const geraeteDerFirma = await listGeraeteForStandorte(standorte.map((s) => s.id));
+    const kontext = await ladeArbeitskontext();
+    if (kontext.zustand === "keine-firma") return { success: false, message: "Keine Firma ausgewählt." };
+    if (kontext.zustand !== "bereit") return { success: false, message: "Kein Standort ausgewählt." };
+
+    const geraeteDesStandorts = await listGeraeteForStandorte([kontext.standort.id]);
     // Reihenfolge der Client-IDs übernehmen (= Sortierung der Geräteliste),
-    // die Daten selbst aber nur aus der Firma-gescopten Liste.
-    const geraetById = new Map(geraeteDerFirma.map((g) => [g.id, g]));
+    // die Daten selbst aber nur aus der Standort-gescopten Liste.
+    const geraetById = new Map(geraeteDesStandorts.map((g) => [g.id, g]));
     const geraete = [...new Set(geraetIds)].flatMap((id) => geraetById.get(id) ?? []);
 
     const { pdfBuffer, dateiname } = await generatePruefberichtPdf({
-      firmaName: firma.name,
+      firmaName: kontext.firma.name,
+      // Nur bei mehreren Standorten bzw. gleichnamigen Firmen in Dateiname, Kopfbereich und Ablage.
+      standortName: pdfStandortZusatz(kontext),
       geraete,
       lagerortFilter,
     });

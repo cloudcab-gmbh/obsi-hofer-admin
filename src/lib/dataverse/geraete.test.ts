@@ -20,6 +20,8 @@ import {
   listStandorteForFirma,
   matchesGeraeteFilter,
   sortiereGeraete,
+  eindeutigeStandortNamen,
+  firmenAnzeigenamen,
   updateGeraetStammdaten,
   type Geraet,
 } from "./geraete";
@@ -46,6 +48,13 @@ describe("listFirmen", () => {
 
     expect(result).toEqual([{ id: VALID_FIRMA_ID, name: "ACME AG" }]);
     expect(listRecords).toHaveBeenCalledWith("bmvcc_firmas", expect.objectContaining({ orderBy: "bmvcc_name asc" }));
+  });
+
+  // Live-Fund 2026-10-08: deaktivierte Firmen erschienen in der Auswahl.
+  it("lists only active Firmen", async () => {
+    listRecords.mockResolvedValue({ records: [], nextPageCursor: null });
+    await listFirmen();
+    expect(listRecords).toHaveBeenCalledWith("bmvcc_firmas", expect.objectContaining({ filter: "statecode eq 0" }));
   });
 
   it("falls back to a placeholder name when bmvcc_name is missing", async () => {
@@ -251,17 +260,11 @@ function fixtureGeraet(overrides: Partial<Geraet> = {}): Geraet {
   };
 }
 
-const EMPTY_FILTER = { suche: "", lagerort: "", standortId: "", letztePruefungTage: "" };
+const EMPTY_FILTER = { suche: "", lagerort: "", letztePruefungTage: "" };
 
 describe("matchesGeraeteFilter", () => {
   it("matches everything when the filter is empty", () => {
     expect(matchesGeraeteFilter(fixtureGeraet(), EMPTY_FILTER)).toBe(true);
-  });
-
-  it("excludes a Gerät at a different Standort", () => {
-    expect(
-      matchesGeraeteFilter(fixtureGeraet(), { ...EMPTY_FILTER, standortId: VALID_STANDORT_ID_2 })
-    ).toBe(false);
   });
 
   it("excludes a Gerät at a different Lagerort", () => {
@@ -310,7 +313,6 @@ describe("matchesGeraeteFilter", () => {
 
 describe("sortiereGeraete", () => {
   const lookups = {
-    standortName: (id: string | null) => (id === VALID_STANDORT_ID ? "Zürich" : id === VALID_STANDORT_ID_2 ? "Bern" : null),
     pbBemerkung: () => null,
   };
   const ids = (geraete: Geraet[]) => geraete.map((g) => g.id);
@@ -359,12 +361,8 @@ describe("sortiereGeraete", () => {
     ]);
   });
 
-  it("sorts Standort and PB_Bemerkung via the lookups", () => {
-    const geraete = [
-      fixtureGeraet({ id: "z", standortId: VALID_STANDORT_ID }),
-      fixtureGeraet({ id: "b", standortId: VALID_STANDORT_ID_2 }),
-    ];
-    expect(ids(sortiereGeraete(geraete, { spalte: "standort", richtung: "asc" }, lookups))).toEqual(["b", "z"]);
+  it("sorts PB_Bemerkung via the lookup", () => {
+    const geraete = [fixtureGeraet({ id: "b" }), fixtureGeraet({ id: "z" })];
     const bemerkungen: Record<string, string> = { z: "alpha", b: "beta" };
     expect(
       ids(
@@ -377,5 +375,89 @@ describe("sortiereGeraete", () => {
     const geraete = [fixtureGeraet({ id: "b", name: "B" }), fixtureGeraet({ id: "a", name: "A" })];
     sortiereGeraete(geraete, { spalte: "name", richtung: "asc" }, lookups);
     expect(ids(geraete)).toEqual(["b", "a"]);
+  });
+});
+
+// PROJ-10: eindeutige Anzeigenamen für gleichnamige Standorte einer Firma.
+describe("eindeutigeStandortNamen", () => {
+  const standort = (id: string, name: string, erstelltAm: string | null = null) => ({
+    id,
+    name,
+    firmaId: VALID_FIRMA_ID,
+    erstelltAm,
+  });
+
+  it("keeps unique names unchanged (trimmed)", () => {
+    const namen = eindeutigeStandortNamen([standort("a", "Haupthaus "), standort("b", "Werkhof")]);
+    expect(namen.get("a")).toBe("Haupthaus");
+    expect(namen.get("b")).toBe("Werkhof");
+  });
+
+  it("numbers duplicate names by creation date, case-insensitively", () => {
+    const namen = eindeutigeStandortNamen([
+      standort("neu", "Kochergasse 9", "2026-07-14T10:00:00Z"),
+      standort("alt", "kochergasse 9", "2026-01-01T10:00:00Z"),
+      standort("mitte", "Kochergasse 9", "2026-03-01T10:00:00Z"),
+    ]);
+    expect(namen.get("alt")).toBe("kochergasse 9");
+    expect(namen.get("mitte")).toBe("Kochergasse 9 (2)");
+    expect(namen.get("neu")).toBe("Kochergasse 9 (3)");
+  });
+
+  it("is stable regardless of input order (same Standort → same name)", () => {
+    const a = standort("x1", "Lager", "2026-01-01T00:00:00Z");
+    const b = standort("x2", "Lager", "2026-02-01T00:00:00Z");
+    expect(eindeutigeStandortNamen([a, b])).toEqual(eindeutigeStandortNamen([b, a]));
+  });
+});
+
+// PROJ-10 / Live-Fund 2026-10-08: bewusst getrennte, gleichnamige Firmen unterscheidbar machen.
+describe("firmenAnzeigenamen", () => {
+  const NAME = "Bilfinger Industrial Services Schweiz AG";
+  const firma = (id: string, name = NAME) => ({ id, name });
+  const standort = (id: string, firmaId: string, name: string) => ({ id, name, firmaId });
+
+  it("keeps unique Firma names unchanged", () => {
+    const namen = firmenAnzeigenamen([firma("a", "ACME AG"), firma("b", "Beta AG")], []);
+    expect(namen.get("a")).toBe("ACME AG");
+    expect(namen.get("b")).toBe("Beta AG");
+  });
+
+  it("adds the Standort without the repeated Firma name; an empty suffix is fine while unique", () => {
+    const namen = firmenAnzeigenamen(
+      [firma("haupt"), firma("pratteln"), firma("boningen")],
+      [
+        standort("s1", "haupt", NAME),
+        standort("s2", "pratteln", `${NAME} - Pratteln`),
+        standort("s3", "boningen", `${NAME}-Boningen`),
+      ]
+    );
+    expect(namen.get("haupt")).toBe(NAME);
+    expect(namen.get("pratteln")).toBe(`${NAME} · Pratteln`);
+    expect(namen.get("boningen")).toBe(`${NAME} · Boningen`);
+  });
+
+  it("uses the full Standort name when it does not start with the Firma name", () => {
+    const namen = firmenAnzeigenamen(
+      [firma("a", "ISS Facility Services AG"), firma("b", "ISS Facility Services AG")],
+      [standort("s1", "a", "ISS Facility Services AG, Schlieren"), standort("s2", "b", "Swisscom, Schulstrasse 2, Sins")]
+    );
+    expect(namen.get("a")).toBe("ISS Facility Services AG · Schlieren");
+    expect(namen.get("b")).toBe("ISS Facility Services AG · Swisscom, Schulstrasse 2, Sins");
+  });
+
+  it("marks Firmen without or with several Standorte", () => {
+    const namen = firmenAnzeigenamen(
+      [firma("leer"), firma("viele")],
+      [standort("s1", "viele", "A"), standort("s2", "viele", "B")]
+    );
+    expect(namen.get("leer")).toBe(`${NAME} · ohne Standort`);
+    expect(namen.get("viele")).toBe(`${NAME} · 2 Standorte`);
+  });
+
+  it("numbers names that are still identical, in a stable order", () => {
+    const namen = firmenAnzeigenamen([firma("b"), firma("a")], []);
+    expect(namen.get("a")).toBe(`${NAME} · ohne Standort (1)`);
+    expect(namen.get("b")).toBe(`${NAME} · ohne Standort (2)`);
   });
 });

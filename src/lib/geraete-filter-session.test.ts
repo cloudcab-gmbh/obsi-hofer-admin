@@ -15,7 +15,7 @@ beforeEach(() => {
 });
 
 const STANDARD_SORTIERUNG = { spalte: "letztePruefung" as const, richtung: "desc" as const };
-const DEFAULT_STATE = { suche: "", lagerort: "", standortId: "", letztePruefungTage: "", sortierung: STANDARD_SORTIERUNG };
+const DEFAULT_STATE = { suche: "", lagerort: "", letztePruefungTage: "", sortierung: STANDARD_SORTIERUNG };
 
 describe("getGeraeteFilterState", () => {
   it("returns an all-empty default state when no cookie is set", async () => {
@@ -28,7 +28,6 @@ describe("getGeraeteFilterState", () => {
       value: JSON.stringify({
         suche: "seil",
         lagerort: "Lager A",
-        standortId: "abc",
         letztePruefungTage: "7",
         sortierung: { spalte: "name", richtung: "asc" },
       }),
@@ -36,7 +35,6 @@ describe("getGeraeteFilterState", () => {
     await expect(getGeraeteFilterState()).resolves.toEqual({
       suche: "seil",
       lagerort: "Lager A",
-      standortId: "abc",
       letztePruefungTage: "7",
       sortierung: { spalte: "name", richtung: "asc" },
     });
@@ -66,7 +64,7 @@ describe("setGeraeteFilterState", () => {
 
     expect(set).toHaveBeenCalledWith(
       "geraete_filter",
-      JSON.stringify({ suche: "seil", lagerort: "", standortId: "", letztePruefungTage: "7", sortierung: STANDARD_SORTIERUNG }),
+      JSON.stringify({ suche: "seil", lagerort: "", letztePruefungTage: "7", sortierung: STANDARD_SORTIERUNG }),
       expect.objectContaining({ httpOnly: true, path: "/", maxAge: 60 * 60 * 24 * 30 })
     );
   });

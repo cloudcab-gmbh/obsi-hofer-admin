@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { GERAETE_SORT_SPALTEN, STANDARD_GERAETE_SORTIERUNG, type GeraeteSortierung } from "./dataverse/geraete";
 
-// Hält den zuletzt auf /geraete gewählten Filter (Suche/Lagerort/Standort, dazu die Spaltensortierung)
+// Hält den zuletzt auf /geraete gewählten Filter (Suche/Lagerort/Letzte Prüfung, dazu die Spaltensortierung)
 // session-weit fest, analog zu firma-session.ts — damit er beim Wechsel zu
 // /pruefberichte erhalten bleibt (Nutzerwunsch 2026-10-05).
 const COOKIE_NAME = "geraete_filter";
@@ -13,8 +13,6 @@ export interface GeraeteFilterState {
   suche: string;
   /** Leerstring = "alle Lagerorte". */
   lagerort: string;
-  /** Leerstring = "alle Standorte". */
-  standortId: string;
   /** Leerstring = keine Einschränkung; sonst Anzahl Tage als String (z.B. "7"). */
   letztePruefungTage: string;
   /** Ohne gültige gespeicherte Sortierung gilt STANDARD_GERAETE_SORTIERUNG (letzte Prüfung absteigend). */
@@ -24,7 +22,6 @@ export interface GeraeteFilterState {
 const DEFAULT_STATE: GeraeteFilterState = {
   suche: "",
   lagerort: "",
-  standortId: "",
   letztePruefungTage: "",
   sortierung: STANDARD_GERAETE_SORTIERUNG,
 };
@@ -48,7 +45,6 @@ export async function getGeraeteFilterState(): Promise<GeraeteFilterState> {
     return {
       suche: typeof parsed.suche === "string" ? parsed.suche : "",
       lagerort: typeof parsed.lagerort === "string" ? parsed.lagerort : "",
-      standortId: typeof parsed.standortId === "string" ? parsed.standortId : "",
       letztePruefungTage: typeof parsed.letztePruefungTage === "string" ? parsed.letztePruefungTage : "",
       sortierung: parseSortierung(parsed.sortierung),
     };
@@ -57,7 +53,7 @@ export async function getGeraeteFilterState(): Promise<GeraeteFilterState> {
   }
 }
 
-/** Setzt den Filter zurück — beim Firmenwechsel, da Lagerorte/Standorte firmenspezifisch sind. */
+/** Setzt den Filter zurück — beim Firmen- und Standortwechsel, da Lagerorte standortspezifisch sind. */
 export async function clearGeraeteFilterState(): Promise<void> {
   const store = await cookies();
   store.delete(COOKIE_NAME);

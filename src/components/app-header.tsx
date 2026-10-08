@@ -4,8 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { auth } from "@/auth";
 import { signOutEverywhere } from "@/lib/auth/sign-out";
-import { getCurrentFirmaId } from "@/lib/firma-session";
-import { getFirma } from "@/lib/dataverse/geraete";
+import { ladeArbeitskontext, kontextBezeichnung } from "@/lib/arbeitskontext";
 import { MobileNav, type NavLink } from "@/components/mobile-nav";
 
 // "Sync-Freigabe" ist nur für Freigeber sichtbar (Freigeber ist eine
@@ -13,8 +12,9 @@ import { MobileNav, type NavLink } from "@/components/mobile-nav";
 export async function AppHeader() {
   const session = await auth();
   const istFreigeber = session?.user?.roles?.includes("freigeber") ?? false;
-  const currentFirmaId = await getCurrentFirmaId();
-  const currentFirma = currentFirmaId ? await getFirma(currentFirmaId).catch(() => null) : null;
+  // PROJ-10: "Firma · Standort" (bei nur einem Standort nur die Firma).
+  const kontext = await ladeArbeitskontext().catch(() => null);
+  const bezeichnung = kontext ? kontextBezeichnung(kontext) : null;
 
   const links: NavLink[] = [
     { href: "/geraete", label: "Geräte" },
@@ -31,21 +31,22 @@ export async function AppHeader() {
         <Image src="/logo_small.png" alt="OBSI Hofer GmbH" width={386} height={500} className="h-9 w-auto shrink-0" priority />
         <span className="text-lg font-semibold">Admin</span>
       </div>
-      <nav className="hidden items-center gap-4 text-sm lg:flex">
+      <nav className="hidden min-w-0 items-center gap-4 text-sm lg:flex">
+        {/* Nutzerwunsch 2026-10-08: aktuelle Firma vor den Menüpunkten, fett. */}
+        <Link
+          href="/start"
+          className="max-w-72 truncate font-semibold text-foreground hover:underline underline-offset-2"
+          title={bezeichnung ?? undefined}
+        >
+          Firma: {bezeichnung ?? "keine ausgewählt"}
+        </Link>
         {links.map((link) => (
-          <Link key={link.href} href={link.href} className="text-muted-foreground hover:text-foreground">
+          <Link key={link.href} href={link.href} className="shrink-0 text-muted-foreground hover:text-foreground">
             {link.label}
           </Link>
         ))}
       </nav>
-      <div className="flex min-w-0 items-center gap-3">
-        <Link
-          href="/start"
-          className="hidden max-w-56 truncate text-sm text-muted-foreground hover:text-foreground lg:inline"
-          title={currentFirma?.name ?? undefined}
-        >
-          Firma: {currentFirma?.name ?? "keine ausgewählt"}
-        </Link>
+      <div className="flex shrink-0 items-center gap-3">
         {session?.user?.name && (
           <span className="hidden text-sm text-muted-foreground xl:inline">{session.user.name}</span>
         )}
@@ -56,7 +57,7 @@ export async function AppHeader() {
         </form>
         <ThemeToggle />
         <div className="lg:hidden">
-          <MobileNav links={links} firmaName={currentFirma?.name ?? null} userName={session?.user?.name ?? null} />
+          <MobileNav links={links} firmaName={bezeichnung} userName={session?.user?.name ?? null} />
         </div>
       </div>
     </header>

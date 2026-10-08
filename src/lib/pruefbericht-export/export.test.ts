@@ -313,4 +313,53 @@ describe("generatePruefberichtPdf", () => {
       expect(downloadKundenDateiMock).not.toHaveBeenCalled();
     });
   });
+
+  // PROJ-10: Standort nur bei Firmen mit mehreren Standorten.
+  describe("PROJ-10 Standort", () => {
+    beforeEach(() => {
+      getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(new Map([["g1", pruefbericht()]]));
+      downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
+    });
+
+    it("adds the Standort to the file name, header and archive folder '<Firma>/Standort <Name>/Prüfberichte/<Jahr>'", async () => {
+      const { dateiname } = await generatePruefberichtPdf({
+        firmaName: "Rehaklinik Bellikon",
+        standortName: "Haupthaus",
+        geraete: [geraet()],
+        lagerortFilter: "Trakt 1",
+      });
+
+      expect(dateiname).toMatch(/^\d{4}-\d{2}-\d{2} Prüfbericht Absturzsicherungen - Rehaklinik Bellikon - Haupthaus - Trakt 1\.pdf$/);
+      const [archivPfad] = uploadKundenDateiMock.mock.calls[0];
+      expect(archivPfad).toBe(`Rehaklinik Bellikon/Standort Haupthaus/Prüfberichte/${new Date().getFullYear()}/${dateiname}`);
+      const [, , , optionen] = erzeugePdfMock.mock.calls[0];
+      expect(optionen).toEqual({ standortName: "Haupthaus" });
+    });
+
+    it("keeps looking for the template per Firma", async () => {
+      await generatePruefberichtPdf({ firmaName: "Rehaklinik Bellikon", standortName: "Haupthaus", geraete: [geraet()], lagerortFilter: null });
+      expect(downloadKundenDateiMock).toHaveBeenCalledWith("Rehaklinik Bellikon/Prüfberichte/vorlage_pruefberichtraport.xlsx");
+    });
+
+    it("replaces characters SharePoint forbids in the Standort name", async () => {
+      const { dateiname } = await generatePruefberichtPdf({
+        firmaName: "Firma",
+        standortName: "Halle 3/4: Nord",
+        geraete: [geraet()],
+        lagerortFilter: null,
+      });
+      expect(dateiname).toContain("- Firma - Halle 3-4- Nord.pdf");
+      const [archivPfad] = uploadKundenDateiMock.mock.calls[0];
+      expect(archivPfad).toContain("Firma/Standort Halle 3-4- Nord/Prüfberichte/");
+    });
+
+    it("changes nothing when there is no Standort name (Firma with a single Standort)", async () => {
+      const { dateiname } = await generatePruefberichtPdf({ firmaName: "Firma", standortName: null, geraete: [geraet()], lagerortFilter: null });
+
+      expect(dateiname).toMatch(/ - Firma\.pdf$/);
+      const [archivPfad] = uploadKundenDateiMock.mock.calls[0];
+      expect(archivPfad).toBe(`Firma/Prüfberichte/${new Date().getFullYear()}/${dateiname}`);
+      expect(erzeugePdfMock.mock.calls[0]).toHaveLength(3);
+    });
+  });
 });
