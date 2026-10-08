@@ -291,3 +291,8 @@ Alle 12 Acceptance Criteria erfüllt — die meisten direkt vom Nutzer live best
 - **Commit:** `7de28f3`, **Tag:** `v1.8.1-PROJ-3`
 - **Keine neuen Umgebungsvariablen**
 - **Verifikation:** Lokaler Produktions-Build und alle 330 Unit-Tests erfolgreich; Vercel-Production-Build "Ready"; `/geraete` antwortet unauthentifiziert weiterhin mit 307 → `/login`. Darstellung vom Nutzer lokal abgestimmt (zentriert, fett, normale Textfarbe).
+
+**Nachtrag-Deployment (2026-10-08): Standard-Sortierung "Letzte Prüfung" absteigend** (siehe Implementation Notes, Nachtrag 2026-10-08)
+- **Commit:** `743906a`, **Tag:** `v1.8.2-PROJ-3`
+- **Keine neuen Umgebungsvariablen**
+- **Verifikation:** Lokaler Produktions-Build und alle 332 Unit-Tests erfolgreich; Vercel-Production-Build "Ready"; `/geraete` antwortet unauthentifiziert weiterhin mit 307 → `/login`.
