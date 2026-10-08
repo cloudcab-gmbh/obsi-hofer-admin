@@ -1,6 +1,6 @@
 # PROJ-10: Standort als Arbeitskontext
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-10-08
 **Last Updated:** 2026-10-08
 
@@ -72,7 +72,7 @@
 - **Gespeicherter Standort gehört nicht (mehr) zur gewählten Firma** (z.B. in Dataverse umgehängt oder gelöscht) → wird verworfen; bei genau einem Standort automatisch neu gesetzt, sonst Hinweis zur Neuauswahl
 - **Firma bekommt nachträglich einen zweiten Standort** → der bisher automatisch gesetzte Standort bleibt gültig; ab jetzt zeigt die Startseite das Standort-Feld, Header/Dateiname/Ablage richten sich nach "mehrere Standorte"
 - **Standortname mit für SharePoint verbotenen Zeichen** (`/ \ : * ? " < > |`) → im Ordner- und Dateinamen ersetzt, wie heute beim Firmennamen
-- **Zwei Standorte mit gleichem Namen in derselben Firma** → Auswahlfeld unterscheidbar machen (z.B. Zusatzinfo), Ablage im selben Ordnernamen ist dann zu klären (siehe Open Questions)
+- **Zwei Standorte mit gleichem Namen in derselben Firma** → unterscheidender Zusatz " (2)" usw. in Auswahl, Header, Dateiname und Ordner, in fester Reihenfolge (siehe Tech Design)
 - **Direkter Aufruf einer Geräte-Detailseite eines anderen Standorts** → erlaubt (Navigationshilfe, kein Zugriffs-Gate, wie bisher bei der Firma); der aktuelle Standort ändert sich dadurch nicht
 - **Gleichzeitige Nutzer** → Firma- und Standort-Auswahl gelten pro Sitzung (Browser), mehrere Bearbeiter können parallel an verschiedenen Standorten arbeiten
 - **Standort-Auswahl zwischen zwei Tabs gewechselt** → der zuletzt gewählte Standort gilt für alle Tabs derselben Sitzung (wie heute bei der Firma)
@@ -83,8 +83,8 @@
 - Keine Änderung an Dataverse-Schema oder Rechten (Standorte werden bereits gelesen)
 
 ## Open Questions
-- [ ] Gibt es in echten Daten Firmen mit zwei gleichnamigen Standorten? Falls ja: wie unterscheiden (Auswahl, Ordnername)? — vor `/architecture` per Abfrage in Dataverse prüfen
-- [ ] Welches Dataverse-Feld eignet sich als Anzeigename des Standorts (heute `bmvcc_displayname`) — reicht er für Header, Dateiname und Ordner?
+- [x] Gibt es in echten Daten Firmen mit zwei gleichnamigen Standorten? → Ja, genau ein Fall (in einer Testfirma). Lösung: unterscheidender Zusatz " (2)" usw. in fester Reihenfolge, siehe Tech Design (2026-10-08)
+- [x] Welches Dataverse-Feld eignet sich als Anzeigename des Standorts? → `bmvcc_displayname`: bei allen 207 Standorten gefüllt, max. 51 Zeichen; Sonderzeichen werden wie beim Firmennamen ersetzt (2026-10-08)
 
 ## Decision Log
 
@@ -105,12 +105,83 @@
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Aktueller Standort als Sitzungs-Cookie neben der aktuellen Firma | Bewährtes Muster aus PROJ-3, keine eigene Datenhaltung, unabhängig pro Bearbeiter | 2026-10-08 |
+| Zentraler serverseitiger "Arbeitskontext" (Firma, Standort, mehrere Standorte ja/nein, Hinweis-Zustände) für alle Seiten | Regeln an einer Stelle; gleiche Logik für Startseite, Header, Geräteliste, Prüfberichte, PDF | 2026-10-08 |
+| Standort bei Firmenwahl mit genau einem Standort sofort mitspeichern; alte Sitzungen ohne Standort bei genau einem Standort automatisch gültig | Spec-Edge-Case "Firma bekommt zweiten Standort": der bisherige Standort bleibt gültig; keine Neuauswahl für bestehende Sitzungen | 2026-10-08 |
+| Gültigkeit des Standorts bei jedem Aufruf gegen die Standorte der Firma prüfen, Ergebnis pro Seitenaufruf wiederverwenden | Umgehängte/gelöschte Standorte führen zur Neuauswahl statt zu falschen Daten; keine Zusatzabfrage | 2026-10-08 |
+| Feld "Standort" aus der Geräte-Filter-Sitzung entfernen | Standort ist jetzt Arbeitskontext, kein Filter mehr | 2026-10-08 |
+| Gleichnamige Standorte: Zusatz " (2)", " (3)" nach Erstellungsdatum | Stabil (gleicher Standort → gleicher Ordner), lesbar; betrifft laut Datenanalyse nur eine Testfirma | 2026-10-08 |
+| Ablage-Unterordner werden nicht separat angelegt, sondern beim Hochladen über den Pfad erzeugt | Verhalten der bestehenden SharePoint-Anbindung, so entstehen bereits die Jahresordner | 2026-10-08 |
+| Standort-Auswahl mit derselben durchsuchbaren Auswahl wie die Firma (shadcn command/popover) | Einheitliche Bedienung; nötig bei vielen Standorten | 2026-10-08 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Ausgangslage (Datenanalyse 2026-10-08, nur lesend)
+- 207 Standorte bei rund 160 Firmen: **146 Firmen mit genau einem Standort**, 14 mit mehreren (meist 2–5; eine Firma mit 28 Standorten ist offensichtlich eine Testfirma).
+- Gleichnamige Standorte innerhalb einer Firma: nur 1 Fall ("Kochergasse 9" doppelt, in der Testfirma).
+- `bmvcc_displayname` ist bei allen Standorten gefüllt (max. 51 Zeichen); 1 Name enthält ein in SharePoint verbotenes Zeichen.
+- Die Geräte werden schon heute über die Standorte der Firma geladen — der Umbau grenzt nur von "alle Standorte der Firma" auf "den aktuellen Standort" ein.
+
+### A) Bausteine
+```
+Startseite /start
++-- "Aktuelle Firma" (bestehende durchsuchbare Auswahl)
++-- "Aktueller Standort" (NEU, gleiche Bedienung wie die Firma-Auswahl)
+|     nur sichtbar bei Firmen mit mehreren Standorten
+|     Hinweis bei Firma ohne Standort
++-- "Weiter zu Geräte" — erst aktiv, wenn ein Standort feststeht
+
+Header + mobiles Menü
++-- "Firma · Standort" (bei nur einem Standort nur die Firma)
+
+Arbeitskontext (NEU, serverseitig, von allen Seiten genutzt)
++-- liest Firma + Standort aus der Sitzung
++-- prüft: gehört der Standort zur Firma?
++-- Firma mit genau einem Standort → dieser gilt automatisch
++-- Ergebnis: Firma, Standort, "Firma hat mehrere Standorte" — oder ein Hinweis-Zustand
+      (keine Firma / Firma ohne Standort / Standort noch nicht gewählt)
+
+Geräteliste /geraete           → nur Geräte des Standorts; Standort-Filter/-Spalte entfallen
+Prüfberichte-Übersicht         → nur Prüfberichte von Geräten des Standorts
+"PDF generieren" (Server)      → Geräte nur aus dem Standort der Sitzung
+PDF-Export                     → bei mehreren Standorten: Standort in Dateiname, Kopfbereich, Ablageordner
+/sync-freigabe, Detailseiten   → unverändert (Firma bzw. direkt per ID)
+```
+
+### B) Daten (in Worten)
+Keine Datenbank, keine Dataverse-Änderung. Neu ist nur ein zweiter Sitzungswert neben der Firma:
+- **Aktueller Standort** (Cookie, wie heute "aktuelle Firma", 30 Tage, nur serverseitig lesbar).
+- Beim Wählen einer Firma mit genau einem Standort wird dieser sofort mitgespeichert (so bleibt er gültig, auch wenn die Firma später einen zweiten Standort bekommt). Beim Firmenwechsel wird der Standort verworfen.
+- Beim Wechsel des Standorts werden die Geräte-Filter geleert (wie beim Firmenwechsel). Das bisherige Filterfeld "Standort" in der Filter-Sitzung entfällt.
+- Ältere Sitzungen ohne gespeicherten Standort: bei Firmen mit genau einem Standort automatisch gültig, sonst Hinweis zur Auswahl.
+
+**Regel für Namen bei mehreren Standorten:**
+- Dateiname: `<Datum> Prüfbericht Absturzsicherungen - <Firma> - <Standort>[ - <Lagerort>].pdf`
+- Ablage: `<Firma>/Prüfberichte/<Standort>/<Jahr>/` — fehlende Ordner legt SharePoint beim Hochladen automatisch an (so entstehen schon heute die Jahresordner)
+- Kopfbereich des PDFs: Standort unter dem Firmennamen
+- Verbotene Zeichen werden wie beim Firmennamen ersetzt
+- Gleichnamige Standorte einer Firma erhalten in Auswahl, Header, Dateiname und Ordner einen unterscheidenden Zusatz " (2)", " (3)" … — in fester Reihenfolge (nach Erstellungsdatum), damit derselbe Standort immer denselben Ordner bekommt
+
+### C) Technische Entscheidungen (Begründung)
+- **Standort als Sitzungswert wie die Firma**: bewährtes Muster aus PROJ-3, keine eigene Datenhaltung, mehrere Bearbeiter arbeiten unabhängig voneinander.
+- **Ein zentraler "Arbeitskontext" statt Prüfungen pro Seite**: Die Regeln (gehört der Standort zur Firma, automatische Wahl, Hinweis-Zustände) stehen an einer Stelle und gelten gleich für Startseite, Header, Geräteliste, Prüfberichte und PDF — weniger Fehlerquellen.
+- **Gültigkeit bei jedem Aufruf prüfen**: Standorte können in Dataverse umgehängt oder gelöscht werden; ein veralteter Wert führt dann zur Neuauswahl statt zu einer leeren oder falschen Liste. Kostet keine zusätzliche Abfrage, da die Standorte der Firma ohnehin geladen werden; innerhalb eines Seitenaufrufs wird das Ergebnis wiederverwendet (Header + Seite).
+- **Sicherheit serverseitig**: Der PDF-Export und die Listen laden die Geräte immer selbst aus dem Standort der Sitzung — vom Browser geschickte Geräte-IDs dienen weiterhin nur als Auswahl innerhalb dieser Menge (Fortsetzung von PROJ-7 QA BUG-1).
+- **Standort-Auswahl mit derselben durchsuchbaren Auswahl wie die Firma** (shadcn `command`/`popover`, bereits installiert): bei Firmen mit vielen Standorten (Testfirma: 28) nötig, einheitliche Bedienung.
+- **Sonderfall "nur ein Standort" bleibt optisch unsichtbar**: keine Auswahl, kein Standort im Header/Dateinamen/Ordner — für 146 von ~160 Firmen ändert sich nichts.
+
+### D) Abhängigkeiten (Pakete)
+Keine neuen Pakete.
+
+### E) Tests
+- Unit-Tests für den Arbeitskontext: alle Zustände (keine Firma, Firma ohne Standort, ein Standort automatisch, mehrere ohne/mit Auswahl, fremder/gelöschter Standort, alte Sitzung ohne Standort)
+- Unit-Tests für Namen/Ablage im PDF-Export (ein vs. mehrere Standorte, Sonderzeichen, gleichnamige Standorte, Lagerort-Zusatz)
+- Server-Action-Test: Geräte-IDs eines anderen Standorts werden ignoriert
+- Komponententests: Standort-Auswahl auf der Startseite, Header-Anzeige, Hinweis-Zustände auf Geräteliste/Prüfberichten
+- Manuell: Firma mit einem Standort (unverändert) und Firma mit mehreren Standorten (Auswahl, Liste, PDF-Ablage im SharePoint)
 
 ## QA Test Results
 _To be added by /qa_
