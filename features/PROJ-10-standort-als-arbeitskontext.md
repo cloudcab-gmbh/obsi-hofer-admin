@@ -257,7 +257,7 @@ Keine neuen Pakete.
 - [x] Ablage "<Firma>/Standort <Kurzname>/Prüfberichte/<Jahr>/"; Hauptstandort mit leerem Kurznamen und Firmen mit einem Standort wie bisher (`export.test.ts`, `actions.test.ts`)
 - [x] Vorlage weiterhin pro Firma (`export.test.ts`)
 - [x] Manipulierte Geräte-IDs anderer Standorte werden ignoriert (`actions.test.ts`)
-- [ ] **Noch nicht manuell geprüft:** echter PDF-Export bei einer Firma mit mehreren Standorten bzw. einer Bilfinger-Niederlassung — Ablageordner im SharePoint und Dateiname (vor dem Deployment vom Nutzer zu prüfen)
+- [x] **Manuell geprüft (2026-10-08, Nutzer, lokal mit `npm run dev`):** echter PDF-Export für "Bilfinger … · Pratteln" — Ablage in `Standort Pratteln/Prüfberichte/<Jahr>/` und Dateiname erfolgreich. Erster Versuch legte nichts ab, weil lokal noch `PDF_SIGNATUR_MODUS=test` gesetzt war (Testmodus archiviert bewusst nicht, PROJ-9) — kein Fehler. Die bisher manuell abgelegten Bilfinger-Berichte liegen ohne Jahresordner und mit ", Pratteln" im Namen; Jahresordner und " - Pratteln" vom Nutzer als in Ordnung bestätigt
 
 #### Unverändert
 - [x] Detailseiten unabhängig vom Standort; `/sync-freigabe` weiterhin pro Firma (einziger verbleibender Nutzer von `getCurrentFirmaId` ausserhalb von Sitzung/Arbeitskontext)
@@ -318,11 +318,11 @@ Keine neuen Pakete.
 - **Priority:** Nice to have
 
 ### Summary
-- **Acceptance Criteria:** alle erfüllt per Unit-/Komponententest; 1 Punkt manuell offen (echter PDF-Export mit Standort-Ordner)
+- **Acceptance Criteria:** alle erfüllt (Unit-/Komponententests; echter PDF-Export mit Standort-Ordner vom Nutzer bestätigt)
 - **Bugs Found:** 3 total (0 critical, 0 high, 1 medium, 2 low) — BUG-1 behoben, BUG-2/3 offen (Low)
 - **Security:** Pass
 - **Production Ready:** YES (keine Critical/High) — Empfehlung: BUG-1 vor dem Deployment beheben und den PDF-Export mit Standort-Ordner einmal manuell prüfen
-- **Recommendation:** ~~BUG-1 fixen~~ (behoben), manueller PDF-Test, dann deployen
+- **Recommendation:** ~~BUG-1 fixen~~ (behoben), ~~manueller PDF-Test~~ (bestanden) → deployen
 
 ## Deployment
 _To be added by /deploy_
