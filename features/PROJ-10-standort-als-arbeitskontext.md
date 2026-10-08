@@ -1,6 +1,6 @@
 # PROJ-10: Standort als Arbeitskontext
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-10-08
 **Last Updated:** 2026-10-08
 
@@ -325,4 +325,11 @@ Keine neuen Pakete.
 - **Recommendation:** ~~BUG-1 fixen~~ (behoben), ~~manueller PDF-Test~~ (bestanden) → deployen
 
 ## Deployment
-_To be added by /deploy_
+
+- **Production URL:** https://obsi-hofer-admin.vercel.app (`/start`, `/geraete`, `/pruefberichte`, `/sync-freigabe`)
+- **Deployed:** 2026-10-08
+- **Commit:** `563c15d`, **Tag:** `v1.9.0-PROJ-10`
+- **Keine neuen Umgebungsvariablen**, keine Änderung an Dataverse oder am Kundenportal
+- **Verifikation:** Lokaler Produktions-Build, Lint, 375 Unit-Tests und 24 E2E-Tests grün; Vercel-Production-Build "Ready"; `/start`, `/geraete`, `/pruefberichte` antworten unauthentifiziert mit 307 → `/login`. Funktion vorab vom Nutzer lokal gegen die echten Daten geprüft (Firmen-/Standortauswahl, Header, PDF-Ablage im Standort-Ordner).
+- **Hinweis für bestehende Sitzungen:** Bei Firmen mit genau einem Standort ändert sich nichts (automatische Wahl). Wer eine Firma mit mehreren Standorten gewählt hatte, sieht auf Geräte/Prüfberichte einen Hinweis und wählt einmal den Standort auf der Startseite.
+- **Offen (Low):** QA BUG-2 (abgelehnte Standort-Wahl ohne Meldung), BUG-3 (bereits gewählte inaktive Firma bleibt aktiv).
