@@ -1,0 +1,119 @@
+# PROJ-10: Standort als Arbeitskontext
+
+## Status: Planned
+**Created:** 2026-10-08
+**Last Updated:** 2026-10-08
+
+## Dependencies
+- Requires: PROJ-3 (Geräte-Verwaltung) — Geräteliste, Firma-Auswahl auf `/start`, Filter-Session
+- Requires: PROJ-4 (Prüfberichte-Verwaltung) — Prüfberichte-Übersicht bezieht sich künftig auf den Standort
+- Requires: PROJ-7 (PDF-Export) — Dateiname, Titel und Archiv-Ablage berücksichtigen den Standort
+- Dataverse: bestehende Beziehungen Firma → Standort (1:n) und Standort → Geräte (1:n) — keine Schemaänderung
+- Folge-Features: PROJ-11 (Kundenportal-Zugang pro Standort) und PROJ-12 (Sync-Freigabe und -Verlauf pro Standort) bauen auf dem hier eingeführten "aktuellen Standort" auf
+
+## User Stories
+- Als Bearbeiter möchte ich nach der Firma auch den Standort wählen, damit ich bei Kunden mit mehreren Niederlassungen nur die Geräte des Standorts sehe, an dem ich gerade prüfe.
+- Als Bearbeiter möchte ich bei einer Firma mit nur einem Standort nichts zusätzlich auswählen müssen, damit sich für die grosse Mehrheit der Kunden nichts verkompliziert.
+- Als Bearbeiter möchte ich im Header jederzeit sehen, an welcher Firma und welchem Standort ich arbeite, damit ich nicht versehentlich Geräte des falschen Standorts bearbeite.
+- Als Bearbeiter möchte ich, dass Geräteliste, Prüfberichte-Übersicht und PDF-Export sich automatisch auf den gewählten Standort beziehen, ohne jedes Mal filtern zu müssen.
+- Als OBSI Hofer möchte ich, dass die Prüfberichte einer Firma mit mehreren Standorten im SharePoint pro Standort abgelegt werden und der Standort im Dateinamen steht, damit Berichte verschiedener Niederlassungen nicht verwechselt werden.
+
+## Out of Scope
+- Kundenportal-Zugang (Kontaktliste auf `/sync-freigabe`) pro Standort — bleibt in diesem Feature pro Firma → **PROJ-11**
+- Sync-Freigabe und Sync-Verlauf pro Standort — bleiben in diesem Feature pro Firma → **PROJ-12**
+- Option "Alle Standorte" (firmenweites Arbeiten bei mehreren Standorten) — bewusst nicht, es gilt immer genau ein Standort
+- Schnellwechsel des Standorts direkt auf der Geräteliste oder der Prüfberichte-Übersicht — Wechsel nur über die Startseite
+- Eigene PDF-Vorlage pro Standort — die Vorlage bleibt pro Firma (bzw. die Standard-Vorlage)
+- Verschieben bereits archivierter PDFs in die neuen Standort-Ordner
+- Anlegen, Umbenennen oder Löschen von Standorten — Standorte bleiben Stammdaten in Dataverse
+- Änderungen an Dataverse oder am Kundenportal-Repo
+
+## Acceptance Criteria
+
+**Format:** Angenommen [Vorbedingung] / Wenn [Aktion] / Dann [Ergebnis]
+
+**Auswahl auf der Startseite**
+- [ ] Angenommen eine Firma mit mehreren Standorten ist gewählt, wenn der Nutzer die Startseite öffnet, dann sieht er unter "Aktuelle Firma" ein durchsuchbares Auswahlfeld "Aktueller Standort" mit allen Standorten dieser Firma
+- [ ] Angenommen der Nutzer wählt eine Firma mit genau einem Standort, wenn die Auswahl gespeichert wird, dann ist dieser Standort automatisch der aktuelle Standort, ohne zusätzliche Auswahl
+- [ ] Angenommen eine Firma mit mehreren Standorten ist gewählt, aber noch kein Standort, wenn der Nutzer die Startseite betrachtet, dann ist der Button "Weiter zu Geräte" erst nach der Standort-Auswahl verfügbar
+- [ ] Angenommen der Nutzer wechselt die Firma, wenn die neue Firma gespeichert wird, dann wird der bisherige Standort verworfen (bei genau einem Standort automatisch neu gesetzt, sonst muss neu gewählt werden)
+- [ ] Angenommen der Nutzer wechselt den Standort, wenn die Auswahl gespeichert wird, dann werden die Filter der Geräteliste (Suche, Lagerort, Letzte Prüfung, Sortierung) zurückgesetzt — wie heute beim Firmenwechsel
+- [ ] Angenommen der Nutzer wählt denselben Standort erneut, dann bleiben die Filter erhalten
+
+**Anzeige**
+- [ ] Angenommen Firma und Standort sind gewählt, wenn der Nutzer eine beliebige Seite betrachtet, dann zeigt der Header Firma und Standort (z.B. "Rehaklinik Bellikon · Haupthaus"); bei einer Firma mit nur einem Standort genügt der Firmenname
+- [ ] Angenommen die Navigation ist auf kleinen Bildschirmen zusammengeklappt, dann zeigt auch das mobile Menü Firma und Standort
+
+**Geräteliste (`/geraete`)**
+- [ ] Angenommen ein Standort ist gewählt, wenn der Nutzer die Geräteliste öffnet, dann sieht er nur die Geräte dieses Standorts
+- [ ] Angenommen eine Firma mit mehreren Standorten ist gewählt, dann gibt es auf der Geräteliste weder den Standort-Filter noch die Standort-Spalte, die heute nur bei solchen Firmen erscheinen (PROJ-3: "nur bei Firmen mit mehr als einem Standort sichtbar")
+- [ ] Angenommen eine Firma mit mehreren Standorten ist gewählt, aber kein Standort, wenn der Nutzer die Geräteliste öffnet, dann sieht er einen Hinweis mit Link zur Startseite statt einer Liste (analog zu "keine Firma gewählt")
+- [ ] Angenommen der Standort hat keine Geräte, dann sieht der Nutzer "Keine Geräte für diesen Standort gefunden."
+- [ ] Angenommen ein Standort ist gewählt, dann zeigt die Anzahl über "PDF generieren" die Geräte dieses Standorts ("42 von 120 Geräten" bezieht sich auf den Standort)
+
+**Prüfberichte-Übersicht (`/pruefberichte`)**
+- [ ] Angenommen ein Standort ist gewählt, wenn der Nutzer die Prüfberichte-Übersicht öffnet, dann sieht er nur Prüfberichte von Geräten dieses Standorts (zusätzlich eingeschränkt durch den Geräte-Filter wie bisher)
+- [ ] Angenommen eine Firma mit mehreren Standorten ist gewählt, aber kein Standort, dann sieht der Nutzer auf der Prüfberichte-Übersicht denselben Hinweis wie auf der Geräteliste
+
+**PDF-Export**
+- [ ] Angenommen die Firma hat mehrere Standorte, wenn ein PDF erzeugt wird, dann enthält der Dateiname den Standort, z.B. "2026-10-08 Prüfbericht Absturzsicherungen - Rehaklinik Bellikon - Haupthaus.pdf" (bei Lagerort-Filter zusätzlich wie bisher " - <Lagerort>")
+- [ ] Angenommen die Firma hat mehrere Standorte, wenn ein PDF erzeugt wird, dann steht der Standort auch im Titel/Kopfbereich des PDFs neben dem Firmennamen
+- [ ] Angenommen die Firma hat mehrere Standorte, wenn das PDF im SharePoint archiviert wird, dann landet es in "<Firma>/Prüfberichte/<Standort>/<Jahr>/"; fehlende Ordner werden automatisch angelegt
+- [ ] Angenommen die Firma hat genau einen Standort, wenn ein PDF erzeugt wird, dann sind Dateiname, Titel und Ablageort unverändert wie bisher ("<Firma>/Prüfberichte/<Jahr>/", kein Standort im Namen)
+- [ ] Angenommen ein PDF wird erzeugt, dann wird die Vorlage wie bisher pro Firma gesucht ("<Firma>/Prüfberichte/vorlage_pruefberichtraport.xlsx", sonst Standard-Vorlage)
+- [ ] Angenommen der PDF-Export wird ausgelöst, dann enthält er nur Geräte des aktuellen Standorts — auch wenn ein manipulierter Aufruf Geräte-IDs eines anderen Standorts oder einer anderen Firma mitschickt (serverseitige Einschränkung wie bisher auf Firmenebene, jetzt auf Standortebene)
+
+**Unverändert**
+- [ ] Angenommen ein Nutzer ruft eine Geräte- oder Prüfbericht-Detailseite direkt per Link auf, dann funktioniert das wie bisher unabhängig vom gewählten Standort
+- [ ] Angenommen der Nutzer öffnet `/sync-freigabe`, dann beziehen sich Kontaktliste, Sync und Sync-Verlauf weiterhin auf die ganze Firma (bis PROJ-11/12)
+
+## Edge Cases
+- **Firma ohne Standort** → Startseite zeigt "Für diese Firma sind keine Standorte erfasst."; Geräteliste und Prüfberichte zeigen denselben Hinweis statt einer Liste
+- **Gespeicherter Standort gehört nicht (mehr) zur gewählten Firma** (z.B. in Dataverse umgehängt oder gelöscht) → wird verworfen; bei genau einem Standort automatisch neu gesetzt, sonst Hinweis zur Neuauswahl
+- **Firma bekommt nachträglich einen zweiten Standort** → der bisher automatisch gesetzte Standort bleibt gültig; ab jetzt zeigt die Startseite das Standort-Feld, Header/Dateiname/Ablage richten sich nach "mehrere Standorte"
+- **Standortname mit für SharePoint verbotenen Zeichen** (`/ \ : * ? " < > |`) → im Ordner- und Dateinamen ersetzt, wie heute beim Firmennamen
+- **Zwei Standorte mit gleichem Namen in derselben Firma** → Auswahlfeld unterscheidbar machen (z.B. Zusatzinfo), Ablage im selben Ordnernamen ist dann zu klären (siehe Open Questions)
+- **Direkter Aufruf einer Geräte-Detailseite eines anderen Standorts** → erlaubt (Navigationshilfe, kein Zugriffs-Gate, wie bisher bei der Firma); der aktuelle Standort ändert sich dadurch nicht
+- **Gleichzeitige Nutzer** → Firma- und Standort-Auswahl gelten pro Sitzung (Browser), mehrere Bearbeiter können parallel an verschiedenen Standorten arbeiten
+- **Standort-Auswahl zwischen zwei Tabs gewechselt** → der zuletzt gewählte Standort gilt für alle Tabs derselben Sitzung (wie heute bei der Firma)
+
+## Technical Requirements (optional)
+- Security: Einschränkung auf den Standort erfolgt serverseitig (Geräte für Liste, Prüfberichte und PDF werden immer aus dem Standort der Sitzung geladen, nie aus vom Browser übergebenen Listen)
+- Performance: Laden der Geräteliste nicht langsamer als heute (eher schneller, da nur ein Standort)
+- Keine Änderung an Dataverse-Schema oder Rechten (Standorte werden bereits gelesen)
+
+## Open Questions
+- [ ] Gibt es in echten Daten Firmen mit zwei gleichnamigen Standorten? Falls ja: wie unterscheiden (Auswahl, Ordnername)? — vor `/architecture` per Abfrage in Dataverse prüfen
+- [ ] Welches Dataverse-Feld eignet sich als Anzeigename des Standorts (heute `bmvcc_displayname`) — reicht er für Header, Dateiname und Ordner?
+
+## Decision Log
+
+### Product Decisions
+| Decision | Rationale | Date |
+|----------|-----------|------|
+| Aufteilung in drei Features: PROJ-10 (Arbeitskontext: Geräte, Prüfberichte, PDF), PROJ-11 (Kundenportal-Zugang pro Standort), PROJ-12 (Sync und Verlauf pro Standort) | Nutzer will "alles pro Standort"; PROJ-10 ist sofort und nur in diesem Repo machbar, PROJ-11/12 hängen von offenen Fragen zu Dataverse (Kontakt ↔ Standort) bzw. vom Kundenportal-Repo ab und sollen PROJ-10 nicht blockieren | 2026-10-08 |
+| Priorität P1 | Wichtige Verbesserung im Alltag, das Tool funktioniert aber auch ohne (Nutzer-Entscheidung) | 2026-10-08 |
+| Immer genau ein Standort, kein "Alle Standorte" | Klare Regel, passt zu "alles pro Standort" und zu den Folge-Features (Nutzer-Entscheidung) | 2026-10-08 |
+| Bei genau einem Standort automatische Auswahl | Für die grosse Mehrheit der Firmen ändert sich die Bedienung nicht | 2026-10-08 |
+| Auswahl nur auf der Startseite, Anzeige im Header; kein Schnellwechsel auf den Listen | Gleiches Muster wie die Firma-Auswahl, weniger Bedienelemente (Nutzer-Entscheidung) | 2026-10-08 |
+| Standortwechsel setzt die Filter der Geräteliste zurück | Lagerorte sind standortspezifisch — gleiche Begründung wie beim Firmenwechsel (PROJ-3, Nachtrag 2026-10-06) | 2026-10-08 |
+| PDF-Ablage bei mehreren Standorten in "<Firma>/Prüfberichte/<Standort>/<Jahr>/", Vorlage bleibt pro Firma | Berichte verschiedener Niederlassungen getrennt archiviert, ohne Mehraufwand bei der Vorlagen-Pflege (Nutzer-Entscheidung) | 2026-10-08 |
+| Bei genau einem Standort bleiben Dateiname, Titel und Ablage unverändert | Bestehende Archive der grossen Mehrheit bleiben einheitlich, kein Bruch in der Ordnerstruktur (Nutzer-Entscheidung) | 2026-10-08 |
+| Standort-Filter und -Spalte der Geräteliste entfallen (heute nur bei Firmen mit mehreren Standorten sichtbar, siehe PROJ-3) | Bei genau einem aktiven Standort ohne Funktion | 2026-10-08 |
+| Kontakte, Sync und Sync-Verlauf bleiben in PROJ-10 pro Firma | Getrennte Folge-Features PROJ-11/12 mit eigenen externen Abhängigkeiten | 2026-10-08 |
+
+### Technical Decisions
+| Decision | Rationale | Date |
+|----------|-----------|------|
+
+---
+<!-- Sections below are added by subsequent skills -->
+
+## Tech Design (Solution Architect)
+_To be added by /architecture_
+
+## QA Test Results
+_To be added by /qa_
+
+## Deployment
+_To be added by /deploy_
