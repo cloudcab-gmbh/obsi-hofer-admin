@@ -128,6 +128,9 @@ export interface GeraeteSortierung {
   richtung: SortRichtung;
 }
 
+/** Standard, solange keine andere Spalte gewählt ist (Nutzerwunsch 2026-10-08): zuletzt geprüfte Geräte zuerst. */
+export const STANDARD_GERAETE_SORTIERUNG: GeraeteSortierung = { spalte: "letztePruefung", richtung: "desc" };
+
 const textVergleich = new Intl.Collator("de-CH", { numeric: true, sensitivity: "base" });
 
 // Spaltensortierung der Geräteliste (Nutzerwunsch 2026-10-07). Standort und

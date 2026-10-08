@@ -68,7 +68,7 @@ export function GeraeteListe({
   const [lagerort, setLagerort] = useState(initialFilter.lagerort || ALLE);
   const [standortId, setStandortId] = useState(initialFilter.standortId || ALLE);
   const [letztePruefungTage, setLetztePruefungTage] = useState(initialFilter.letztePruefungTage);
-  const [sortierung, setSortierung] = useState<GeraeteSortierung | null>(initialFilter.sortierung);
+  const [sortierung, setSortierung] = useState<GeraeteSortierung>(initialFilter.sortierung);
   const [pdfPending, startPdfTransition] = useTransition();
   const [pdfError, setPdfError] = useState<string | null>(null);
 
@@ -108,7 +108,6 @@ export function GeraeteListe({
         letztePruefungTage,
       })
     );
-    if (!sortierung) return treffer;
     return sortiereGeraete(treffer, sortierung, {
       standortName,
       pbBemerkung: (id) => pruefberichtBemerkungen.get(id) ?? null,
@@ -118,7 +117,7 @@ export function GeraeteListe({
   // Erster Klick auf eine Spalte sortiert aufsteigend, jeder weitere kehrt die Richtung um.
   function handleSortieren(spalte: GeraeteSortSpalte) {
     setSortierung((aktuell) =>
-      aktuell?.spalte === spalte
+      aktuell.spalte === spalte
         ? { spalte, richtung: aktuell.richtung === "asc" ? "desc" : "asc" }
         : { spalte, richtung: "asc" }
     );

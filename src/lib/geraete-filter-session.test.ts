@@ -14,7 +14,8 @@ beforeEach(() => {
   set.mockReset();
 });
 
-const DEFAULT_STATE = { suche: "", lagerort: "", standortId: "", letztePruefungTage: "", sortierung: null };
+const STANDARD_SORTIERUNG = { spalte: "letztePruefung" as const, richtung: "desc" as const };
+const DEFAULT_STATE = { suche: "", lagerort: "", standortId: "", letztePruefungTage: "", sortierung: STANDARD_SORTIERUNG };
 
 describe("getGeraeteFilterState", () => {
   it("returns an all-empty default state when no cookie is set", async () => {
@@ -29,7 +30,7 @@ describe("getGeraeteFilterState", () => {
         lagerort: "Lager A",
         standortId: "abc",
         letztePruefungTage: "7",
-        sortierung: { spalte: "letztePruefung", richtung: "desc" },
+        sortierung: { spalte: "name", richtung: "asc" },
       }),
     });
     await expect(getGeraeteFilterState()).resolves.toEqual({
@@ -37,11 +38,15 @@ describe("getGeraeteFilterState", () => {
       lagerort: "Lager A",
       standortId: "abc",
       letztePruefungTage: "7",
-      sortierung: { spalte: "letztePruefung", richtung: "desc" },
+      sortierung: { spalte: "name", richtung: "asc" },
     });
   });
 
-  it("drops an invalid or missing sortierung (e.g. a cookie from before the sorting existed)", async () => {
+  it("defaults the sorting to last inspection descending when it is invalid, missing or null", async () => {
+    expect(DEFAULT_STATE.sortierung).toEqual({ spalte: "letztePruefung", richtung: "desc" });
+    get.mockReturnValue({ value: JSON.stringify({ suche: "seil", sortierung: null }) });
+    await expect(getGeraeteFilterState()).resolves.toEqual({ ...DEFAULT_STATE, suche: "seil" });
+
     get.mockReturnValue({ value: JSON.stringify({ suche: "seil", sortierung: { spalte: "foo", richtung: "asc" } }) });
     await expect(getGeraeteFilterState()).resolves.toEqual({ ...DEFAULT_STATE, suche: "seil" });
 
@@ -61,7 +66,7 @@ describe("setGeraeteFilterState", () => {
 
     expect(set).toHaveBeenCalledWith(
       "geraete_filter",
-      JSON.stringify({ suche: "seil", lagerort: "", standortId: "", letztePruefungTage: "7", sortierung: null }),
+      JSON.stringify({ suche: "seil", lagerort: "", standortId: "", letztePruefungTage: "7", sortierung: STANDARD_SORTIERUNG }),
       expect.objectContaining({ httpOnly: true, path: "/", maxAge: 60 * 60 * 24 * 30 })
     );
   });

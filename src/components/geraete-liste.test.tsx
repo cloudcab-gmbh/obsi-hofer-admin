@@ -14,7 +14,13 @@ vi.mock("next/link", () => ({
 
 import { GeraeteListe } from "./geraete-liste";
 
-const LEER_FILTER = { suche: "", lagerort: "", standortId: "", letztePruefungTage: "", sortierung: null };
+const LEER_FILTER = {
+  suche: "",
+  lagerort: "",
+  standortId: "",
+  letztePruefungTage: "",
+  sortierung: { spalte: "letztePruefung" as const, richtung: "desc" as const },
+};
 const STANDORTE: Standort[] = [{ id: "s1", name: "Standort 1", firmaId: "f1" } as Standort];
 
 function geraet(overrides: Partial<Geraet>): Geraet {
@@ -45,10 +51,11 @@ function vorTagen(tage: number): string {
   return d.toISOString();
 }
 
+// Bewusst nicht in Prüfdatum-Reihenfolge — so wie aus Dataverse (nach Gerätename) geladen.
 const GERAETE = [
-  geraet({ id: "g1", name: "Seil 1", barcode: "BC-100", lagerort: "Lager A", letztePruefung: vorTagen(2) }),
   geraet({ id: "g2", name: "Gurt 7", barcode: "BC-200", lagerort: "Lager B", letztePruefung: vorTagen(30) }),
   geraet({ id: "g3", name: "Seil 9", kundenId: "KD-9", lagerort: "Lager A", letztePruefung: null }),
+  geraet({ id: "g1", name: "Seil 1", barcode: "BC-100", lagerort: "Lager A", letztePruefung: vorTagen(2) }),
 ];
 
 function zeige(filter = LEER_FILTER) {
@@ -63,6 +70,20 @@ function sichtbareGeraete(): string[] {
 
 beforeEach(() => {
   vi.useRealTimers();
+});
+
+describe("GeraeteListe — Standard-Sortierung", () => {
+  it("sorts by last inspection descending by default, devices without inspection last", () => {
+    zeige();
+    expect(sichtbareGeraete()).toEqual(["Seil 1", "Gurt 7", "Seil 9"]);
+    expect(screen.getByRole("columnheader", { name: /Letzte Prüfung/ })).toHaveAttribute("aria-sort", "descending");
+  });
+
+  it("switches to ascending on the first click on the active default column", () => {
+    zeige();
+    fireEvent.click(screen.getByRole("button", { name: /Letzte Prüfung/ }));
+    expect(sichtbareGeraete()).toEqual(["Gurt 7", "Seil 1", "Seil 9"]);
+  });
 });
 
 describe("GeraeteListe — Filter", () => {

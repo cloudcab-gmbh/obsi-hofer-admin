@@ -1,7 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { GERAETE_SORT_SPALTEN, type GeraeteSortierung } from "./dataverse/geraete";
+import { GERAETE_SORT_SPALTEN, STANDARD_GERAETE_SORTIERUNG, type GeraeteSortierung } from "./dataverse/geraete";
 
 // Hält den zuletzt auf /geraete gewählten Filter (Suche/Lagerort/Standort, dazu die Spaltensortierung)
 // session-weit fest, analog zu firma-session.ts — damit er beim Wechsel zu
@@ -17,8 +17,8 @@ export interface GeraeteFilterState {
   standortId: string;
   /** Leerstring = keine Einschränkung; sonst Anzahl Tage als String (z.B. "7"). */
   letztePruefungTage: string;
-  /** null = Standardreihenfolge (Gerätename aufsteigend, wie aus Dataverse geladen). */
-  sortierung: GeraeteSortierung | null;
+  /** Ohne gültige gespeicherte Sortierung gilt STANDARD_GERAETE_SORTIERUNG (letzte Prüfung absteigend). */
+  sortierung: GeraeteSortierung;
 }
 
 const DEFAULT_STATE: GeraeteFilterState = {
@@ -26,14 +26,15 @@ const DEFAULT_STATE: GeraeteFilterState = {
   lagerort: "",
   standortId: "",
   letztePruefungTage: "",
-  sortierung: null,
+  sortierung: STANDARD_GERAETE_SORTIERUNG,
 };
 
-function parseSortierung(value: unknown): GeraeteSortierung | null {
-  if (!value || typeof value !== "object") return null;
+// Fehlend, ungültig oder `null` (Cookies von vor der Standard-Sortierung) → Standard.
+function parseSortierung(value: unknown): GeraeteSortierung {
+  if (!value || typeof value !== "object") return STANDARD_GERAETE_SORTIERUNG;
   const { spalte, richtung } = value as Record<string, unknown>;
-  if (!GERAETE_SORT_SPALTEN.includes(spalte as GeraeteSortierung["spalte"])) return null;
-  if (richtung !== "asc" && richtung !== "desc") return null;
+  if (!GERAETE_SORT_SPALTEN.includes(spalte as GeraeteSortierung["spalte"])) return STANDARD_GERAETE_SORTIERUNG;
+  if (richtung !== "asc" && richtung !== "desc") return STANDARD_GERAETE_SORTIERUNG;
   return { spalte: spalte as GeraeteSortierung["spalte"], richtung };
 }
 
