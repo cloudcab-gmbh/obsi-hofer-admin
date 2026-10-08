@@ -215,7 +215,7 @@ export function GeraeteListe({
         </div>
         {/* Anzahl der gefilterten Geräte = Geräte, die ins PDF kommen (Nutzerwunsch 2026-10-08). */}
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-semibold" aria-live="polite">
+          <span className="text-center text-xs font-semibold" aria-live="polite">
             {formatGeraeteAnzahl(gefiltert.length, geraete.length)}
           </span>
           <Button
