@@ -1,6 +1,6 @@
 # PROJ-11: Kundenportal-Zugang pro Standort
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-10-08
 **Last Updated:** 2026-10-08
 
@@ -69,9 +69,10 @@
 - Dataverse-Rechte des App-Benutzers für die neue Zuordnung (lesen, anlegen, entfernen) sind vom Nutzer zu erteilen und zu verifizieren
 
 ## Open Questions
-- [ ] Form der neuen Zuordnung in Dataverse (z.B. N:N-Beziehung Kontakt ↔ Standort oder eigene Tabelle "Portalzugang") — in `/architecture` festlegen, danach vom Nutzer anzulegen
+- [x] Form der neuen Zuordnung in Dataverse → eigene Tabelle "Portalzugang" (Kontakt, Standort), siehe Tech Design (2026-10-08)
+- [ ] Exakter Tabellen- und Feldname nach dem Anlegen in Dataverse (z.B. `bmvcc_portalzugang`, `bmvcc_kontakt`, `bmvcc_standort`) — vom Nutzer mitzuteilen, vor `/backend`
 - [ ] Kundenportal: Wie genau schränkt das Portal pro Standort ein (Sync der Zuordnung, Rechteprüfung)? — mit dem Kundenportal-Repo abstimmen, bevor das bisherige Häkchen abgelöst wird
-- [ ] Wer führt die einmalige Übernahme der bestehenden Freigaben aus und wann (vor/bei Deployment)? — in `/architecture` klären
+- [x] Wer führt die einmalige Übernahme aus und wann? → Skript mit Probelauf, vom Entwickler lokal ausgeführt, nach dem Anlegen der Tabelle und vor dem Deployment (2026-10-08)
 
 ## Decision Log
 
@@ -89,12 +90,83 @@
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Eigene Dataverse-Tabelle "Portalzugang" (Kontakt, Standort) statt N:N-Beziehung | "Erstellt von/am" automatisch, erweiterbar, einfach für den Kundenportal-Sync (Nutzer-Entscheidung) | 2026-10-08 |
+| Entziehen = Datensatz löschen | Eindeutige Regel "vorhanden = Zugang" für Admin-Tool und Kundenportal | 2026-10-08 |
+| Alternativer Schlüssel Kontakt + Standort empfohlen | Dataverse verhindert Doppelungen selbst, auch bei gleichzeitigen Klicks | 2026-10-08 |
+| Serverseitige Prüfung: Kontakt gehört zur Firma der Sitzung, Standort ist deren aktueller Standort | Direkt aufrufbare Server Action; schliesst die PROJ-8-Lücke "beliebiger Kontakt änderbar" | 2026-10-08 |
+| Bisheriges Feld `bmvcc_kundenportal` wird automatisch mitgeführt ("mindestens ein Portalzugang, über alle Firmen") | Heutiges Kundenportal läuft im Übergang unverändert | 2026-10-08 |
+| Einmalige Übernahme als lokales Skript mit Probelauf, wiederholbar ohne Doppelungen | Kontrolliert und vorab prüfbar; nur einmal nötig | 2026-10-08 |
+| Portalzugänge der Liste in einer gebündelten Abfrage | Keine Abfrage pro Kontakt, Liste nicht langsamer als heute | 2026-10-08 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Ausgangslage
+- Schema-Prüfung (2026-10-08, nur lesend): keine Beziehung Kontakt ↔ Standort; Kontakte hängen über `bmvcc_relation` an Firmen, Standorte über `bmvcc_bexiofirma` an einer Firma.
+- PROJ-8 speichert die Freigabe heute als Ja/Nein-Feld `bmvcc_kundenportal` am Kontakt; die Freigabe-Aktion prüft Rolle, aktiven Kontakt und E-Mail, aber **nicht**, ob der Kontakt zur aktuellen Firma gehört (wird mit PROJ-11 ergänzt).
+- PROJ-10 liefert den aktuellen Standort über den Arbeitskontext.
+
+### A) Bausteine
+```
+/sync-freigabe (nur Freigeber, bestehend)
++-- Arbeitskontext (PROJ-10): Firma + aktueller Standort
+|     kein Standort gewählt (mehrere Standorte) → Hinweis mit Link zur Startseite
++-- Kontaktliste (bestehend, angepasst)
+|   +-- Überschrift nennt den Standort (bei mehreren Standorten / gleichnamigen Firmen)
+|   +-- pro Kontakt: Häkchen "Kundenportal" = Zugang zum AKTUELLEN Standort
+|   +-- Hinweis "auch freigegeben für: <andere Standorte dieser Firma>"
+|   +-- Hinweis "Freigabe gilt auch für weitere Firmen" (PROJ-8) entfällt
++-- Sync auslösen / Verlauf (bestehend, pro Firma)
+      Voraussetzung neu: mind. ein Portalzugang für einen Standort der Firma
+
+Freigabe ändern (Server, angepasst)
++-- prüft: Freigeber? Kontakt aktiv + E-Mail (nur beim Freigeben)?
++-- prüft NEU: Kontakt gehört zur Firma der Sitzung, Standort ist der aktuelle Standort dieser Firma
++-- legt den Portalzugang an bzw. löscht ihn
++-- führt das bisherige Häkchen am Kontakt mit (Übergang):
+      gesetzt, solange mindestens ein Portalzugang des Kontakts existiert (über alle Firmen), sonst entfernt
+
+Einmalige Übernahme (Skript, vom Entwickler lokal ausgeführt)
++-- Probelauf: listet, welche Portalzugänge entstehen würden (keine Änderung)
++-- Echtlauf: für jeden heute freigegebenen Kontakt × jeden Standort jeder seiner Firmen ein Portalzugang
++-- wiederholbar ohne Doppelungen
+```
+
+### B) Datenmodell (in Worten)
+**Neue Dataverse-Tabelle "Portalzugang"** (vom Nutzer anzulegen, Vorgehen wie Sync-Läufe in PROJ-6):
+- Name (Pflichtfeld der Tabelle, vom Tool gefüllt, z.B. "Max Muster – Pratteln")
+- Kontakt (Verweis auf Kontakt, Pflicht)
+- Standort (Verweis auf Standort, Pflicht)
+- "Erstellt von / am" führt Dataverse automatisch → nachvollziehbar, wer wann freigegeben hat
+- Empfehlung: alternativer Schlüssel (Kontakt + Standort), damit Dataverse Doppelungen selbst verhindert
+
+Ein Datensatz = ein Kontakt hat Zugang zu einem Standort. **Entziehen = Datensatz löschen** (kein Deaktivieren), damit für das Kundenportal gilt: "vorhanden = Zugang".
+
+Rechte für den App-Benutzer: auf "Portalzugang" Lesen, Erstellen, Löschen, Anfügen; auf Kontakt und Standort "Anfügen an". Das bisherige Schreibrecht auf `bmvcc_kontakt` bleibt (Häkchen im Übergang).
+
+**Bisheriges Feld `bmvcc_kundenportal`** bleibt bestehen und wird automatisch mitgeführt ("hat mindestens einen Portalzugang"), bis das Kundenportal die Tabelle auswertet. Danach kann es entfallen (separater Aufräumschritt).
+
+**Für das Kundenportal-Repo** (Übergabe, dort umzusetzen): Der Sync liest die Portalzugänge der Standorte der synchronisierten Firma; ein Portal-Benutzer sieht nur Geräte/Prüfberichte der Standorte, für die ein Portalzugang existiert.
+
+### C) Technische Entscheidungen (Begründung)
+- **Eigene Tabelle statt N:N-Beziehung** (Nutzer-Entscheidung): "wer/wann" automatisch, erweiterbar, für den Kundenportal-Sync einfach abzufragen.
+- **Löschen statt Deaktivieren**: eindeutige Regel für beide Repos; die Historie "wer hat wann freigegeben" gilt für bestehende Zugänge, Entzüge sind über die Dataverse-Überwachung nachvollziehbar, falls aktiviert.
+- **Prüfung der Zugehörigkeit auf dem Server**: Kontakt muss über eine aktive Relation zur Firma der Sitzung gehören, Standort muss der aktuelle Standort dieser Firma sein — die Aktion ist direkt aufrufbar (Lehre aus PROJ-4/PROJ-10). Schliesst nebenbei die Lücke aus PROJ-8, dass beliebige Kontakte geändert werden konnten.
+- **Häkchen am Kontakt automatisch mitführen**: hält das heutige Kundenportal ohne Änderung lauffähig; die Regel "mindestens ein Zugang über alle Firmen" ist exakt die Bedeutung des bisherigen Felds.
+- **Einmalige Übernahme als Skript mit Probelauf** statt automatisch im Tool: kontrolliert, vorab prüfbar, nur einmal nötig; wiederholbar ohne Doppelungen. Ablauf: Tabelle anlegen → Rechte → Probelauf → Echtlauf → Deployment.
+- **Liste lädt in wenigen gebündelten Abfragen**: Kontakte der Firma (wie bisher) + Portalzugänge dieser Kontakte für die Standorte der Firma (eine Abfrage) — kein Laden pro Kontakt.
+- **Sync-Voraussetzung**: "mindestens ein Portalzugang für einen Standort der Firma" statt "mindestens ein Kontakt mit Häkchen".
+
+### D) Abhängigkeiten (Pakete)
+Keine neuen Pakete.
+
+### E) Tests
+- Unit-Tests: Freigeben/Entziehen legt an bzw. löscht; Häkchen-Mitführung (erster Zugang setzt, letzter entzogener Zugang entfernt, Zugänge bei anderen Firmen halten es); Ablehnung bei fremdem Kontakt, fremdem Standort, Bearbeiter, fehlender E-Mail; keine Doppelungen
+- Unit-Tests der Übernahme-Logik (Probelauf/Echtlauf, Wiederholbarkeit, Kontakte ohne Firma)
+- Komponententests: Hinweis "auch freigegeben für", Standort in der Überschrift, Hinweis ohne gewählten Standort
+- Manuell: Tabelle/Rechte in Dataverse, Probelauf gegen echte Daten, Freigeben/Entziehen live, Kundenportal-Sync unverändert lauffähig (Übergang)
 
 ## QA Test Results
 _To be added by /qa_
