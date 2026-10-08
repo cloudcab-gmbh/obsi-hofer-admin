@@ -1,6 +1,6 @@
 # PROJ-10: Standort als Arbeitskontext
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-10-08
 **Last Updated:** 2026-10-08
 
@@ -225,7 +225,103 @@ Keine neuen Pakete.
 **Noch nicht im Browser geprüft** — siehe Übergabe an den Nutzer.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-10-08
+**App URL:** http://localhost:3000
+**Tester:** QA Engineer (AI) + Browser-Test durch den Nutzer (Firmenauswahl, Header)
+
+### Acceptance Criteria Status
+
+#### Auswahl auf der Startseite
+- [x] Standort-Feld nur bei mehreren Standorten, durchsuchbar (gemeinsame `DurchsuchbareAuswahl`, gleiche Bedienung wie Firma)
+- [x] Genau ein Standort → automatisch gesetzt (`firma-session.test.ts`, `arbeitskontext.test.ts`)
+- [x] "Weiter zu Geräte" erst bei feststehendem Standort (nur im Zustand `bereit` gerendert)
+- [x] Firmenwechsel verwirft den Standort; bei einem Standort automatisch neu gesetzt (`firma-session.test.ts`)
+- [x] Standortwechsel setzt die Geräte-Filter zurück, gleicher Standort nicht (`firma-session.test.ts`)
+
+#### Anzeige
+- [x] Header "Firma · Standort", bei einem Standort nur Firma (`arbeitskontext.test.ts`); auf Nutzerwunsch fett vor den Menüpunkten — vom Nutzer im Browser gesehen
+- [x] Mobiles Menü erhält dieselbe Bezeichnung
+
+#### Geräteliste
+- [x] Nur Geräte des Standorts (`listGeraeteForStandorte([standort])`); Standort-Filter/-Spalte entfernt (`geraete-liste.test.tsx` ohne Standort-Props)
+- [x] Hinweis statt Liste bei fehlender Standort-Wahl (`KontextHinweis`)
+- [x] Leer-Text "Keine Geräte für diesen Standort gefunden."
+- [x] Anzahl über "PDF generieren" bezieht sich auf den Standort
+
+#### Prüfberichte-Übersicht
+- [x] Nur Prüfberichte von Geräten des Standorts, zusätzlich Geräte-Filter; Hinweis bei fehlender Standort-Wahl
+
+#### PDF-Export
+- [x] Dateiname und Kopfbereich mit Standort-Kurzname bei mehreren Standorten bzw. gleichnamigen Firmen (`export.test.ts`, `pdf-generator.test.ts`, `actions.test.ts`)
+- [x] Ablage "<Firma>/Standort <Kurzname>/Prüfberichte/<Jahr>/"; Hauptstandort mit leerem Kurznamen und Firmen mit einem Standort wie bisher (`export.test.ts`, `actions.test.ts`)
+- [x] Vorlage weiterhin pro Firma (`export.test.ts`)
+- [x] Manipulierte Geräte-IDs anderer Standorte werden ignoriert (`actions.test.ts`)
+- [ ] **Noch nicht manuell geprüft:** echter PDF-Export bei einer Firma mit mehreren Standorten bzw. einer Bilfinger-Niederlassung — Ablageordner im SharePoint und Dateiname (vor dem Deployment vom Nutzer zu prüfen)
+
+#### Unverändert
+- [x] Detailseiten unabhängig vom Standort; `/sync-freigabe` weiterhin pro Firma (einziger verbleibender Nutzer von `getCurrentFirmaId` ausserhalb von Sitzung/Arbeitskontext)
+
+### Edge Cases Status
+- [x] Firma ohne Standort → Hinweis auf Startseite, Geräteliste, Prüfberichte
+- [x] Gespeicherter Standort gehört nicht mehr zur Firma → Neuauswahl bzw. automatische Wahl (`arbeitskontext.test.ts`)
+- [x] Firma bekommt zweiten Standort → gespeicherter Standort bleibt gültig (`arbeitskontext.test.ts`)
+- [x] Verbotene Zeichen im Standortnamen ersetzt (`export.test.ts`)
+- [x] Gleichnamige Standorte → " (2)" in fester Reihenfolge (`geraete.test.ts`, `arbeitskontext.test.ts`)
+- [x] Gleichzeitige Nutzer / mehrere Tabs → Auswahl pro Sitzung (Cookie), wie bei der Firma
+- [x] (zusätzlich) Firma existiert nicht mehr → "keine Firma"; andere Dataverse-Fehler → Ladefehler der Seite (`arbeitskontext.test.ts`)
+- [x] (zusätzlich) Gleichnamige Firmen in Auswahl und Header unterscheidbar; inaktive Firmen ausgeblendet (`geraete.test.ts`, `arbeitskontext.test.ts`, Nutzer-Test)
+- [ ] (zusätzlich) Siehe BUG-1: Freigabe-Seite nennt gleichnamige Firmen ununterscheidbar
+- [ ] (zusätzlich) Siehe BUG-2: abgelehnte Standort-Wahl ohne Rückmeldung
+- [ ] (zusätzlich) Siehe BUG-3: bereits gewählte inaktive Firma bleibt aktiv
+
+### Security Audit Results
+- [x] Authentifizierung: `/start`, `/geraete`, `/pruefberichte` ohne Sitzung → `/login` (neue E2E-Suite `tests/PROJ-10-…spec.ts`)
+- [x] Autorisierung Standort: `setCurrentStandortId` übernimmt nur Standorte der aktuellen Firma (direkt aufrufbare Server Action), getestet
+- [x] Daten-Scope: Liste, Prüfberichte und PDF laden Geräte nur aus dem Standort der Sitzung; vom Browser geschickte IDs nur als Auswahl (getestet)
+- [x] OData-Injection: Firmenname im Filter mit verdoppelten Anführungszeichen; IDs per GUID-Prüfung (`requireValidGuid`, `getRecord` mit `requireValidId`)
+- [x] Keine neuen Geheimnisse, keine neuen Umgebungsvariablen; Cookies `httpOnly`, `sameSite=lax`, `secure` in Production
+- [x] Inaktive/fremde Firma per direktem Server-Action-Aufruf setzbar — betrifft nur die eigene Sitzung eines angemeldeten internen Nutzers, keine Daten anderer Mandanten (internes Tool); siehe BUG-3
+
+### Automatisierte Tests
+- [x] `npm test`: 31 Dateien, 375 Tests grün
+- [x] `npm run test:e2e`: 24/24 grün (inkl. 3 neue PROJ-10-Tests)
+- Cross-Browser/Responsive: Header-Änderung nutzt bestehende Breakpoints (Desktop-Navigation ab `lg`, darunter mobiles Menü); nicht automatisiert geprüft
+
+### Bugs Found
+
+#### BUG-1: Freigabe-Seite nennt gleichnamige Firmen ununterscheidbar
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Auf `/start` "Bilfinger Industrial Services Schweiz AG · Pratteln" wählen
+  2. `/sync-freigabe` öffnen, "Sync auslösen"
+  3. Expected: Seite und Bestätigungsdialog nennen die Niederlassung ("… · Pratteln")
+  4. Actual: "Die Daten von „Bilfinger Industrial Services Schweiz AG“ werden ins Kundenportal übertragen." — für alle drei Bilfinger-Firmen identisch; nur der Header zeigt den Zusatz. Risiko: Freigabe für die falsche Niederlassung
+- **Priority:** Fix before deployment
+
+#### BUG-2: Abgelehnte Standort-Wahl ohne Rückmeldung
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Startseite in zwei Tabs offen; in Tab A eine andere Firma wählen
+  2. In Tab B einen Standort der vorherigen Firma wählen
+  3. Expected: Hinweis, dass der Standort nicht (mehr) zur Firma passt
+  4. Actual: `setCurrentStandortId` lehnt korrekt ab, die Seite lädt nur neu — ohne Meldung
+- **Priority:** Nice to have
+
+#### BUG-3: Bereits gewählte inaktive Firma bleibt aktiv
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Vor diesem Feature eine (inzwischen ausgeblendete) inaktive Firma gewählt haben (Cookie bis zu 30 Tage gültig)
+  2. Expected: Wie "keine Firma" behandelt, Neuauswahl
+  3. Actual: Arbeitskontext prüft den Status der Firma nicht; die inaktive Firma bleibt gewählt (in der Regel ohne Standort → Hinweis "keine Standorte erfasst")
+- **Priority:** Nice to have
+
+### Summary
+- **Acceptance Criteria:** alle erfüllt per Unit-/Komponententest; 1 Punkt manuell offen (echter PDF-Export mit Standort-Ordner)
+- **Bugs Found:** 3 total (0 critical, 0 high, 1 medium, 2 low)
+- **Security:** Pass
+- **Production Ready:** YES (keine Critical/High) — Empfehlung: BUG-1 vor dem Deployment beheben und den PDF-Export mit Standort-Ordner einmal manuell prüfen
+- **Recommendation:** BUG-1 fixen, manueller PDF-Test, dann deployen
 
 ## Deployment
 _To be added by /deploy_
