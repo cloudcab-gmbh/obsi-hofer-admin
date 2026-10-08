@@ -271,7 +271,7 @@ Keine neuen Pakete.
 - [x] Gleichzeitige Nutzer / mehrere Tabs → Auswahl pro Sitzung (Cookie), wie bei der Firma
 - [x] (zusätzlich) Firma existiert nicht mehr → "keine Firma"; andere Dataverse-Fehler → Ladefehler der Seite (`arbeitskontext.test.ts`)
 - [x] (zusätzlich) Gleichnamige Firmen in Auswahl und Header unterscheidbar; inaktive Firmen ausgeblendet (`geraete.test.ts`, `arbeitskontext.test.ts`, Nutzer-Test)
-- [ ] (zusätzlich) Siehe BUG-1: Freigabe-Seite nennt gleichnamige Firmen ununterscheidbar
+- [x] (zusätzlich) BUG-1 behoben 2026-10-08: Freigabe-Seite nennt gleichnamige Firmen mit Zusatz
 - [ ] (zusätzlich) Siehe BUG-2: abgelehnte Standort-Wahl ohne Rückmeldung
 - [ ] (zusätzlich) Siehe BUG-3: bereits gewählte inaktive Firma bleibt aktiv
 
@@ -298,6 +298,7 @@ Keine neuen Pakete.
   3. Expected: Seite und Bestätigungsdialog nennen die Niederlassung ("… · Pratteln")
   4. Actual: "Die Daten von „Bilfinger Industrial Services Schweiz AG“ werden ins Kundenportal übertragen." — für alle drei Bilfinger-Firmen identisch; nur der Header zeigt den Zusatz. Risiko: Freigabe für die falsche Niederlassung
 - **Priority:** Fix before deployment
+- **Status:** ✅ Behoben (2026-10-08) — `/sync-freigabe` übergibt jetzt `firma.anzeigename` aus dem Arbeitskontext an Kontaktliste und Sync-Dialog ("… · Pratteln"). Sync und Verlauf laufen unverändert über die Firmen-ID; die Server Action lädt für Kundenportal-Aufruf und Verlaufseintrag weiterhin den echten Firmennamen. Nicht mehr existierende Firma → wie bisher der Ladefehler der Seite.
 
 #### BUG-2: Abgelehnte Standort-Wahl ohne Rückmeldung
 - **Severity:** Low
@@ -318,10 +319,10 @@ Keine neuen Pakete.
 
 ### Summary
 - **Acceptance Criteria:** alle erfüllt per Unit-/Komponententest; 1 Punkt manuell offen (echter PDF-Export mit Standort-Ordner)
-- **Bugs Found:** 3 total (0 critical, 0 high, 1 medium, 2 low)
+- **Bugs Found:** 3 total (0 critical, 0 high, 1 medium, 2 low) — BUG-1 behoben, BUG-2/3 offen (Low)
 - **Security:** Pass
 - **Production Ready:** YES (keine Critical/High) — Empfehlung: BUG-1 vor dem Deployment beheben und den PDF-Export mit Standort-Ordner einmal manuell prüfen
-- **Recommendation:** BUG-1 fixen, manueller PDF-Test, dann deployen
+- **Recommendation:** ~~BUG-1 fixen~~ (behoben), manueller PDF-Test, dann deployen
 
 ## Deployment
 _To be added by /deploy_

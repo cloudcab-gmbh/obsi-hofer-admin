@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { aktuellerBenutzerIstFreigeber } from "@/lib/auth/freigeber";
 import { getCurrentFirmaId } from "@/lib/firma-session";
-import { getFirma } from "@/lib/dataverse/geraete";
+import { ladeArbeitskontext } from "@/lib/arbeitskontext";
 import { listKundenportalKontakteForFirma, type KundenportalKontakt } from "@/lib/dataverse/kontakte";
 import { SyncFreigabeBereich, type InitialerVerlauf } from "@/components/sync-freigabe-bereich";
 import { listSyncLaeufeForFirma } from "@/lib/dataverse/sync-laeufe";
@@ -53,12 +53,18 @@ export default async function SyncFreigabePage() {
   let kontakte: KundenportalKontakt[] = [];
   let verlauf: InitialerVerlauf;
   try {
-    const [firma, geladeneKontakte, geladenerVerlauf] = await Promise.all([
-      getFirma(firmaId),
+    const [kontext, geladeneKontakte, geladenerVerlauf] = await Promise.all([
+      ladeArbeitskontext(),
       listKundenportalKontakteForFirma(firmaId),
       verlaufPromise,
     ]);
-    firmaName = firma.name;
+    // PROJ-10 QA BUG-1: Anzeigename statt reinem Firmennamen, damit gleichnamige
+    // Firmen (z.B. drei Bilfinger-Niederlassungen) auf der Seite und im
+    // Bestätigungsdialog unterscheidbar sind ("… · Pratteln"). Sync und Verlauf
+    // selbst laufen weiter über die Firmen-ID (actions.ts lädt den echten Namen).
+    // Firma existiert nicht mehr → wie bisher (getFirma warf hier) der Ladefehler unten.
+    if (kontext.zustand === "keine-firma") throw new Error("Firma nicht gefunden");
+    firmaName = kontext.firma.anzeigename;
     kontakte = geladeneKontakte;
     verlauf = geladenerVerlauf;
   } catch {
