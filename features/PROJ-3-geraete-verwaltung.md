@@ -2,7 +2,7 @@
 
 ## Status: Deployed
 **Created:** 2026-10-05
-**Last Updated:** 2026-10-07
+**Last Updated:** 2026-10-08
 
 ## Dependencies
 - Requires: PROJ-1 (Entra-ID-Login mit Rollen) — für eingeloggte Nutzer mit Rolle Bearbeiter/Freigeber
@@ -201,6 +201,8 @@ Betrifft Component-Structure/Data-Model/Tech-Decisions im Tech-Design-Abschnitt 
 - **Session-weit gespeichert:** Die Sortierung ist Teil des Filter-Cookies (`geraete-filter-session.ts`, neues Feld `sortierung`, ungültige/fehlende Werte → keine Sortierung) und wird damit wie der Filter beim Firmenwechsel zurückgesetzt.
 - **PDF-Export übernimmt die Reihenfolge:** `generatePdfAction` lädt die Geräte weiterhin firma-gescoped frisch aus Dataverse (QA BUG-1), ordnet sie aber jetzt in der Reihenfolge der vom Client übergebenen IDs an (vorher: Dataverse-Reihenfolge nach Gerätename). Doppelte IDs werden ignoriert.
 - Tests: `geraete.test.ts` (`sortiereGeraete`), `geraete-filter-session.test.ts`, `actions.test.ts` (Reihenfolge im PDF).
+
+**Nachtrag (2026-10-08, Nutzerwunsch):** Der Seitentitel der Geräteliste zeigt die Anzahl der aktuell gefilterten Geräte — ohne wirksamen Filter "120 Geräte" (bzw. "1 Gerät"), sonst "42 von 120 Geräten". Die gefilterten Geräte sind genau die, die auch in den PDF-Export gehen. Da nur die Client-Komponente die gefilterte Anzahl kennt, rendert `GeraeteListe` den Titel jetzt selbst (`Titel`, Zahl mit `aria-live="polite"` für Screenreader); `page.tsx` rendert ihn nur noch für "keine Firma gewählt" und Ladefehler. Bei einer Firma ohne Geräte erscheint der Titel ohne Zahl. Neue Hilfsfunktion `formatGeraeteAnzahl()` in `src/lib/format.ts`, Tests in `format.test.ts`.
 
 ## QA Test Results
 

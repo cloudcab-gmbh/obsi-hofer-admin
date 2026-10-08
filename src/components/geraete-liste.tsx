@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getStatusBadgeVariant } from "@/lib/status-badge";
-import { formatDatum } from "@/lib/format";
+import { formatDatum, formatGeraeteAnzahl } from "@/lib/format";
 import {
   matchesGeraeteFilter,
   sortiereGeraete,
@@ -24,6 +24,21 @@ import { setGeraeteFilterState, type GeraeteFilterState } from "@/lib/geraete-fi
 import { generatePdfAction } from "@/app/(protected)/geraete/actions";
 
 const ALLE = "__alle__";
+
+// Titel liegt hier statt in page.tsx, weil nur die Client-Komponente die
+// aktuell gefilterte Anzahl kennt.
+function Titel({ anzahl }: { anzahl?: string }) {
+  return (
+    <div className="mb-6 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      <h1 className="text-xl font-semibold">Geräte-Verwaltung</h1>
+      {anzahl && (
+        <span className="text-sm text-muted-foreground" aria-live="polite">
+          {anzahl}
+        </span>
+      )}
+    </div>
+  );
+}
 
 function SortierbarerKopf({
   spalte,
@@ -150,11 +165,14 @@ export function GeraeteListe({
 
   if (geraete.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-10 text-center text-sm text-muted-foreground">
-          Keine Geräte für diese Firma gefunden.
-        </CardContent>
-      </Card>
+      <>
+        <Titel />
+        <Card>
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+            Keine Geräte für diese Firma gefunden.
+          </CardContent>
+        </Card>
+      </>
     );
   }
 
@@ -162,6 +180,7 @@ export function GeraeteListe({
 
   return (
     <div>
+      <Titel anzahl={formatGeraeteAnzahl(gefiltert.length, geraete.length)} />
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
         <Input
           placeholder="Suche nach Name, Barcode, Seriennummer, Kunden-ID..."
