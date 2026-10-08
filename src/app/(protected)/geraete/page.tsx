@@ -41,13 +41,12 @@ export default async function GeraetePage() {
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
+      <h1 className="mb-6 text-xl font-semibold">Geräte-Verwaltung</h1>
+
       {loadError ? (
-        <>
-          <h1 className="mb-6 text-xl font-semibold">Geräte-Verwaltung</h1>
-          <Card>
-            <CardContent className="py-10 text-center text-sm text-muted-foreground">{loadError}</CardContent>
-          </Card>
-        </>
+        <Card>
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">{loadError}</CardContent>
+        </Card>
       ) : (
         <GeraeteListe
           // Neu aufbauen bei Firmenwechsel, sonst behält der Client-State die

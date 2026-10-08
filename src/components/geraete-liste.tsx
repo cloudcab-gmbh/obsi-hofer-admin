@@ -25,21 +25,6 @@ import { generatePdfAction } from "@/app/(protected)/geraete/actions";
 
 const ALLE = "__alle__";
 
-// Titel liegt hier statt in page.tsx, weil nur die Client-Komponente die
-// aktuell gefilterte Anzahl kennt.
-function Titel({ anzahl }: { anzahl?: string }) {
-  return (
-    <div className="mb-6 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-      <h1 className="text-xl font-semibold">Geräte-Verwaltung</h1>
-      {anzahl && (
-        <span className="text-sm text-muted-foreground" aria-live="polite">
-          {anzahl}
-        </span>
-      )}
-    </div>
-  );
-}
-
 function SortierbarerKopf({
   spalte,
   label,
@@ -165,14 +150,11 @@ export function GeraeteListe({
 
   if (geraete.length === 0) {
     return (
-      <>
-        <Titel />
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Keine Geräte für diese Firma gefunden.
-          </CardContent>
-        </Card>
-      </>
+      <Card>
+        <CardContent className="py-10 text-center text-sm text-muted-foreground">
+          Keine Geräte für diese Firma gefunden.
+        </CardContent>
+      </Card>
     );
   }
 
@@ -180,8 +162,7 @@ export function GeraeteListe({
 
   return (
     <div>
-      <Titel anzahl={formatGeraeteAnzahl(gefiltert.length, geraete.length)} />
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end">
         <Input
           placeholder="Suche nach Name, Barcode, Seriennummer, Kunden-ID..."
           value={suche}
@@ -232,14 +213,20 @@ export function GeraeteListe({
             className="w-24"
           />
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleGeneratePdf}
-          disabled={pdfPending || gefiltert.length === 0}
-        >
-          {pdfPending ? "PDF wird generiert..." : "PDF generieren"}
-        </Button>
+        {/* Anzahl der gefilterten Geräte = Geräte, die ins PDF kommen (Nutzerwunsch 2026-10-08). */}
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground" aria-live="polite">
+            {formatGeraeteAnzahl(gefiltert.length, geraete.length)}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleGeneratePdf}
+            disabled={pdfPending || gefiltert.length === 0}
+          >
+            {pdfPending ? "PDF wird generiert..." : "PDF generieren"}
+          </Button>
+        </div>
       </div>
       {pdfError && <p className="mb-4 text-sm text-destructive">{pdfError}</p>}
 
