@@ -284,3 +284,8 @@ Alle 12 Acceptance Criteria erfüllt — die meisten direkt vom Nutzer live best
 - **Commit:** `8c8c0bb`, **Tag:** `v1.7.1-PROJ-3`
 - **Keine neuen Umgebungsvariablen**
 - **Verifikation:** Lokaler Produktions-Build, Lint und alle Unit-Tests erfolgreich; Vercel-Production-Build „Ready“; `/geraete` antwortet unauthentifiziert weiterhin mit 307 → `/login`. Kein eigener `/qa`-Lauf für diesen kleinen Nachtrag (durch Unit-Tests abgedeckt); Funktionstest im Browser durch den Nutzer.
+
+**Nachtrag-Deployment (2026-10-08): Anzahl gefilterter Geräte über "PDF generieren"** (siehe Implementation Notes, Nachtrag 2026-10-08)
+- **Commit:** `7de28f3`, **Tag:** `v1.8.1-PROJ-3`
+- **Keine neuen Umgebungsvariablen**
+- **Verifikation:** Lokaler Produktions-Build und alle 330 Unit-Tests erfolgreich; Vercel-Production-Build "Ready"; `/geraete` antwortet unauthentifiziert weiterhin mit 307 → `/login`. Darstellung vom Nutzer lokal abgestimmt (zentriert, fett, normale Textfarbe).
