@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { aktuellerBenutzerIstFreigeber } from "@/lib/auth/freigeber";
 import { getCurrentFirmaId } from "@/lib/firma-session";
-import { ladeArbeitskontext } from "@/lib/arbeitskontext";
+import { ladeArbeitskontext, kontextBezeichnung, type Arbeitskontext } from "@/lib/arbeitskontext";
+import { KontextHinweis } from "@/components/kontext-hinweis";
 import { listKundenportalKontakteForFirma, type KundenportalKontakt } from "@/lib/dataverse/kontakte";
 import { SyncFreigabeBereich, type InitialerVerlauf } from "@/components/sync-freigabe-bereich";
 import { listSyncLaeufeForFirma } from "@/lib/dataverse/sync-laeufe";
@@ -49,36 +50,44 @@ export default async function SyncFreigabePage() {
     .then((v) => ({ ...v, fehler: null }))
     .catch(() => ({ laeufe: [], hatMehr: false, fehler: "Der Sync-Verlauf konnte nicht geladen werden." }));
 
-  let firmaName = "";
+  let kontext: Arbeitskontext | null = null;
   let kontakte: KundenportalKontakt[] = [];
-  let verlauf: InitialerVerlauf;
+  let verlauf: InitialerVerlauf = { laeufe: [], hatMehr: false, fehler: null };
+  let ladefehler = false;
   try {
-    const [kontext, geladeneKontakte, geladenerVerlauf] = await Promise.all([
-      ladeArbeitskontext(),
-      listKundenportalKontakteForFirma(firmaId),
-      verlaufPromise,
-    ]);
-    // PROJ-10 QA BUG-1: Anzeigename statt reinem Firmennamen, damit gleichnamige
-    // Firmen (z.B. drei Bilfinger-Niederlassungen) auf der Seite und im
-    // Bestätigungsdialog unterscheidbar sind ("… · Pratteln"). Sync und Verlauf
-    // selbst laufen weiter über die Firmen-ID (actions.ts lädt den echten Namen).
-    // Firma existiert nicht mehr → wie bisher (getFirma warf hier) der Ladefehler unten.
-    if (kontext.zustand === "keine-firma") throw new Error("Firma nicht gefunden");
-    firmaName = kontext.firma.anzeigename;
-    kontakte = geladeneKontakte;
-    verlauf = geladenerVerlauf;
+    kontext = await ladeArbeitskontext();
+    // PROJ-11: Freigaben gelten pro Standort — die Liste braucht einen feststehenden Standort.
+    if (kontext.zustand === "bereit") {
+      [kontakte, verlauf] = await Promise.all([
+        listKundenportalKontakteForFirma(firmaId, kontext.standorte, kontext.standort.id),
+        verlaufPromise,
+      ]);
+    }
   } catch {
+    ladefehler = true;
+  }
+
+  // Firma existiert nicht mehr → wie bisher der Ladefehler.
+  if (ladefehler || !kontext || kontext.zustand === "keine-firma") {
     return <Hinweis>Die Kontakte konnten nicht geladen werden.</Hinweis>;
+  }
+  if (kontext.zustand !== "bereit") {
+    return <KontextHinweis titel="Sync-Freigabe" kontext={kontext} />;
   }
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
       <h1 className="text-xl font-semibold">Sync-Freigabe</h1>
-      {/* Neu aufbauen bei Firmenwechsel, damit kein Client-State der vorherigen Firma bleibt. */}
+      {/* Neu aufbauen bei Firmen- oder Standortwechsel, damit kein Client-State des vorherigen bleibt. */}
       <SyncFreigabeBereich
-        key={firmaId}
+        key={`${firmaId}-${kontext.standort.id}`}
         firmaId={firmaId}
-        firmaName={firmaName}
+        // PROJ-10 QA BUG-1: Anzeigename, damit gleichnamige Firmen im Sync-Dialog
+        // unterscheidbar sind. Sync und Verlauf laufen über die Firmen-ID.
+        firmaName={kontext.firma.anzeigename}
+        // PROJ-11: Liste mit Standort (bei mehreren Standorten / gleichnamigen Firmen).
+        standortId={kontext.standort.id}
+        listenTitel={kontextBezeichnung(kontext) ?? kontext.firma.anzeigename}
         kontakte={kontakte}
         fehlendeSyncEinstellungen={fehlendeSyncEinstellungen()}
         verlauf={verlauf}

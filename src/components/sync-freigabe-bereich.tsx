@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { KundenportalKontakt } from "@/lib/dataverse/kontakte";
+import { hatZugangBeiFirma, type KundenportalKontakt } from "@/lib/dataverse/kontakte";
 import type { SyncLauf } from "@/lib/dataverse/sync-laeufe";
 import { wurdeBereitsUebertragen } from "@/lib/sync-lauf-regeln";
 import { KundenportalKontakte } from "@/components/kundenportal-kontakte";
@@ -24,19 +24,25 @@ export interface InitialerVerlauf {
 export function SyncFreigabeBereich({
   firmaId,
   firmaName,
+  standortId,
+  listenTitel,
   kontakte,
   fehlendeSyncEinstellungen,
   verlauf,
 }: {
   firmaId: string;
   firmaName: string;
+  /** PROJ-11: Standort, für den die Häkchen der Kontaktliste gelten. */
+  standortId: string;
+  /** Titel der Kontaktliste, z.B. "Firma · Standort". */
+  listenTitel: string;
   kontakte: KundenportalKontakt[];
   /** Namen fehlender Sync-Einstellungen (leer = Sync bereit). */
   fehlendeSyncEinstellungen: string[];
   verlauf: InitialerVerlauf;
 }) {
   const [anzahlZugriffe, setAnzahlZugriffe] = useState(
-    () => kontakte.filter((k) => k.freigegeben && k.email).length
+    () => kontakte.filter((k) => hatZugangBeiFirma(k) && k.email).length
   );
   const [laeufe, setLaeufe] = useState(verlauf.laeufe);
   const [hatMehr, setHatMehr] = useState(verlauf.hatMehr);
@@ -69,7 +75,12 @@ export function SyncFreigabeBereich({
 
   return (
     <div className="space-y-6">
-      <KundenportalKontakte kontakte={kontakte} firmaName={firmaName} onZugriffeChange={setAnzahlZugriffe} />
+      <KundenportalKontakte
+        kontakte={kontakte}
+        titel={listenTitel}
+        standortId={standortId}
+        onZugriffeChange={setAnzahlZugriffe}
+      />
       <SyncAusloesen
         firmaId={firmaId}
         firmaName={firmaName}

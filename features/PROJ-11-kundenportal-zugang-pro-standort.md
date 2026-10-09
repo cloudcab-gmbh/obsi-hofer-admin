@@ -1,6 +1,6 @@
 # PROJ-11: Kundenportal-Zugang pro Standort
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-10-08
 **Last Updated:** 2026-10-08
 
@@ -70,7 +70,7 @@
 
 ## Open Questions
 - [x] Form der neuen Zuordnung in Dataverse → eigene Tabelle "Portalzugang" (Kontakt, Standort), siehe Tech Design (2026-10-08)
-- [ ] Exakter Tabellen- und Feldname nach dem Anlegen in Dataverse (z.B. `bmvcc_portalzugang`, `bmvcc_kontakt`, `bmvcc_standort`) — vom Nutzer mitzuteilen, vor `/backend`
+- [x] Exakter Tabellen- und Feldname → `bmvcc_portalzugangs` / `bmvcc_kontakt` / `bmvcc_standort`, aus dem Schema gelesen (2026-10-09)
 - [ ] Kundenportal: Wie genau schränkt das Portal pro Standort ein (Sync der Zuordnung, Rechteprüfung)? — mit dem Kundenportal-Repo abstimmen, bevor das bisherige Häkchen abgelöst wird
 - [x] Wer führt die einmalige Übernahme aus und wann? → Skript mit Probelauf, vom Entwickler lokal ausgeführt, nach dem Anlegen der Tabelle und vor dem Deployment (2026-10-08)
 
@@ -167,6 +167,32 @@ Keine neuen Pakete.
 - Unit-Tests der Übernahme-Logik (Probelauf/Echtlauf, Wiederholbarkeit, Kontakte ohne Firma)
 - Komponententests: Hinweis "auch freigegeben für", Standort in der Überschrift, Hinweis ohne gewählten Standort
 - Manuell: Tabelle/Rechte in Dataverse, Probelauf gegen echte Daten, Freigeben/Entziehen live, Kundenportal-Sync unverändert lauffähig (Übergang)
+
+## Implementation Notes (Frontend + Backend)
+
+**Umgesetzt 2026-10-09** — Oberfläche und Server-Logik zusammen (wie PROJ-10).
+
+**Dataverse-Tabelle** (vom Nutzer angelegt, Schema am 2026-10-09 gelesen): Entity-Set `bmvcc_portalzugangs`, Primärname `bmvcc_name`, Lookups `bmvcc_kontakt` (Navigation `bmvcc_Kontakt`) und `bmvcc_standort` (`bmvcc_Standort`), alternativer Schlüssel `bmvcc_kontaktzustandort` (Kontakt + Standort) aktiv. Abweichung vom Entwurf: Lookups nicht als Pflicht markiert, Löschverhalten "Verknüpfung entfernen" statt Löschweitergabe → das Tool setzt immer beide Verweise und ignoriert Datensätze mit leerem Verweis (Waisen).
+
+**Datenzugriff**
+- `records.ts`: neu `deleteRecord()`.
+- Neu `src/lib/dataverse/portalzugaenge.ts`: `listPortalzugaengeForKontakte()` (gebündelt, 20er-Blöcke, Waisen ignoriert), `erstellePortalzugang()` (idempotent; Doppel-Schlüssel bei gleichzeitigen Klicks gilt als Erfolg), `entfernePortalzugang()` (löscht alle passenden, "schon weg" ist ok).
+- `kontakte.ts`: `listKundenportalKontakteForFirma(firmaId, standorte, aktuellerStandortId)` liefert `freigegeben` (aktueller Standort) und `weitereStandorte` (Namen anderer Standorte DIESER Firma); die Abfrage nach "weiteren Firmen" entfällt. Neu `setStandortFreigabe()`: prüft aktive Relation Kontakt ↔ Firma (schliesst PROJ-8-Lücke), beim Freigeben aktiv + E-Mail, legt an/löscht, führt danach `bmvcc_kundenportal` mit ("mindestens ein Portalzugang, über alle Firmen"). `setKundenportalFreigabe()` (PROJ-8) entfernt. Neu `hatZugangBeiFirma()`.
+
+**Server Actions** (`sync-freigabe/actions.ts`)
+- `setKundenportalFreigabeAction(kontaktId, standortId, freigegeben)`: Freigeber-Prüfung, Zod-GUIDs, Standort muss dem aktuellen Standort der Sitzung entsprechen (sonst "Firma oder Standort wurden inzwischen gewechselt. Bitte die Seite neu laden.").
+- `syncFirmaAction`: Voraussetzung jetzt "mindestens ein Kontakt mit E-Mail und Portalzugang zu irgendeinem Standort der Firma" (Standorte der Firma werden dafür geladen).
+
+**Oberfläche**
+- `/sync-freigabe`: lädt den Arbeitskontext; ohne feststehenden Standort `KontextHinweis` (wie Geräte/Prüfberichte). Liste mit Titel "Kundenportal-Zugang — Firma · Standort" (bei einem Standort nur Firma), `key` aus Firma + Standort.
+- `KundenportalKontakte`: Häkchen gilt für den angezeigten Standort; Badge "auch freigegeben für: …" statt "Freigabe gilt auch für weitere Firmen"; Sync-Zähler zählt Zugänge zu allen Standorten der Firma.
+
+**Einmalige Übernahme**
+- Planung `src/lib/portalzugang-uebernahme.ts` (`planeUebernahme`, getestet), Skript `scripts/portalzugaenge-uebernehmen.ts` (Probelauf standardmässig, `--echtlauf` legt an), ausgeführt mit `npx tsx …` (neue Entwicklungsabhängigkeit `tsx`).
+- **Probelauf 2026-10-09** gegen echte Daten: 4 freigegebene Kontakte → 8 Portalzugänge, 0 bereits vorhanden, 0 Kontakte ohne Firma/Standort.
+- **Echtlauf ausgeführt 2026-10-09** (auf Freigabe des Nutzers): 8 Portalzugänge angelegt; anschliessender Probelauf zur Kontrolle: 0 anzulegen, 8 bereits vorhanden. Kontakte und deren Häkchen unverändert.
+
+**Tests:** neu `portalzugaenge.test.ts`, `portalzugang-uebernahme.test.ts`; neu geschrieben `kontakte.test.ts`; erweitert `sync-freigabe/actions.test.ts` (Standort-Abgleich, Standort-ID-Prüfung), `kundenportal-kontakte.test.tsx` (Standort im Aufruf/Titel, Badge, Sync-Zähler). 400 Tests grün, Typecheck/Lint sauber.
 
 ## QA Test Results
 _To be added by /qa_

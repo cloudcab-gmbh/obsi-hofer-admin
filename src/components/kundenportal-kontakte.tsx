@@ -10,15 +10,19 @@ import { setKundenportalFreigabeAction } from "@/app/(protected)/sync-freigabe/a
 
 export function KundenportalKontakte({
   kontakte,
-  firmaName,
+  titel,
+  standortId,
   onZugriffeChange,
 }: {
   kontakte: KundenportalKontakt[];
-  firmaName: string;
+  /** Firma bzw. "Firma · Standort" (PROJ-11). */
+  titel: string;
+  /** PROJ-11: Standort, für den die Häkchen gelten. */
+  standortId: string;
   /**
-   * PROJ-5: meldet die Anzahl freigegebener Kontakte MIT E-Mail (nur die
-   * können sich im Portal anmelden) — der Sync-Button wird darüber live
-   * freigeschaltet, ohne Neuladen.
+   * PROJ-5: meldet die Anzahl Kontakte MIT E-Mail, die für irgendeinen
+   * Standort der Firma freigegeben sind (PROJ-11) — der Sync-Button wird
+   * darüber live freigeschaltet, ohne Neuladen.
    */
   onZugriffeChange?: (anzahl: number) => void;
 }) {
@@ -27,7 +31,7 @@ export function KundenportalKontakte({
   const [fehler, setFehler] = useState<string | null>(null);
 
   const anzahlFreigegeben = [...freigaben.values()].filter(Boolean).length;
-  const anzahlZugriffe = kontakte.filter((k) => k.email && freigaben.get(k.id)).length;
+  const anzahlZugriffe = kontakte.filter((k) => k.email && (freigaben.get(k.id) || k.weitereStandorte.length > 0)).length;
 
   useEffect(() => {
     onZugriffeChange?.(anzahlZugriffe);
@@ -46,7 +50,7 @@ export function KundenportalKontakte({
     // gespeicherten Zustand dauerhaft gesperrt anzuzeigen.
     let fehlermeldung: string | null = null;
     try {
-      const result = await setKundenportalFreigabeAction(kontakt.id, neu);
+      const result = await setKundenportalFreigabeAction(kontakt.id, standortId, neu);
       if (!result.success) fehlermeldung = result.message;
     } catch {
       fehlermeldung = "Die Änderung konnte nicht gespeichert werden. Bitte die Seite neu laden und erneut versuchen.";
@@ -67,7 +71,7 @@ export function KundenportalKontakte({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Kundenportal-Zugang — {firmaName}</CardTitle>
+        <CardTitle className="text-base">Kundenportal-Zugang — {titel}</CardTitle>
         <CardDescription>
           Änderungen werden sofort gespeichert und mit dem nächsten Sync im Kundenportal wirksam.
         </CardDescription>
@@ -106,9 +110,10 @@ export function KundenportalKontakte({
                       <TableRow key={kontakt.id}>
                         <TableCell>
                           <div className="font-medium">{kontakt.name}</div>
-                          {kontakt.weitereFirmen && (
-                            <Badge variant="secondary" className="mt-1 font-normal">
-                              Freigabe gilt auch für weitere Firmen
+                          {/* PROJ-11: Zugänge zu anderen Standorten derselben Firma. */}
+                          {kontakt.weitereStandorte.length > 0 && (
+                            <Badge variant="secondary" className="mt-1 whitespace-normal text-left font-normal">
+                              auch freigegeben für: {kontakt.weitereStandorte.join(", ")}
                             </Badge>
                           )}
                         </TableCell>

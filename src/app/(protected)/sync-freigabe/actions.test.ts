@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const setKundenportalFreigabe = vi.fn();
+const setStandortFreigabe = vi.fn();
 const listKundenportalKontakteForFirma = vi.fn();
 const getFirma = vi.fn();
+const listStandorteForFirma = vi.fn();
+const ladeArbeitskontext = vi.fn();
 const istSyncKonfiguriert = vi.fn();
 const starteFirmaSync = vi.fn();
 const istFreigeberMock = vi.fn();
@@ -10,11 +12,16 @@ const revalidatePath = vi.fn();
 const erstelleSyncLauf = vi.fn();
 const listSyncLaeufeForFirma = vi.fn();
 
-vi.mock("@/lib/dataverse/kontakte", () => ({
-  setKundenportalFreigabe: (...args: unknown[]) => setKundenportalFreigabe(...args),
+vi.mock("@/lib/dataverse/kontakte", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/dataverse/kontakte")>()),
+  setStandortFreigabe: (...args: unknown[]) => setStandortFreigabe(...args),
   listKundenportalKontakteForFirma: (...args: unknown[]) => listKundenportalKontakteForFirma(...args),
 }));
-vi.mock("@/lib/dataverse/geraete", () => ({ getFirma: (...args: unknown[]) => getFirma(...args) }));
+vi.mock("@/lib/dataverse/geraete", () => ({
+  getFirma: (...args: unknown[]) => getFirma(...args),
+  listStandorteForFirma: (...args: unknown[]) => listStandorteForFirma(...args),
+}));
+vi.mock("@/lib/arbeitskontext", () => ({ ladeArbeitskontext: () => ladeArbeitskontext() }));
 vi.mock("@/lib/kundenportal-sync", () => ({
   istSyncKonfiguriert: () => istSyncKonfiguriert(),
   starteFirmaSync: (...args: unknown[]) => starteFirmaSync(...args),
@@ -34,11 +41,23 @@ import { DataverseError } from "@/lib/dataverse/errors";
 
 const KONTAKT_ID = "37b3cb61-90c0-f111-aaaf-70a8a5061d7a"; // echte Dataverse-Form (keine RFC-UUID)
 const FIRMA_ID = "11111111-1111-f111-aaaa-111111111111";
+const STANDORT_ID = "22222222-2222-f111-bbbb-222222222222";
+const STANDORT = { id: STANDORT_ID, name: "Pratteln" };
 
 beforeEach(() => {
-  setKundenportalFreigabe.mockReset();
+  setStandortFreigabe.mockReset();
   listKundenportalKontakteForFirma.mockReset();
   getFirma.mockReset();
+  listStandorteForFirma.mockReset();
+  listStandorteForFirma.mockResolvedValue([]);
+  ladeArbeitskontext.mockReset();
+  ladeArbeitskontext.mockResolvedValue({
+    zustand: "bereit",
+    firma: { id: FIRMA_ID, name: "Firma", anzeigename: "Firma" },
+    standort: STANDORT,
+    standorte: [STANDORT],
+    mehrereStandorte: false,
+  });
   istSyncKonfiguriert.mockReset();
   starteFirmaSync.mockReset();
   istFreigeberMock.mockReset();
@@ -51,27 +70,32 @@ describe("setKundenportalFreigabeAction", () => {
   it("refuses a non-Freigeber (e.g. Bearbeiter calling the action directly) without touching Dataverse", async () => {
     istFreigeberMock.mockResolvedValue(false);
 
-    const result = await setKundenportalFreigabeAction(KONTAKT_ID, true);
+    const result = await setKundenportalFreigabeAction(KONTAKT_ID, STANDORT_ID, true);
 
     expect(result.success).toBe(false);
-    expect(setKundenportalFreigabe).not.toHaveBeenCalled();
+    expect(setStandortFreigabe).not.toHaveBeenCalled();
   });
 
   it("saves the Freigabe for a Freigeber and revalidates the page", async () => {
     istFreigeberMock.mockResolvedValue(true);
-    setKundenportalFreigabe.mockResolvedValue(undefined);
+    setStandortFreigabe.mockResolvedValue(undefined);
 
-    const result = await setKundenportalFreigabeAction(KONTAKT_ID, true);
+    const result = await setKundenportalFreigabeAction(KONTAKT_ID, STANDORT_ID, true);
 
     expect(result).toEqual({ success: true });
-    expect(setKundenportalFreigabe).toHaveBeenCalledWith(KONTAKT_ID, true);
+    expect(setStandortFreigabe).toHaveBeenCalledWith({
+      kontaktId: KONTAKT_ID,
+      firmaId: FIRMA_ID,
+      standort: STANDORT,
+      freigegeben: true,
+    });
     expect(revalidatePath).toHaveBeenCalledWith("/sync-freigabe");
   });
 
   it("accepts real Dataverse GUIDs that are not RFC-version UUIDs", async () => {
     istFreigeberMock.mockResolvedValue(true);
 
-    const result = await setKundenportalFreigabeAction(KONTAKT_ID, false);
+    const result = await setKundenportalFreigabeAction(KONTAKT_ID, STANDORT_ID, false);
 
     expect(result.success).toBe(true);
   });
@@ -79,17 +103,49 @@ describe("setKundenportalFreigabeAction", () => {
   it("rejects a malformed kontaktId", async () => {
     istFreigeberMock.mockResolvedValue(true);
 
-    const result = await setKundenportalFreigabeAction("abc", true);
+    const result = await setKundenportalFreigabeAction("abc", STANDORT_ID, true);
 
     expect(result.success).toBe(false);
-    expect(setKundenportalFreigabe).not.toHaveBeenCalled();
+    expect(setStandortFreigabe).not.toHaveBeenCalled();
+  });
+
+  // PROJ-11: Liste wurde für einen anderen Standort angezeigt (z.B. Wechsel in einem anderen Tab).
+  it("refuses when the shown Standort is no longer the session's current Standort", async () => {
+    istFreigeberMock.mockResolvedValue(true);
+
+    const result = await setKundenportalFreigabeAction(KONTAKT_ID, "33333333-3333-f111-cccc-333333333333", true);
+
+    expect(result).toEqual({
+      success: false,
+      message: "Firma oder Standort wurden inzwischen gewechselt. Bitte die Seite neu laden.",
+    });
+    expect(setStandortFreigabe).not.toHaveBeenCalled();
+  });
+
+  it("refuses when no Standort is chosen in the session", async () => {
+    istFreigeberMock.mockResolvedValue(true);
+    ladeArbeitskontext.mockResolvedValue({ zustand: "standort-waehlen", firma: { id: FIRMA_ID, name: "F", anzeigename: "F" }, standorte: [] });
+
+    const result = await setKundenportalFreigabeAction(KONTAKT_ID, STANDORT_ID, true);
+
+    expect(result.success).toBe(false);
+    expect(setStandortFreigabe).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed standortId", async () => {
+    istFreigeberMock.mockResolvedValue(true);
+
+    const result = await setKundenportalFreigabeAction(KONTAKT_ID, "x' or 1 eq 1", true);
+
+    expect(result.success).toBe(false);
+    expect(setStandortFreigabe).not.toHaveBeenCalled();
   });
 
   it("returns the DataverseError message (e.g. missing email) instead of throwing", async () => {
     istFreigeberMock.mockResolvedValue(true);
-    setKundenportalFreigabe.mockRejectedValue(new DataverseError("validation_error", "Ein Kontakt ohne E-Mail-Adresse …"));
+    setStandortFreigabe.mockRejectedValue(new DataverseError("validation_error", "Ein Kontakt ohne E-Mail-Adresse …"));
 
-    const result = await setKundenportalFreigabeAction(KONTAKT_ID, true);
+    const result = await setKundenportalFreigabeAction(KONTAKT_ID, STANDORT_ID, true);
 
     expect(result).toEqual({ success: false, message: "Ein Kontakt ohne E-Mail-Adresse …" });
     expect(revalidatePath).not.toHaveBeenCalled();
@@ -97,7 +153,7 @@ describe("setKundenportalFreigabeAction", () => {
 });
 
 describe("syncFirmaAction", () => {
-  const kontakt = (o: Record<string, unknown> = {}) => ({ id: KONTAKT_ID, name: "Max", email: "max@example.ch", rollen: [], freigegeben: true, weitereFirmen: false, ...o });
+  const kontakt = (o: Record<string, unknown> = {}) => ({ id: KONTAKT_ID, name: "Max", email: "max@example.ch", rollen: [], freigegeben: true, weitereStandorte: [], ...o });
   const ERFOLG = { status: "erfolg", meldung: "ok", bereiche: [], probleme: [] };
 
   function bereit() {

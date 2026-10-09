@@ -116,6 +116,14 @@ export async function updateRecord(entitySet: string, id: string, data: Record<s
   });
 }
 
+export async function deleteRecord(entitySet: string, id: string): Promise<void> {
+  requireNonEmpty(entitySet, "entitySet");
+  requireNonEmpty(id, "id");
+  requireValidId(id);
+
+  await dataverseFetch(`${entityPath(entitySet)}(${id})`, { method: "DELETE" });
+}
+
 function extractIdFromEntityIdHeader(header: string): string | null {
   const match = header.match(/\(([0-9a-fA-F-]{36})\)/);
   return match ? match[1] : null;

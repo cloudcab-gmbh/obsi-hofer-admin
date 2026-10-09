@@ -1,5 +1,6 @@
 import { getRecord, listRecords, updateRecord } from "./records";
 import { DataverseError } from "./errors";
+import { entfernePortalzugang, erstellePortalzugang, listPortalzugaengeForKontakte } from "./portalzugaenge";
 
 // Kontakte liegen in der eigenen Tabelle bmvcc_kontakt (nicht in der
 // Standard-Tabelle contact). Die Zuordnung zur Firma läuft über die
@@ -17,9 +18,21 @@ export interface KundenportalKontakt {
   email: string | null;
   /** Rollen aus den Bexio-Relationen zu dieser Firma (Freitext, kann leer sein). */
   rollen: string[];
+  /** PROJ-11: Portalzugang zum aktuellen Standort. */
   freigegeben: boolean;
-  /** Kontakt ist zusätzlich weiteren Firmen zugeordnet — das Häkchen gilt dann auch dort. */
-  weitereFirmen: boolean;
+  /** PROJ-11: weitere Standorte DIESER Firma, für die der Kontakt freigegeben ist (Anzeigenamen). */
+  weitereStandorte: string[];
+}
+
+/** PROJ-11: Kontakt hat Portalzugang zu irgendeinem Standort der Firma (Sync-Voraussetzung, PROJ-5). */
+export function hatZugangBeiFirma(kontakt: KundenportalKontakt): boolean {
+  return kontakt.freigegeben || kontakt.weitereStandorte.length > 0;
+}
+
+/** Standort der aktuellen Firma mit Anzeigename (aus dem Arbeitskontext, PROJ-10). */
+export interface FreigabeStandort {
+  id: string;
+  name: string;
 }
 
 const GUID_PATTERN = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -47,10 +60,15 @@ function chunk<T>(items: T[], size: number): T[][] {
 const ID_CHUNK_SIZE = 20;
 
 /**
- * Alle aktiven Kontakte einer Firma mit ihrem Kundenportal-Freigabestatus,
- * sortiert nach Nachname, Vorname.
+ * Alle aktiven Kontakte einer Firma mit ihrer Kundenportal-Freigabe für den
+ * aktuellen Standort (PROJ-11) und den übrigen freigegebenen Standorten der
+ * Firma, sortiert nach Nachname, Vorname.
  */
-export async function listKundenportalKontakteForFirma(firmaId: string): Promise<KundenportalKontakt[]> {
+export async function listKundenportalKontakteForFirma(
+  firmaId: string,
+  standorte: FreigabeStandort[],
+  aktuellerStandortId: string
+): Promise<KundenportalKontakt[]> {
   requireValidGuid(firmaId, "firmaId");
 
   const { records: relationen } = await listRecords(RELATIONEN_ENTITY, {
@@ -75,34 +93,29 @@ export async function listKundenportalKontakteForFirma(firmaId: string): Promise
   if (personIds.length === 0) return [];
 
   const blocke = chunk(personIds, ID_CHUNK_SIZE);
-  const [kontaktBlocke, weitereBlocke] = await Promise.all([
+  const [kontaktBlocke, zugaenge] = await Promise.all([
     Promise.all(
       blocke.map(async (ids) => {
         const idFilter = ids.map((id) => `bmvcc_kontaktid eq ${id}`).join(" or ");
         const { records } = await listRecords(KONTAKTE_ENTITY, {
-          select: ["bmvcc_kontaktid", "bmvcc_name_1", "bmvcc_name_2", "bmvcc_mail", "bmvcc_kundenportal"],
+          select: ["bmvcc_kontaktid", "bmvcc_name_1", "bmvcc_name_2", "bmvcc_mail"],
           filter: `(${idFilter}) and statecode eq ${AKTIV}`,
           top: 5000,
         });
         return records;
       })
     ),
-    Promise.all(
-      blocke.map(async (ids) => {
-        const idFilter = ids.map((id) => `_bmvcc_person_value eq ${id}`).join(" or ");
-        const { records } = await listRecords(RELATIONEN_ENTITY, {
-          select: ["_bmvcc_person_value"],
-          filter: `(${idFilter}) and _bmvcc_firma_value ne ${firmaId} and statecode eq ${AKTIV}`,
-          top: 5000,
-        });
-        return records;
-      })
-    ),
+    listPortalzugaengeForKontakte(personIds),
   ]);
 
-  const mitWeiterenFirmen = new Set(
-    weitereBlocke.flat().map((r) => asString(r._bmvcc_person_value)).filter((id): id is string => !!id)
-  );
+  // Nur Zugänge zu Standorten DIESER Firma zählen (Zugänge bei anderen Firmen
+  // sind unabhängig und hier nicht relevant).
+  const standortNamen = new Map(standorte.map((s) => [s.id, s.name]));
+  const standorteProKontakt = new Map<string, Set<string>>();
+  for (const z of zugaenge) {
+    if (!standortNamen.has(z.standortId)) continue;
+    standorteProKontakt.set(z.kontaktId, (standorteProKontakt.get(z.kontaktId) ?? new Set()).add(z.standortId));
+  }
 
   const kontakte = kontaktBlocke.flat().map((raw) => {
     const id = raw.bmvcc_kontaktid as string;
@@ -115,8 +128,11 @@ export async function listKundenportalKontakteForFirma(firmaId: string): Promise
         name: [vorname, nachname].filter(Boolean).join(" ") || "—",
         email: asString(raw.bmvcc_mail),
         rollen: rollenProPerson.get(id) ?? [],
-        freigegeben: raw.bmvcc_kundenportal === true,
-        weitereFirmen: mitWeiterenFirmen.has(id),
+        freigegeben: standorteProKontakt.get(id)?.has(aktuellerStandortId) ?? false,
+        weitereStandorte: [...(standorteProKontakt.get(id) ?? [])]
+          .filter((standortId) => standortId !== aktuellerStandortId)
+          .map((standortId) => standortNamen.get(standortId) as string)
+          .sort((a, b) => a.localeCompare(b, "de")),
       } satisfies KundenportalKontakt,
     };
   });
@@ -127,19 +143,43 @@ export async function listKundenportalKontakteForFirma(firmaId: string): Promise
 }
 
 /**
- * Setzt oder entzieht die Kundenportal-Freigabe eines Kontakts. Schreibt
- * ausschliesslich das Feld bmvcc_kundenportal.
+ * PROJ-11: Setzt oder entzieht den Kundenportal-Zugang eines Kontakts zu
+ * einem Standort.
  *
- * Die Regeln der Oberfläche werden hier serverseitig erneut durchgesetzt
- * (gleiche Lehre wie QA BUG-1 in PROJ-4): Freigeben ist nur für aktive
- * Kontakte mit E-Mail-Adresse möglich. Entziehen ist immer erlaubt — auch
- * wenn die E-Mail inzwischen fehlt (PROJ-8 Edge Case).
+ * Serverseitig durchgesetzt (Server Actions sind direkt aufrufbar):
+ * - der Kontakt gehört über eine aktive Bexio-Relation zur Firma (schliesst
+ *   die PROJ-8-Lücke "beliebiger Kontakt änderbar");
+ * - Freigeben nur für aktive Kontakte mit E-Mail; Entziehen immer (PROJ-8).
+ * Dass der Standort zur Firma gehört, prüft der Aufrufer (Arbeitskontext).
+ *
+ * Übergang: Das bisherige Feld bmvcc_kundenportal wird mitgeführt —
+ * gesetzt, solange der Kontakt mindestens einen Portalzugang hat (über alle
+ * Firmen), damit das heutige Kundenportal unverändert weiterläuft.
  */
-export async function setKundenportalFreigabe(kontaktId: string, freigegeben: boolean): Promise<void> {
+export async function setStandortFreigabe(params: {
+  kontaktId: string;
+  firmaId: string;
+  standort: FreigabeStandort;
+  freigegeben: boolean;
+}): Promise<void> {
+  const { kontaktId, firmaId, standort, freigegeben } = params;
   requireValidGuid(kontaktId, "kontaktId");
+  requireValidGuid(firmaId, "firmaId");
+  requireValidGuid(standort.id, "standortId");
+
+  const { records: relationen } = await listRecords(RELATIONEN_ENTITY, {
+    select: ["bmvcc_relationid"],
+    filter: `_bmvcc_person_value eq ${kontaktId} and _bmvcc_firma_value eq ${firmaId} and statecode eq ${AKTIV}`,
+    top: 1,
+  });
+  if (relationen.length === 0) {
+    throw new DataverseError("validation_error", "Dieser Kontakt ist der gewählten Firma nicht zugeordnet.");
+  }
 
   if (freigegeben) {
-    const kontakt = await getRecord(KONTAKTE_ENTITY, kontaktId, { select: ["bmvcc_mail", "statecode"] });
+    const kontakt = await getRecord(KONTAKTE_ENTITY, kontaktId, {
+      select: ["bmvcc_mail", "statecode", "bmvcc_name_1", "bmvcc_name_2"],
+    });
     if (kontakt.statecode !== AKTIV) {
       throw new DataverseError("validation_error", "Ein inaktiver Kontakt kann nicht fürs Kundenportal freigegeben werden.");
     }
@@ -149,7 +189,17 @@ export async function setKundenportalFreigabe(kontaktId: string, freigegeben: bo
         "Ein Kontakt ohne E-Mail-Adresse kann nicht fürs Kundenportal freigegeben werden."
       );
     }
+    const name = [asString(kontakt.bmvcc_name_2), asString(kontakt.bmvcc_name_1)].filter(Boolean).join(" ") || "Kontakt";
+    await erstellePortalzugang(kontaktId, standort.id, `${name} – ${standort.name}`);
+  } else {
+    await entfernePortalzugang(kontaktId, standort.id);
   }
 
-  await updateRecord(KONTAKTE_ENTITY, kontaktId, { bmvcc_kundenportal: freigegeben });
+  await aktualisiereKundenportalHaekchen(kontaktId);
+}
+
+/** Übergang (PROJ-11): bmvcc_kundenportal = "hat mindestens einen Portalzugang". */
+export async function aktualisiereKundenportalHaekchen(kontaktId: string): Promise<void> {
+  const hatZugang = (await listPortalzugaengeForKontakte([kontaktId])).length > 0;
+  await updateRecord(KONTAKTE_ENTITY, kontaktId, { bmvcc_kundenportal: hatZugang });
 }
