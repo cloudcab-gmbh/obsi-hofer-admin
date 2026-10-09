@@ -1,6 +1,6 @@
 # PROJ-11: Kundenportal-Zugang pro Standort
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-10-08
 **Last Updated:** 2026-10-08
 
@@ -275,4 +275,12 @@ Keine neuen Pakete.
 - **Recommendation:** Deployen; Kundenportal-Repo über die Tabelle und die Waisen-Regel informieren (Auftrag liegt vor)
 
 ## Deployment
-_To be added by /deploy_
+
+- **Production URL:** https://obsi-hofer-admin.vercel.app/sync-freigabe
+- **Deployed:** 2026-10-09
+- **Commit:** `138b0a0`, **Tag:** `v1.10.0-PROJ-11`
+- **Keine neuen Umgebungsvariablen.** Neue Entwicklungsabhängigkeit `tsx` (nur für das Übernahme-Skript, nicht im App-Bundle)
+- **Dataverse vorab erledigt:** Tabelle `bmvcc_portalzugang` mit Rechten für den App-Benutzer (vom Nutzer), Übernahme ausgeführt (8 Portalzugänge), Löschweitergabe Kontakt → Portalzugang aktiv
+- **Verifikation:** Lokaler Produktions-Build, Lint, 403 Unit-Tests und 24 E2E-Tests grün; Vercel-Production-Build "Ready"; `/sync-freigabe` antwortet unauthentifiziert mit 307 → `/login`. Funktion vorab vom Nutzer lokal gegen die echten Daten geprüft
+- **Übergang:** Das Kundenportal wertet die Standort-Zugänge noch nicht aus (Auftrag `docs/kundenportal-auftrag-portalzugang.md`, offen); bis dahin wirkt weiterhin das automatisch mitgeführte Häkchen `bmvcc_kundenportal` — Portal-Benutzer sehen also vorerst noch alle Standorte ihrer Firma
+- **Offen (Low):** BUG-1 Restrisiko (Waisen nach Standort-Löschung, akzeptiert)
