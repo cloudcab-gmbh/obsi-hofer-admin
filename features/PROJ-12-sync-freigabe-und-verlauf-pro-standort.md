@@ -1,6 +1,6 @@
 # PROJ-12: Sync-Freigabe und -Verlauf pro Standort
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-10-09
 **Last Updated:** 2026-10-09
 
@@ -169,7 +169,81 @@ Keine neuen Pakete.
 **Tests:** erweitert `sync-laeufe.test.ts` (Standort binden/benennen, Filter, ungültige ID), `kundenportal-sync.test.ts` (Schalter, `standortId`-Parameter, Antwortprüfung), `sync-freigabe/actions.test.ts` (Standort-Sync, Schalter aus, Standortwechsel, Zugang nur zu anderem Standort reicht nicht, "schon übertragen" durch Firmen-Lauf, ungültige ID), `sync-verlauf.test.tsx` (Badge "ganze Firma", Leer-Text); bestehende Erwartungen auf die neuen Aufrufe angepasst. 421 Tests grün, Typecheck/Lint sauber.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-10-09
+**Tester:** QA Engineer (AI)
+
+**Umfang:** Der Standort-Sync selbst ist erst nach dem Kundenportal-Deploy (Auftrag `docs/kundenportal-auftrag-sync-pro-standort.md`) end-to-end testbar. Diese QA prüft die Logik per Unit-/Komponententests und das Verhalten mit **ausgeschaltetem Schalter** (= Zustand nach dem Deployment).
+
+### Acceptance Criteria Status
+
+#### Übertragen
+- [x] Nur Daten des aktuellen Standorts: `standortId` wird mitgeschickt (`kundenportal-sync.test.ts`); Umfang setzt das Kundenportal um → **end-to-end offen bis Portal-Deploy**
+- [x] Übrige Standorte unverändert → Pflicht im Kundenportal-Auftrag; Admin-Tool prüft die Rückmeldung (`scope`, nur ein Standort geladen) und meldet sonst "teilweise" mit Warnung
+- [x] Dialog nennt "Firma · Standort" (bei einem Standort nur Firma) — `SyncAusloesen` erhält beim Standort-Sync den Listen-Titel
+- [x] Firma mit einem Standort: Verhalten für den Freigeber wie bisher
+
+#### Voraussetzung
+- [x] Zugang zu diesem Standort aktiviert den Button; Zugang nur zu anderem Standort reicht nicht (`actions.test.ts`, Zähler der Kontaktliste)
+- [x] "Schon übertragen" durch Standort- oder früheren Firmen-Lauf erlaubt den Sync (`actions.test.ts`); "fehler"-Läufe zählen nicht (bestehende Regel/Tests)
+- [x] Gesperrt mit Hinweis "… für diesen Standort freigeben"
+- [x] Serverseitige Wiederholung der Prüfung
+- [x] Standortwechsel in anderem Tab → "bitte neu laden" (`actions.test.ts`)
+
+#### Verlauf
+- [x] Standort-Läufe mit Firma und Standort gespeichert, Name "Firma · Standort – Zeit" (`sync-laeufe.test.ts`)
+- [x] Verlauf zeigt Läufe des Standorts + frühere Läufe der ganzen Firma (Filter), letztere mit Badge "ganze Firma" (`sync-verlauf.test.tsx`)
+- [x] Firma ohne Standort: Firmen-Sync bleibt (kein Standort → `standortSync` aus)
+
+#### Übergang
+- [x] Schalter `KUNDENPORTAL_STANDORT_SYNC_AKTIV` aus → ganze Firma wie bisher, auch wenn ein Standort übergeben wird (`actions.test.ts`); kein Arbeitskontext-Zugriff
+- [x] Zweite Absicherung über die Antwort (`kundenportal-sync.test.ts`)
+
+### Edge Cases Status
+- [x] Gleichnamige Firmen → Listen-Titel mit Anzeigename (PROJ-10) im Dialog
+- [x] Sync läuft, Standort wird gewechselt → bestätigter Standort wird übertragen und protokolliert (Standort kommt aus dem Dialog, Prüfung beim Start)
+- [x] Zeitüberschreitung / Verlauf nicht speicherbar → unverändert wie PROJ-5/6
+- [x] Ungültige Standort-ID → abgelehnt, kein Aufruf (`actions.test.ts`, `kundenportal-sync.test.ts`, `sync-laeufe.test.ts`)
+- [ ] Siehe BUG-1 (Gross-/Kleinschreibung der zurückgemeldeten Standort-ID)
+- [ ] Siehe BUG-2 (Ergebnismeldung mit vollem Standortnamen)
+
+### Security Audit Results
+- [x] Nur Freigeber (unverändert)
+- [x] Standort muss der aktuelle Standort der Sitzung und der übergebenen Firma sein
+- [x] Alle IDs per Zod-GUID/`requireValidGuid` geprüft, bevor sie in OData-Filter, Pfade oder die Portal-URL gelangen
+- [x] Kein Gesamt- oder Fremdfirmen-Sync möglich: Firma-ID weiterhin Pflicht, bestehende "mehrere Firmen"-Erkennung bleibt
+- [x] Schalter verhindert, dass ein veraltetes Portal still die ganze Firma überträgt
+- [x] Keine neuen Geheimnisse; neue Umgebungsvariable dokumentiert
+
+### Automatisierte Tests
+- [x] `npm test`: 34 Dateien, 421 Tests grün
+- [x] `npm run test:e2e`: 24/24 grün (Zugriffsschutz `/sync-freigabe` durch PROJ-8-Suite abgedeckt)
+
+### Bugs Found
+
+#### BUG-1: Standort-Bestätigung vergleicht Gross-/Kleinschreibung
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Schalter an, Standort-Sync auslösen
+  2. Kundenportal meldet `scope.standortId` in Grossbuchstaben (z.B. aus einem anderen GUID-Format) zurück
+  3. Expected: als Bestätigung erkannt
+  4. Actual: exakter Vergleich → "teilweise" mit Fehlwarnung "Standort-Filter … nicht aktiv", obwohl korrekt übertragen
+- **Priority:** Nice to have (vor dem Einschalten des Schalters beheben oder mit dem Portal abstimmen)
+
+#### BUG-2: Ergebnismeldung nennt den vollen Standortnamen statt des Anzeigenamens
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Schalter an, Bilfinger · Pratteln synchronisieren
+  2. Expected: "„Bilfinger … AG · Pratteln“ wurde … übertragen" (wie Dialog/Header)
+  3. Actual: Server bildet "Firma · <voller Standortname>" → "„Bilfinger … AG · Bilfinger … AG - Pratteln“"; bei Firmen mit einem Standort zusätzlich " · <Standort>", obwohl die Oberfläche dort nur die Firma nennt
+- **Priority:** Nice to have
+
+### Summary
+- **Acceptance Criteria:** alle per Test erfüllt; End-to-End-Prüfung des Standort-Syncs offen bis zum Kundenportal-Deploy
+- **Bugs Found:** 2 total (0 critical, 0 high, 0 medium, 2 low)
+- **Security:** Pass
+- **Production Ready:** YES — mit ausgeschaltetem Schalter ohne Verhaltensänderung deploybar
+- **Recommendation:** BUG-1/2 vor dem Einschalten des Schalters beheben; deployen (Schalter aus); Auftrag ans Kundenportal; nach Rückmeldung Schalter setzen und live testen
 
 ## Deployment
 _To be added by /deploy_
