@@ -1,6 +1,6 @@
 # PROJ-12: Sync-Freigabe und -Verlauf pro Standort
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-10-09
 **Last Updated:** 2026-10-09
 
@@ -9,7 +9,7 @@
 - Requires: PROJ-6 (Sync-Status/-Verlauf) — Verlauf und Dataverse-Tabelle `bmvcc_synclauf`
 - Requires: PROJ-10 (Standort als Arbeitskontext) — der aktuelle Standort
 - Requires: PROJ-11 (Kundenportal-Zugang pro Standort) — Zugänge pro Standort als Voraussetzung
-- **Cross-Repo (Kundenportal, dort separat einzuplanen, zuerst):** Der Sync-Endpoint muss zusätzlich einen Standort annehmen und dann nur diesen Standort übertragen, ohne die übrigen Standorte der Firma im Portal zu verändern
+- **Cross-Repo (Kundenportal, dort separat einzuplanen — Auftrag: [docs/kundenportal-auftrag-sync-pro-standort.md](../docs/kundenportal-auftrag-sync-pro-standort.md)):** Der Sync-Endpoint muss zusätzlich einen Standort annehmen und dann nur diesen Standort übertragen, ohne die übrigen Standorte der Firma im Portal zu verändern
 - **Dataverse (vom Nutzer anzulegen):** In der Tabelle der Sync-Läufe eine Spalte "Standort" (Verweis auf Standort) + Rechte für den App-Benutzer
 - Hinweis aus dem Kundenportal (2026-10-09): Wechselt ein Standort die Firma, wirkt ein Zugang zu ihm erst wieder, wenn die neue Firma synchronisiert ist
 
@@ -66,9 +66,9 @@
 - Der Standort-Parameter darf nie dazu führen, dass mehr als die gewählte Firma übertragen wird (bestehende Absicherungen aus PROJ-5 bleiben)
 
 ## Open Questions
-- [ ] Kundenportal: Schnittstelle für den Standort (Parametername, Antwortformat, Bestätigung des Umfangs im Ergebnis) — mit dem Kundenportal-Repo abstimmen; Auftrag wie bei PROJ-11 formulieren
+- [ ] Kundenportal: Schnittstelle für den Standort — Vorschlag: Parameter `standortId` zusätzlich zu `firmaId`; in der Antwort Rückmeldung des Umfangs (übertragener Standort bzw. Anzahl geladener Standorte). Auftrag formuliert 2026-10-09 ([docs/kundenportal-auftrag-sync-pro-standort.md](../docs/kundenportal-auftrag-sync-pro-standort.md)): Parameter `standortId`, Rückmeldung `scope` in der Antwort; offen bis zur Rückmeldung des Kundenportals
 - [ ] Werden Kontakte/Zugänge anderer Standorte bei einem Standort-Lauf im Portal unverändert gelassen? (Erwartung: ja) — mit Kundenportal klären
-- [ ] Exakter Name der neuen Verlaufsspalte nach dem Anlegen in Dataverse
+- [ ] Exakter Name der neuen Verlaufsspalte nach dem Anlegen in Dataverse (vorgeschlagen: Spalte "Standort", Nachschlagen auf Standort) — wird vor der Umsetzung aus dem Schema gelesen
 
 ## Decision Log
 
@@ -84,12 +84,69 @@
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Neuer Schalter `KUNDENPORTAL_STANDORT_SYNC_AKTIV`; aus = heutiger Firmen-Sync | Admin-Tool kann vor dem Kundenportal deployt werden; kein stiller Gesamt-Sync durch ein Portal ohne Standort-Parameter (Lehre PROJ-5) | 2026-10-09 |
+| Antwortprüfung: Portal muss den Standort-Umfang zurückmelden, sonst "teilweise" + Warnung | Zweite Verteidigungslinie, analog "mehrere Firmen"-Erkennung | 2026-10-09 |
+| Neue optionale Spalte "Standort" in `bmvcc_synclauf`; leer = ganze Firma | Keine Migration alter Läufe; Firmen ohne Standort abgedeckt | 2026-10-09 |
+| Löschverhalten der neuen Spalte "Verknüpfung entfernen" | Verlauf bleibt erhalten, auch wenn ein Standort gelöscht wird | 2026-10-09 |
+| "Schon übertragen" = Lauf ≠ "fehler" unter den angezeigten Läufen (Standort + ganze Firma) | Eine nachvollziehbare Regel, deckungsgleich mit dem sichtbaren Verlauf | 2026-10-09 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Ausgangslage
+- Heute ruft das Admin-Tool `/api/cron/sync-dataverse?firmaId=…` im Kundenportal auf (Pflicht-Parameter seit Kundenportal PROJ-12). Absicherungen: GUID-Prüfung, Schalter `KUNDENPORTAL_SYNC_AKTIV`, Erkennung "mehr als eine Firma übertragen" in der Antwort.
+- Verlauf: Tabelle `bmvcc_synclauf` mit Verweis auf die Firma; "schon einmal übertragen" = ein Lauf, der nicht "fehler" ist.
+
+### A) Bausteine
+```
+/sync-freigabe (nur Freigeber, bestehend)
++-- Kontaktliste (PROJ-11, unverändert)
++-- "Ins Kundenportal übertragen" (angepasst)
+|   +-- Text/Dialog: "Firma · Standort" (bei einem Standort nur Firma)
+|   +-- Button aktiv, wenn: Kontakt mit E-Mail hat Zugang zu DIESEM Standort
+|   |     oder der Standort wurde schon übertragen (Standort-Lauf oder früherer Firmen-Lauf)
++-- Sync-Verlauf (angepasst)
+      Läufe dieses Standorts + frühere Läufe "ganze Firma" (gekennzeichnet)
+
+Sync auslösen (Server, angepasst)
++-- prüft: Freigeber, Standort = aktueller Standort der Sitzung, Voraussetzung (serverseitig wiederholt)
++-- ruft das Kundenportal mit Firma + Standort auf
+|     Firma ohne Standort → wie bisher nur mit Firma ("ganze Firma")
++-- prüft die Antwort: hat das Portal wirklich nur diesen Standort übertragen?
+|     nein → Ergebnis "teilweise" mit deutlicher Warnung (wie heute bei "mehrere Firmen")
++-- speichert den Verlaufseintrag mit Firma UND Standort
+```
+
+### B) Daten (in Worten)
+**Neue Spalte in `bmvcc_synclauf`** (vom Nutzer anzulegen): **Standort** — Nachschlagen auf Standort (`bmvcc_organizationlocation`), nicht Pflicht. Leer = Lauf der ganzen Firma (alle Läufe vor PROJ-12 und Läufe von Firmen ohne Standort). Löschverhalten "Verknüpfung entfernen" (Verlauf soll erhalten bleiben, auch wenn ein Standort gelöscht wird). Rechte: App-Benutzer braucht "Anfügen an" auf Standort.
+
+**Verlauf eines Standorts** = Läufe der Firma mit diesem Standort **oder** ohne Standort, neueste zuerst; "Mehr laden" mit demselben Filter. Name des Eintrags: "Firma · Standort – Zeitpunkt".
+
+**Neuer Schalter `KUNDENPORTAL_STANDORT_SYNC_AKTIV`** (Vercel-Umgebungsvariable, wie `KUNDENPORTAL_SYNC_AKTIV` aus PROJ-5):
+- nicht gesetzt → das Admin-Tool synchronisiert wie bisher die **ganze Firma** (heutiges Verhalten, Verlaufseintrag ohne Standort) — so kann PROJ-12 vor dem Kundenportal deployt werden, ohne Schaden
+- `true` → Sync pro Standort; erst setzen, wenn das Kundenportal den Standort-Parameter deployt hat
+
+### C) Technische Entscheidungen (Begründung)
+- **Schalter statt hartem Umschalten**: gleiche Lehre wie PROJ-5 (Live-Vorfall 2026-10-07) — ein Portal, das den Standort-Parameter (noch) nicht kennt, würde ihn ignorieren und die ganze Firma übertragen. Mit dem Schalter bestimmt der Nutzer den Zeitpunkt; bis dahin bleibt alles wie heute.
+- **Zweite Absicherung über die Antwort**: Das Kundenportal soll im Ergebnis zurückmelden, für welchen Standort es übertragen hat (bzw. wie viele Standorte es geladen hat). Weicht das ab, meldet das Admin-Tool "teilweise" mit Warnung statt "Erfolg" — analog zur bestehenden "mehrere Firmen"-Erkennung.
+- **Leerer Standort = ganze Firma** statt eigener Kennzeichnung: keine Datenmigration für alte Läufe nötig; Firmen ohne Standort und alte Läufe fallen automatisch darunter.
+- **"Schon übertragen" aus den angezeigten Läufen**: dieselben Läufe, die der Verlauf zeigt (Standort + ganze Firma), entscheiden — eine Regel, die Freigeber sehen und nachvollziehen können.
+- **Standort-Prüfung gegen die Sitzung** wie in PROJ-11 (Standortwechsel in anderem Tab → "bitte neu laden").
+
+### D) Abhängigkeiten (Pakete)
+Keine neuen Pakete.
+
+### E) Ablauf der Einführung
+1. Nutzer: Spalte "Standort" in `bmvcc_synclauf` anlegen + Rechte
+2. Admin-Tool PROJ-12 deployen (Schalter aus → Verhalten wie heute)
+3. Kundenportal: Standort-Parameter umsetzen und deployen (Auftrag wird formuliert)
+4. Nutzer: `KUNDENPORTAL_STANDORT_SYNC_AKTIV=true` in Vercel setzen + Redeploy → Sync pro Standort aktiv
+
+### F) Tests
+- Unit-Tests: Voraussetzung pro Standort (Zugang/"schon übertragen" inkl. alter Firmen-Läufe und "fehler"-Läufe), Verlaufsfilter, Verlaufseintrag mit/ohne Standort, Schalter aus/an, Antwortprüfung (Portal ignoriert Standort → "teilweise"), Standortwechsel
+- Manuell: mit Schalter aus wie heute; nach Portal-Deploy mit Schalter an: Standort A übertragen, Standort B im Portal unverändert
 
 ## QA Test Results
 _To be added by /qa_

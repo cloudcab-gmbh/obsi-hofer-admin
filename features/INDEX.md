@@ -26,7 +26,7 @@
 | PROJ-9 | PDF-Export digital signieren (Firmen-Siegel) | Approved | [Spec](../features/PROJ-9-pdf-export-digital-signieren.md) | 2026-10-07 |
 | PROJ-10 | Standort als Arbeitskontext | Deployed | [Spec](../features/PROJ-10-standort-als-arbeitskontext.md) | 2026-10-08 |
 | PROJ-11 | Kundenportal-Zugang pro Standort | Deployed | [Spec](../features/PROJ-11-kundenportal-zugang-pro-standort.md) | 2026-10-08 |
-| PROJ-12 | Sync-Freigabe und -Verlauf pro Standort | Planned | [Spec](../features/PROJ-12-sync-freigabe-und-verlauf-pro-standort.md) | 2026-10-08 |
+| PROJ-12 | Sync-Freigabe und -Verlauf pro Standort | Architected | [Spec](../features/PROJ-12-sync-freigabe-und-verlauf-pro-standort.md) | 2026-10-08 |
 
 <!-- Add features above this line -->
 
