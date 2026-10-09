@@ -7,10 +7,14 @@ import type { SyncBereich, SyncErgebnis, SyncStatus } from "@/lib/kundenportal-s
 // nie geändert oder gelöscht.
 const SYNC_LAEUFE_ENTITY = "bmvcc_synclaufs";
 const FIRMEN_ENTITY = "bmvcc_firmas";
+// PROJ-12: Spalte "Standort" (Nachschlagen, optional; leer = Lauf der ganzen
+// Firma), Schema am 2026-10-09 gelesen.
+const STANDORTE_ENTITY = "bmvcc_organizationlocations";
 
 const SELECT = [
   "bmvcc_synclaufid",
   "_bmvcc_firma_value",
+  "_bmvcc_standort_value",
   "bmvcc_gestartedam",
   "bmvcc_dauersekunden",
   "bmvcc_ausgelostvon",
@@ -30,6 +34,8 @@ export const SEITEN_GROESSE = 20;
 export interface SyncLauf {
   id: string;
   firmaId: string;
+  /** PROJ-12: Standort des Laufs; `null` = ganze Firma (alle Läufe vor PROJ-12, Firmen ohne Standort). */
+  standortId: string | null;
   /** ISO-Zeitstempel (UTC). */
   gestartetAm: string;
   dauerSekunden: number | null;
@@ -101,6 +107,7 @@ function mapSyncLauf(raw: Record<string, unknown>): SyncLauf {
   return {
     id: raw.bmvcc_synclaufid as string,
     firmaId: raw._bmvcc_firma_value as string,
+    standortId: typeof raw._bmvcc_standort_value === "string" ? raw._bmvcc_standort_value : null,
     gestartetAm: raw.bmvcc_gestartedam as string,
     dauerSekunden: typeof raw.bmvcc_dauersekunden === "number" ? raw.bmvcc_dauersekunden : null,
     ausgeloestVon: typeof raw.bmvcc_ausgelostvon === "string" ? raw.bmvcc_ausgelostvon : null,
@@ -116,6 +123,8 @@ function mapSyncLauf(raw: Record<string, unknown>): SyncLauf {
 export interface NeuerSyncLauf {
   firmaId: string;
   firmaName: string;
+  /** PROJ-12: übertragener Standort; fehlt = ganze Firma. */
+  standort?: { id: string; name: string } | null;
   gestartetAm: Date;
   dauerSekunden: number;
   ausgeloestVon: string;
@@ -124,15 +133,20 @@ export interface NeuerSyncLauf {
 
 export async function erstelleSyncLauf(lauf: NeuerSyncLauf): Promise<SyncLauf> {
   requireValidGuid(lauf.firmaId, "firmaId");
+  if (lauf.standort) requireValidGuid(lauf.standort.id, "standortId");
 
   const ausgeloestVon = kuerze(lauf.ausgeloestVon, MAX_AUSGELOEST_VON);
   const meldung = kuerze(lauf.ergebnis.meldung, MAX_MELDUNG);
   const details = serialisiereDetails(lauf.ergebnis.bereiche, lauf.ergebnis.probleme);
 
   const { id } = await createRecord(SYNC_LAEUFE_ENTITY, {
-    bmvcc_name: kuerze(`${lauf.firmaName} – ${formatZeitpunkt(lauf.gestartetAm)}`, MAX_NAME),
-    // Navigationseigenschaft per Metadaten verifiziert (ReferencingEntityNavigationPropertyName).
+    bmvcc_name: kuerze(
+      `${lauf.firmaName}${lauf.standort ? ` · ${lauf.standort.name}` : ""} – ${formatZeitpunkt(lauf.gestartetAm)}`,
+      MAX_NAME
+    ),
+    // Navigationseigenschaften per Metadaten verifiziert (ReferencingEntityNavigationPropertyName).
     "bmvcc_Firma@odata.bind": `/${FIRMEN_ENTITY}(${lauf.firmaId})`,
+    ...(lauf.standort ? { "bmvcc_Standort@odata.bind": `/${STANDORTE_ENTITY}(${lauf.standort.id})` } : {}),
     bmvcc_gestartedam: lauf.gestartetAm.toISOString(),
     bmvcc_dauersekunden: lauf.dauerSekunden,
     bmvcc_ausgelostvon: ausgeloestVon,
@@ -144,6 +158,7 @@ export async function erstelleSyncLauf(lauf: NeuerSyncLauf): Promise<SyncLauf> {
   return {
     id,
     firmaId: lauf.firmaId,
+    standortId: lauf.standort?.id ?? null,
     gestartetAm: lauf.gestartetAm.toISOString(),
     dauerSekunden: lauf.dauerSekunden,
     ausgeloestVon,
@@ -155,14 +170,21 @@ export async function erstelleSyncLauf(lauf: NeuerSyncLauf): Promise<SyncLauf> {
  * Läufe einer Firma, neueste zuerst. `vor` (ISO-Zeitstempel des zuletzt
  * angezeigten Laufs) lädt die nächsten älteren — stabile Fortsetzung, auch
  * wenn oben inzwischen neue Läufe hinzugekommen sind.
+ *
+ * PROJ-12: mit `standortId` nur die Läufe dieses Standorts plus die Läufe der
+ * ganzen Firma (ohne Standort) — Läufe anderer Standorte erscheinen nicht.
  */
 export async function listSyncLaeufeForFirma(
   firmaId: string,
-  options: { vor?: string } = {}
+  options: { vor?: string; standortId?: string | null } = {}
 ): Promise<{ laeufe: SyncLauf[]; hatMehr: boolean }> {
   requireValidGuid(firmaId, "firmaId");
+  if (options.standortId) requireValidGuid(options.standortId, "standortId");
 
   let filter = `_bmvcc_firma_value eq ${firmaId}`;
+  if (options.standortId) {
+    filter += ` and (_bmvcc_standort_value eq ${options.standortId} or _bmvcc_standort_value eq null)`;
+  }
   if (options.vor) {
     const vor = new Date(options.vor);
     if (Number.isNaN(vor.getTime())) throw new Error(`vor muss ein gültiger Zeitstempel sein, erhalten: "${options.vor}"`);

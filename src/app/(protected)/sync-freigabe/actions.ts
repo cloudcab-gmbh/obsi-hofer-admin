@@ -7,7 +7,7 @@ import { hatZugangBeiFirma, listKundenportalKontakteForFirma, setStandortFreigab
 import { getFirma, listStandorteForFirma } from "@/lib/dataverse/geraete";
 import { ladeArbeitskontext } from "@/lib/arbeitskontext";
 import { DataverseError } from "@/lib/dataverse/errors";
-import { istSyncKonfiguriert, starteFirmaSync, type SyncErgebnis } from "@/lib/kundenportal-sync";
+import { istStandortSyncAktiv, istSyncKonfiguriert, starteFirmaSync, type SyncErgebnis } from "@/lib/kundenportal-sync";
 import { erstelleSyncLauf, listSyncLaeufeForFirma, type SyncLauf } from "@/lib/dataverse/sync-laeufe";
 import { wurdeBereitsUebertragen } from "@/lib/sync-lauf-regeln";
 
@@ -86,7 +86,12 @@ export type FirmaSyncResult =
  * unabhängig davon, ob der Browser die Antwort noch empfängt — im Sync-Verlauf
  * protokolliert. Ablehnungen davor erzeugen bewusst keinen Eintrag.
  */
-export async function syncFirmaAction(firmaId: string): Promise<FirmaSyncResult> {
+/**
+ * PROJ-12: Mit `standortId` (aktueller Standort der Sitzung) und gesetztem
+ * Schalter KUNDENPORTAL_STANDORT_SYNC_AKTIV wird nur dieser Standort
+ * übertragen und mit Standort protokolliert; sonst wie bisher die ganze Firma.
+ */
+export async function syncFirmaAction(firmaId: string, standortId: string | null = null): Promise<FirmaSyncResult> {
   const freigeberName = await aktuellerFreigeberName();
   if (!freigeberName) {
     return { success: false, message: "Nur Freigeber dürfen den Sync ins Kundenportal auslösen." };
@@ -102,22 +107,51 @@ export async function syncFirmaAction(firmaId: string): Promise<FirmaSyncResult>
     return { success: false, message: "Der Sync ist noch nicht aktiviert bzw. nicht konfiguriert." };
   }
 
+  const standortParsed = standortId === null ? null : z.guid().safeParse(standortId);
+  if (standortParsed && !standortParsed.success) {
+    return { success: false, message: "Ungültige Standort-ID." };
+  }
+
   let firmaName: string;
+  /** Für Meldungen: "Firma" bzw. "Firma · Standort". */
+  let bezeichnung: string;
+  let standort: { id: string; name: string } | null = null;
   try {
     const [firma, standorte] = await Promise.all([getFirma(parsed.data), listStandorteForFirma(parsed.data)]);
     firmaName = firma.name;
-    // PROJ-11: Zugänge zu irgendeinem Standort der Firma zählen (kein aktueller Standort nötig).
-    const kontakte = await listKundenportalKontakteForFirma(parsed.data, standorte, "");
+    bezeichnung = firma.name;
+
+    // PROJ-12: Standort muss der aktuelle Standort dieser Firma in der Sitzung sein.
+    if (standortParsed && istStandortSyncAktiv()) {
+      const kontext = await ladeArbeitskontext();
+      if (kontext.zustand !== "bereit" || kontext.firma.id !== parsed.data || kontext.standort.id !== standortParsed.data) {
+        return {
+          success: false,
+          message: "Firma oder Standort wurden inzwischen gewechselt. Bitte die Seite neu laden.",
+        };
+      }
+      standort = kontext.standort;
+      bezeichnung = `${firma.name} · ${kontext.standort.name}`;
+    }
+
+    // PROJ-11/12: Zugang zu diesem Standort (Standort-Sync) bzw. zu irgendeinem Standort der Firma.
+    const kontakte = await listKundenportalKontakteForFirma(parsed.data, standorte, standort?.id ?? "");
+    const hatZugang = standort
+      ? kontakte.some((k) => k.freigegeben && k.email)
+      : kontakte.some((k) => hatZugangBeiFirma(k) && k.email);
     // Serverseitige Wiederholung der Sperre (z.B. letzte Freigabe in einem anderen Tab entzogen).
     // Nutzer-Entscheidung 2026-10-07: Ohne freigegebenen Kontakt ist der Sync
-    // trotzdem erlaubt, wenn die Firma schon einmal übertragen wurde — sonst
-    // liesse sich der Entzug des letzten Kontakts nie ins Portal bringen.
-    if (!kontakte.some((k) => hatZugangBeiFirma(k) && k.email)) {
-      const { laeufe } = await listSyncLaeufeForFirma(parsed.data);
+    // trotzdem erlaubt, wenn schon einmal übertragen wurde — sonst liesse sich
+    // der Entzug des letzten Kontakts nie ins Portal bringen. PROJ-12: "schon
+    // übertragen" zählt Läufe dieses Standorts und Läufe der ganzen Firma.
+    if (!hatZugang) {
+      const { laeufe } = await listSyncLaeufeForFirma(parsed.data, { standortId: standort?.id ?? null });
       if (!wurdeBereitsUebertragen(laeufe)) {
         return {
           success: false,
-          message: "Zuerst mindestens einen Kontakt mit E-Mail-Adresse für einen Standort fürs Kundenportal freigeben.",
+          message: standort
+            ? "Zuerst mindestens einen Kontakt mit E-Mail-Adresse für diesen Standort fürs Kundenportal freigeben."
+            : "Zuerst mindestens einen Kontakt mit E-Mail-Adresse für einen Standort fürs Kundenportal freigeben.",
         };
       }
     }
@@ -129,7 +163,7 @@ export async function syncFirmaAction(firmaId: string): Promise<FirmaSyncResult>
   const gestartetAm = new Date();
   let ergebnis: SyncErgebnis;
   try {
-    ergebnis = await starteFirmaSync(parsed.data, firmaName);
+    ergebnis = await starteFirmaSync(parsed.data, bezeichnung, standort);
   } catch {
     return { success: false, message: "Unbekannter Fehler beim Auslösen des Syncs." };
   }
@@ -140,6 +174,7 @@ export async function syncFirmaAction(firmaId: string): Promise<FirmaSyncResult>
     lauf = await erstelleSyncLauf({
       firmaId: parsed.data,
       firmaName,
+      standort,
       gestartetAm,
       dauerSekunden: Math.round((Date.now() - gestartetAm.getTime()) / 1000),
       ausgeloestVon: freigeberName,
@@ -157,16 +192,25 @@ export type SyncVerlaufResult =
   | { success: false; message: string };
 
 /** PROJ-6: "Mehr anzeigen" — die nächsten älteren Läufe einer Firma. */
-export async function ladeSyncLaeufeAction(firmaId: string, vor: string): Promise<SyncVerlaufResult> {
+export async function ladeSyncLaeufeAction(
+  firmaId: string,
+  vor: string,
+  /** PROJ-12: nur Läufe dieses Standorts + der ganzen Firma. */
+  standortId: string | null = null
+): Promise<SyncVerlaufResult> {
   if (!(await aktuellerBenutzerIstFreigeber())) {
     return { success: false, message: "Nur Freigeber dürfen den Sync-Verlauf einsehen." };
   }
-  if (!z.guid().safeParse(firmaId).success || Number.isNaN(new Date(vor).getTime())) {
+  if (
+    !z.guid().safeParse(firmaId).success ||
+    Number.isNaN(new Date(vor).getTime()) ||
+    (standortId !== null && !z.guid().safeParse(standortId).success)
+  ) {
     return { success: false, message: "Ungültige Anfrage." };
   }
 
   try {
-    return { success: true, ...(await listSyncLaeufeForFirma(firmaId, { vor })) };
+    return { success: true, ...(await listSyncLaeufeForFirma(firmaId, { vor, standortId })) };
   } catch (error) {
     const message = error instanceof DataverseError ? error.message : "Der Verlauf konnte nicht geladen werden.";
     return { success: false, message };

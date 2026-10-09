@@ -69,6 +69,16 @@ export function istSyncKonfiguriert(): boolean {
   return fehlendeSyncEinstellungen().length === 0;
 }
 
+/**
+ * PROJ-12: Sync pro Standort erst, wenn das Kundenportal den Parameter
+ * `standortId` kennt — ein älteres Portal würde ihn ignorieren und still die
+ * ganze Firma übertragen (Lehre aus dem Live-Vorfall PROJ-5). Bis dahin
+ * überträgt das Admin-Tool wie bisher die ganze Firma.
+ */
+export function istStandortSyncAktiv(): boolean {
+  return process.env.KUNDENPORTAL_STANDORT_SYNC_AKTIV?.trim().toLowerCase() === "true";
+}
+
 function fehlerText(body: unknown): string | null {
   if (body && typeof body === "object") {
     const b = body as { error?: unknown; message?: unknown };
@@ -78,10 +88,22 @@ function fehlerText(body: unknown): string | null {
   return null;
 }
 
-export async function starteFirmaSync(firmaId: string, firmaName: string): Promise<SyncErgebnis> {
+/**
+ * `standort` (PROJ-12): nur diesen Standort übertragen; fehlt = ganze Firma.
+ * `bezeichnung`: Name für die Meldungen, z.B. "Firma · Standort".
+ */
+export async function starteFirmaSync(
+  firmaId: string,
+  bezeichnung: string,
+  standort: { id: string } | null = null
+): Promise<SyncErgebnis> {
+  const firmaName = bezeichnung;
   if (!GUID_PATTERN.test(firmaId)) {
     // Nie ohne gültige Firma-ID aufrufen — sonst droht ein Gesamt-Sync.
     throw new Error(`firmaId muss eine gültige GUID sein, erhalten: "${firmaId}"`);
+  }
+  if (standort && !GUID_PATTERN.test(standort.id)) {
+    throw new Error(`standortId muss eine gültige GUID sein, erhalten: "${standort.id}"`);
   }
 
   const basisUrl = process.env.KUNDENPORTAL_SYNC_URL?.trim();
@@ -92,6 +114,7 @@ export async function starteFirmaSync(firmaId: string, firmaName: string): Promi
 
   const url = new URL(basisUrl);
   url.searchParams.set("firmaId", firmaId);
+  if (standort) url.searchParams.set("standortId", standort.id);
 
   let res: Response;
   try {
@@ -138,7 +161,12 @@ export async function starteFirmaSync(firmaId: string, firmaName: string): Promi
     };
   }
 
-  const ergebnis = (body ?? {}) as { entities?: EndpointEntity[]; warnings?: string[]; errors?: string[] };
+  const ergebnis = (body ?? {}) as {
+    entities?: EndpointEntity[];
+    warnings?: string[];
+    errors?: string[];
+    scope?: { firmaId?: unknown; standortId?: unknown };
+  };
   const entities = Array.isArray(ergebnis.entities) ? ergebnis.entities : [];
   const probleme = [...(ergebnis.errors ?? []), ...(ergebnis.warnings ?? [])];
 
@@ -149,6 +177,17 @@ export async function starteFirmaSync(firmaId: string, firmaName: string): Promi
     probleme.unshift(
       `Achtung: Das Kundenportal hat ${firmen.fetched} Firmen statt nur einer übertragen — der Firma-Filter ist dort offenbar nicht aktiv.`
     );
+  }
+
+  // PROJ-12: Zweite Absicherung — das Portal muss den übertragenen Standort
+  // zurückmelden und darf nur einen Standort geladen haben.
+  if (standort) {
+    const standorte = entities.find((e) => e.slug === "standorte");
+    if (ergebnis.scope?.standortId !== standort.id || (standorte && standorte.fetched > 1)) {
+      probleme.unshift(
+        "Achtung: Das Kundenportal hat den Standort nicht bestätigt bzw. mehr als einen Standort übertragen — der Standort-Filter ist dort offenbar nicht aktiv."
+      );
+    }
   }
 
   const bereiche = entities.map((e) => ({

@@ -64,7 +64,7 @@ describe("SyncAusloesen", () => {
     await bestaetigen();
 
     expect(await screen.findByText("„Beispiel AG“ wurde ins Kundenportal übertragen.")).toBeInTheDocument();
-    expect(syncFirmaAction).toHaveBeenCalledWith(FIRMA_ID);
+    expect(syncFirmaAction).toHaveBeenCalledWith(FIRMA_ID, null);
     expect(screen.getByRole("cell", { name: "Geräte" })).toBeInTheDocument();
     expect(button()).not.toBeDisabled();
   });

@@ -1,6 +1,6 @@
 # PROJ-12: Sync-Freigabe und -Verlauf pro Standort
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-10-09
 **Last Updated:** 2026-10-09
 
@@ -68,7 +68,7 @@
 ## Open Questions
 - [ ] Kundenportal: Schnittstelle für den Standort — Vorschlag: Parameter `standortId` zusätzlich zu `firmaId`; in der Antwort Rückmeldung des Umfangs (übertragener Standort bzw. Anzahl geladener Standorte). Auftrag formuliert 2026-10-09 ([docs/kundenportal-auftrag-sync-pro-standort.md](../docs/kundenportal-auftrag-sync-pro-standort.md)): Parameter `standortId`, Rückmeldung `scope` in der Antwort; offen bis zur Rückmeldung des Kundenportals
 - [ ] Werden Kontakte/Zugänge anderer Standorte bei einem Standort-Lauf im Portal unverändert gelassen? (Erwartung: ja) — mit Kundenportal klären
-- [ ] Exakter Name der neuen Verlaufsspalte nach dem Anlegen in Dataverse (vorgeschlagen: Spalte "Standort", Nachschlagen auf Standort) — wird vor der Umsetzung aus dem Schema gelesen
+- [x] Exakter Name der neuen Verlaufsspalte → `bmvcc_standort` (Navigation `bmvcc_Standort`), aus dem Schema gelesen (2026-10-09)
 
 ## Decision Log
 
@@ -147,6 +147,26 @@ Keine neuen Pakete.
 ### F) Tests
 - Unit-Tests: Voraussetzung pro Standort (Zugang/"schon übertragen" inkl. alter Firmen-Läufe und "fehler"-Läufe), Verlaufsfilter, Verlaufseintrag mit/ohne Standort, Schalter aus/an, Antwortprüfung (Portal ignoriert Standort → "teilweise"), Standortwechsel
 - Manuell: mit Schalter aus wie heute; nach Portal-Deploy mit Schalter an: Standort A übertragen, Standort B im Portal unverändert
+
+## Implementation Notes (Frontend + Backend)
+
+**Umgesetzt 2026-10-09** — Oberfläche und Server-Logik zusammen.
+
+**Dataverse:** Spalte `bmvcc_standort` (Nachschlagen auf Standort, optional, Navigation `bmvcc_Standort`, Löschverhalten "Verknüpfung entfernen") in `bmvcc_synclauf` vom Nutzer angelegt, Schema am 2026-10-09 gelesen.
+
+**Server**
+- `sync-laeufe.ts`: `SyncLauf.standortId` (null = ganze Firma); `erstelleSyncLauf` bindet optional den Standort und benennt "Firma · Standort – Zeitpunkt"; `listSyncLaeufeForFirma(firmaId, { vor, standortId })` filtert auf "dieser Standort oder ohne Standort".
+- `kundenportal-sync.ts`: neuer Schalter `istStandortSyncAktiv()` (`KUNDENPORTAL_STANDORT_SYNC_AKTIV`); `starteFirmaSync(firmaId, bezeichnung, standort?)` sendet `standortId` und prüft die Antwort: fehlt `scope.standortId` oder weicht er ab bzw. wurden mehr als ein Standort geladen → "teilweise" mit Warnung "Standort-Filter ist dort offenbar nicht aktiv".
+- `syncFirmaAction(firmaId, standortId)`: mit Schalter + Standort → Standort muss der aktuelle Standort der Sitzung sein ("bitte neu laden"), Voraussetzung "Kontakt mit E-Mail und Zugang zu DIESEM Standort" bzw. "schon übertragen" (Läufe dieses Standorts oder der ganzen Firma), Verlaufseintrag mit Standort. Ohne Schalter (oder ohne Standort) exakt wie bisher die ganze Firma. `ladeSyncLaeufeAction(…, standortId)` für "Mehr anzeigen".
+
+**Oberfläche**
+- `/sync-freigabe`: Verlauf mit Standort-Filter; `standortSync` = Standort vorhanden + Schalter aktiv.
+- "Ins Kundenportal übertragen": beim Standort-Sync Text/Dialog mit "Firma · Standort" und Hinweis, dass die übrigen Standorte unverändert bleiben; Sperrhinweis "… für diesen Standort freigeben"; der Zähler der Kontaktliste zählt dann nur Zugänge zu diesem Standort.
+- Sync-Verlauf: Läufe ohne Standort mit Badge "ganze Firma" (nur in der Standort-Ansicht); Leer-Text "Noch kein Sync für diesen Standort."
+
+**Schalter:** `KUNDENPORTAL_STANDORT_SYNC_AKTIV` in `.env.local.example` dokumentiert. **Bleibt aus**, bis das Kundenportal den Auftrag `docs/kundenportal-auftrag-sync-pro-standort.md` deployt hat — bis dahin verhält sich die Freigabe-Seite exakt wie vor PROJ-12 (Verlauf zeigt weiterhin alle Läufe, da alle bisherigen ohne Standort sind).
+
+**Tests:** erweitert `sync-laeufe.test.ts` (Standort binden/benennen, Filter, ungültige ID), `kundenportal-sync.test.ts` (Schalter, `standortId`-Parameter, Antwortprüfung), `sync-freigabe/actions.test.ts` (Standort-Sync, Schalter aus, Standortwechsel, Zugang nur zu anderem Standort reicht nicht, "schon übertragen" durch Firmen-Lauf, ungültige ID), `sync-verlauf.test.tsx` (Badge "ganze Firma", Leer-Text); bestehende Erwartungen auf die neuen Aufrufe angepasst. 421 Tests grün, Typecheck/Lint sauber.
 
 ## QA Test Results
 _To be added by /qa_

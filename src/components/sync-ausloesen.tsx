@@ -22,13 +22,17 @@ import { syncFirmaAction } from "@/app/(protected)/sync-freigabe/actions";
 export function SyncAusloesen({
   firmaId,
   firmaName,
+  standortId = null,
   anzahlZugriffe,
   fehlendeSyncEinstellungen,
   onNeuerLauf,
   bereitsUebertragen = false,
 }: {
   firmaId: string;
+  /** Firma bzw. beim Standort-Sync "Firma · Standort" (PROJ-12). */
   firmaName: string;
+  /** PROJ-12: nur diesen Standort übertragen; `null` = ganze Firma (wie bisher). */
+  standortId?: string | null;
   /** Freigegebene Kontakte mit E-Mail (live aus dem Kontakt-Bereich). */
   anzahlZugriffe: number;
   /** Namen fehlender Sync-Einstellungen in Vercel (leer = Sync bereit) — nie Werte. */
@@ -52,7 +56,7 @@ export function SyncAusloesen({
     setErgebnis(null);
     setVerlaufNichtGespeichert(false);
     try {
-      const result = await syncFirmaAction(firmaId);
+      const result = await syncFirmaAction(firmaId, standortId);
       if (result.success) {
         setErgebnis(result.ergebnis);
         if (result.lauf) onNeuerLauf?.(result.lauf);
@@ -79,8 +83,17 @@ export function SyncAusloesen({
       <CardHeader>
         <CardTitle className="text-base">Ins Kundenportal übertragen</CardTitle>
         <CardDescription>
-          Überträgt Firma, Standorte, Geräte, Prüfberichte und Kontakte von {firmaName} sowie alle Artikel ins
-          Kundenportal.
+          {standortId ? (
+            <>
+              Überträgt Geräte, Prüfberichte und Portal-Zugänge von {firmaName} sowie die Firmen-Stammdaten und alle
+              Artikel ins Kundenportal. Die übrigen Standorte der Firma bleiben dort unverändert.
+            </>
+          ) : (
+            <>
+              Überträgt Firma, Standorte, Geräte, Prüfberichte und Kontakte von {firmaName} sowie alle Artikel ins
+              Kundenportal.
+            </>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -92,7 +105,9 @@ export function SyncAusloesen({
           </p>
         ) : anzahlZugriffe === 0 && !bereitsUebertragen ? (
           <p className="text-sm text-muted-foreground">
-            Zuerst mindestens einen Kontakt mit E-Mail-Adresse fürs Kundenportal freigeben.
+            {standortId
+              ? "Zuerst mindestens einen Kontakt mit E-Mail-Adresse für diesen Standort fürs Kundenportal freigeben."
+              : "Zuerst mindestens einen Kontakt mit E-Mail-Adresse fürs Kundenportal freigeben."}
           </p>
         ) : anzahlZugriffe === 0 ? (
           <p className="text-sm text-status-warning">

@@ -22,8 +22,10 @@ vi.mock("@/lib/dataverse/geraete", () => ({
   listStandorteForFirma: (...args: unknown[]) => listStandorteForFirma(...args),
 }));
 vi.mock("@/lib/arbeitskontext", () => ({ ladeArbeitskontext: () => ladeArbeitskontext() }));
+const istStandortSyncAktiv = vi.fn();
 vi.mock("@/lib/kundenportal-sync", () => ({
   istSyncKonfiguriert: () => istSyncKonfiguriert(),
+  istStandortSyncAktiv: () => istStandortSyncAktiv(),
   starteFirmaSync: (...args: unknown[]) => starteFirmaSync(...args),
 }));
 vi.mock("@/lib/auth/freigeber", () => ({
@@ -59,6 +61,8 @@ beforeEach(() => {
     mehrereStandorte: false,
   });
   istSyncKonfiguriert.mockReset();
+  istStandortSyncAktiv.mockReset();
+  istStandortSyncAktiv.mockReturnValue(false);
   starteFirmaSync.mockReset();
   istFreigeberMock.mockReset();
   erstelleSyncLauf.mockReset();
@@ -216,7 +220,7 @@ describe("syncFirmaAction", () => {
 
     expect(result.success).toBe(true);
     expect(listKundenportalKontakteForFirma).toHaveBeenCalledWith(FIRMA_ID, standorte, "");
-    expect(starteFirmaSync).toHaveBeenCalledWith(FIRMA_ID, "Beispiel AG");
+    expect(starteFirmaSync).toHaveBeenCalledWith(FIRMA_ID, "Beispiel AG", null);
   });
 
   it("triggers the sync for exactly the confirmed Firma and returns the result", async () => {
@@ -224,7 +228,7 @@ describe("syncFirmaAction", () => {
 
     const result = await syncFirmaAction(FIRMA_ID);
 
-    expect(starteFirmaSync).toHaveBeenCalledWith(FIRMA_ID, "Beispiel AG");
+    expect(starteFirmaSync).toHaveBeenCalledWith(FIRMA_ID, "Beispiel AG", null);
     expect(result).toEqual({ success: true, ergebnis: ERFOLG, lauf: { id: "lauf-1", ergebnis: ERFOLG } });
   });
 
@@ -280,7 +284,7 @@ describe("syncFirmaAction", () => {
     const result = await syncFirmaAction(FIRMA_ID);
 
     expect(result.success).toBe(true);
-    expect(starteFirmaSync).toHaveBeenCalledWith(FIRMA_ID, "Beispiel AG");
+    expect(starteFirmaSync).toHaveBeenCalledWith(FIRMA_ID, "Beispiel AG", null);
   });
 
   it("still refuses a sync without granted contacts when earlier runs all failed (nothing reached the portal)", async () => {
@@ -331,7 +335,91 @@ describe("ladeSyncLaeufeAction", () => {
 
     const result = await ladeSyncLaeufeAction(FIRMA_ID, VOR);
 
-    expect(listSyncLaeufeForFirma).toHaveBeenCalledWith(FIRMA_ID, { vor: VOR });
+    expect(listSyncLaeufeForFirma).toHaveBeenCalledWith(FIRMA_ID, { vor: VOR, standortId: null });
     expect(result).toEqual({ success: true, laeufe: [], hatMehr: false });
+  });
+});
+
+// PROJ-12: Sync pro Standort.
+describe("syncFirmaAction pro Standort (PROJ-12)", () => {
+  const ERFOLG = { status: "erfolg", meldung: "ok", bereiche: [], probleme: [] };
+  const kontakt = (o: Record<string, unknown> = {}) => ({ id: KONTAKT_ID, name: "Max", email: "max@example.ch", rollen: [], freigegeben: true, weitereStandorte: [], ...o });
+
+  function bereit() {
+    istFreigeberMock.mockResolvedValue(true);
+    istSyncKonfiguriert.mockReturnValue(true);
+    getFirma.mockResolvedValue({ id: FIRMA_ID, name: "Bilfinger AG" });
+    listKundenportalKontakteForFirma.mockResolvedValue([kontakt()]);
+    starteFirmaSync.mockResolvedValue(ERFOLG);
+    erstelleSyncLauf.mockImplementation(async (l: Record<string, unknown>) => ({ id: "lauf-1", ...l }));
+    listSyncLaeufeForFirma.mockResolvedValue({ laeufe: [], hatMehr: false });
+  }
+
+  it("transfers only the current Standort when the switch is on, and logs it with the Standort", async () => {
+    bereit();
+    istStandortSyncAktiv.mockReturnValue(true);
+
+    const result = await syncFirmaAction(FIRMA_ID, STANDORT_ID);
+
+    expect(result.success).toBe(true);
+    expect(starteFirmaSync).toHaveBeenCalledWith(FIRMA_ID, "Bilfinger AG · Pratteln", STANDORT);
+    expect(erstelleSyncLauf).toHaveBeenCalledWith(expect.objectContaining({ firmaName: "Bilfinger AG", standort: STANDORT }));
+    expect(listKundenportalKontakteForFirma).toHaveBeenCalledWith(FIRMA_ID, [], STANDORT_ID);
+  });
+
+  it("syncs the whole Firma as before while the switch is off, even if a Standort is passed", async () => {
+    bereit();
+
+    await syncFirmaAction(FIRMA_ID, STANDORT_ID);
+
+    expect(starteFirmaSync).toHaveBeenCalledWith(FIRMA_ID, "Bilfinger AG", null);
+    expect(erstelleSyncLauf).toHaveBeenCalledWith(expect.objectContaining({ standort: null }));
+    expect(ladeArbeitskontext).not.toHaveBeenCalled();
+  });
+
+  it("refuses when the Standort is no longer the session's current one", async () => {
+    bereit();
+    istStandortSyncAktiv.mockReturnValue(true);
+
+    const result = await syncFirmaAction(FIRMA_ID, "33333333-3333-f111-cccc-333333333333");
+
+    expect(result).toEqual({ success: false, message: "Firma oder Standort wurden inzwischen gewechselt. Bitte die Seite neu laden." });
+    expect(starteFirmaSync).not.toHaveBeenCalled();
+  });
+
+  it("requires access to THIS Standort — access to another Standort only is not enough", async () => {
+    bereit();
+    istStandortSyncAktiv.mockReturnValue(true);
+    listKundenportalKontakteForFirma.mockResolvedValue([kontakt({ freigegeben: false, weitereStandorte: ["Boningen"] })]);
+
+    const result = await syncFirmaAction(FIRMA_ID, STANDORT_ID);
+
+    expect(result.success).toBe(false);
+    expect(!result.success && result.message).toContain("für diesen Standort");
+    expect(listSyncLaeufeForFirma).toHaveBeenCalledWith(FIRMA_ID, { standortId: STANDORT_ID });
+    expect(starteFirmaSync).not.toHaveBeenCalled();
+  });
+
+  it("allows the Standort sync without access when the Standort (or the whole Firma) was transferred before", async () => {
+    bereit();
+    istStandortSyncAktiv.mockReturnValue(true);
+    listKundenportalKontakteForFirma.mockResolvedValue([kontakt({ freigegeben: false })]);
+    listSyncLaeufeForFirma.mockResolvedValue({
+      laeufe: [{ id: "alt", standortId: null, ergebnis: { status: "erfolg" } }],
+      hatMehr: false,
+    });
+
+    const result = await syncFirmaAction(FIRMA_ID, STANDORT_ID);
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a malformed standortId", async () => {
+    bereit();
+    istStandortSyncAktiv.mockReturnValue(true);
+
+    const result = await syncFirmaAction(FIRMA_ID, "x' or 1 eq 1");
+
+    expect(result).toEqual({ success: false, message: "Ungültige Standort-ID." });
   });
 });

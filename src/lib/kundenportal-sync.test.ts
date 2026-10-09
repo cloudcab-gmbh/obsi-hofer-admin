@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fehlendeSyncEinstellungen, istSyncKonfiguriert, starteFirmaSync } from "./kundenportal-sync";
+import { fehlendeSyncEinstellungen, istStandortSyncAktiv, istSyncKonfiguriert, starteFirmaSync } from "./kundenportal-sync";
 
 const FIRMA_ID = "37b3cb61-90c0-f111-aaaf-70a8a5061d7a";
 const fetchMock = vi.fn();
@@ -138,5 +138,61 @@ describe("fehlendeSyncEinstellungen", () => {
     vi.stubEnv("KUNDENPORTAL_CRON_SECRET", "   ");
 
     expect(fehlendeSyncEinstellungen()).toEqual(["KUNDENPORTAL_CRON_SECRET"]);
+  });
+});
+
+// PROJ-12: Sync pro Standort.
+describe("starteFirmaSync mit Standort (PROJ-12)", () => {
+  const STANDORT_ID = "22222222-2222-f111-bbbb-222222222222";
+
+  it("is only active with the separate safety switch set to 'true'", () => {
+    expect(istStandortSyncAktiv()).toBe(false);
+    vi.stubEnv("KUNDENPORTAL_STANDORT_SYNC_AKTIV", " TRUE ");
+    expect(istStandortSyncAktiv()).toBe(true);
+  });
+
+  it("sends the standortId in addition to the firmaId", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, { entities: [entity("standorte", 1)], scope: { firmaId: FIRMA_ID, standortId: STANDORT_ID } })
+    );
+
+    const ergebnis = await starteFirmaSync(FIRMA_ID, "Firma · Pratteln", { id: STANDORT_ID });
+
+    const url = new URL(fetchMock.mock.calls[0][0]);
+    expect(url.searchParams.get("firmaId")).toBe(FIRMA_ID);
+    expect(url.searchParams.get("standortId")).toBe(STANDORT_ID);
+    expect(ergebnis.status).toBe("erfolg");
+    expect(ergebnis.meldung).toContain("Firma · Pratteln");
+  });
+
+  it("flags a response without confirmed Standort (portal ignored the parameter)", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { entities: [entity("standorte", 3)] }));
+
+    const ergebnis = await starteFirmaSync(FIRMA_ID, "Firma · Pratteln", { id: STANDORT_ID });
+
+    expect(ergebnis.status).toBe("teilweise");
+    expect(ergebnis.probleme[0]).toContain("Standort-Filter ist dort offenbar nicht aktiv");
+  });
+
+  it("flags a confirmed Standort when more than one Standort was loaded", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, { entities: [entity("standorte", 2)], scope: { firmaId: FIRMA_ID, standortId: STANDORT_ID } })
+    );
+
+    expect((await starteFirmaSync(FIRMA_ID, "F", { id: STANDORT_ID })).status).toBe("teilweise");
+  });
+
+  it("sends no standortId for a sync of the whole Firma", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { entities: [entity("standorte", 3)] }));
+
+    const ergebnis = await starteFirmaSync(FIRMA_ID, "Firma");
+
+    expect(new URL(fetchMock.mock.calls[0][0]).searchParams.has("standortId")).toBe(false);
+    expect(ergebnis.status).toBe("erfolg");
+  });
+
+  it("never calls the endpoint with an invalid standortId", async () => {
+    await expect(starteFirmaSync(FIRMA_ID, "F", { id: "nicht-gueltig" })).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

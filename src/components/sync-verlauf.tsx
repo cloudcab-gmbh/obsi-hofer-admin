@@ -45,7 +45,7 @@ function StatusBadge({ status }: { status: SyncStatus }) {
   return <span className={badgeVariants({ variant })}>{label}</span>;
 }
 
-function LaufEintrag({ lauf }: { lauf: SyncLauf }) {
+function LaufEintrag({ lauf, kennzeichneGanzeFirma }: { lauf: SyncLauf; kennzeichneGanzeFirma: boolean }) {
   const [offen, setOffen] = useState(false);
   const dauer = formatDauer(lauf.dauerSekunden);
   return (
@@ -58,6 +58,10 @@ function LaufEintrag({ lauf }: { lauf: SyncLauf }) {
           <span className="font-medium">{formatZeit(lauf.gestartetAm)}</span>
           <span className="text-muted-foreground">{lauf.ausgeloestVon ?? "—"}</span>
           {dauer && <span className="text-muted-foreground">{dauer}</span>}
+          {/* PROJ-12: Läufe ohne Standort haben die ganze Firma übertragen. */}
+          {kennzeichneGanzeFirma && lauf.standortId === null && (
+            <span className={badgeVariants({ variant: "secondary" })}>ganze Firma</span>
+          )}
           <span className="ml-auto flex items-center gap-2">
             <StatusBadge status={lauf.ergebnis.status} />
             <ChevronDown className={`h-4 w-4 transition-transform ${offen ? "rotate-180" : ""}`} aria-hidden />
@@ -77,6 +81,7 @@ export function SyncVerlauf({
   fehler,
   laedtMehr,
   onMehrLaden,
+  kennzeichneGanzeFirma = false,
 }: {
   laeufe: SyncLauf[];
   hatMehr: boolean;
@@ -84,6 +89,8 @@ export function SyncVerlauf({
   fehler: string | null;
   laedtMehr: boolean;
   onMehrLaden: () => void;
+  /** PROJ-12: Verlauf eines Standorts — Läufe der ganzen Firma kennzeichnen. */
+  kennzeichneGanzeFirma?: boolean;
 }) {
   const letzter = laeufe[0];
 
@@ -99,10 +106,12 @@ export function SyncVerlauf({
       </CardHeader>
       <CardContent className="space-y-2">
         {laeufe.length === 0 && !fehler && (
-          <p className="py-4 text-center text-sm text-muted-foreground">Noch kein Sync für diese Firma.</p>
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            {kennzeichneGanzeFirma ? "Noch kein Sync für diesen Standort." : "Noch kein Sync für diese Firma."}
+          </p>
         )}
         {laeufe.map((lauf) => (
-          <LaufEintrag key={lauf.id} lauf={lauf} />
+          <LaufEintrag key={lauf.id} lauf={lauf} kennzeichneGanzeFirma={kennzeichneGanzeFirma} />
         ))}
         {fehler && (
           <p role="alert" className="text-sm text-destructive">

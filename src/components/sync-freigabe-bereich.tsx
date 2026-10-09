@@ -27,6 +27,7 @@ export function SyncFreigabeBereich({
   firmaName,
   standortId,
   listenTitel,
+  standortSync = false,
   kontakte,
   fehlendeSyncEinstellungen,
   verlauf,
@@ -41,13 +42,15 @@ export function SyncFreigabeBereich({
   standortId: string | null;
   /** Titel der Kontaktliste, z.B. "Firma · Standort". */
   listenTitel: string;
+  /** PROJ-12: Sync überträgt nur den aktuellen Standort (Schalter aktiv). */
+  standortSync?: boolean;
   kontakte: KundenportalKontakt[];
   /** Namen fehlender Sync-Einstellungen (leer = Sync bereit). */
   fehlendeSyncEinstellungen: string[];
   verlauf: InitialerVerlauf;
 }) {
   const [anzahlZugriffe, setAnzahlZugriffe] = useState(
-    () => kontakte.filter((k) => hatZugangBeiFirma(k) && k.email).length
+    () => kontakte.filter((k) => (standortSync ? k.freigegeben : hatZugangBeiFirma(k)) && k.email).length
   );
   const [laeufe, setLaeufe] = useState(verlauf.laeufe);
   const [hatMehr, setHatMehr] = useState(verlauf.hatMehr);
@@ -64,7 +67,7 @@ export function SyncFreigabeBereich({
     setLaedtMehr(true);
     setVerlaufFehler(null);
     try {
-      const result = await ladeSyncLaeufeAction(firmaId, aeltester.gestartetAm);
+      const result = await ladeSyncLaeufeAction(firmaId, aeltester.gestartetAm, standortId);
       if (result.success) {
         setLaeufe((bisher) => [...bisher, ...result.laeufe.filter((l) => !bisher.some((b) => b.id === l.id))]);
         setHatMehr(result.hatMehr);
@@ -85,6 +88,7 @@ export function SyncFreigabeBereich({
           kontakte={kontakte}
           titel={listenTitel}
           standortId={standortId}
+          zaehltNurStandort={standortSync}
           onZugriffeChange={setAnzahlZugriffe}
         />
       ) : (
@@ -102,7 +106,9 @@ export function SyncFreigabeBereich({
       )}
       <SyncAusloesen
         firmaId={firmaId}
-        firmaName={firmaName}
+        // PROJ-12: beim Standort-Sync "Firma · Standort", sonst die Firma.
+        firmaName={standortSync ? listenTitel : firmaName}
+        standortId={standortSync ? standortId : null}
         anzahlZugriffe={anzahlZugriffe}
         fehlendeSyncEinstellungen={fehlendeSyncEinstellungen}
         onNeuerLauf={neuerLauf}
@@ -114,6 +120,7 @@ export function SyncFreigabeBereich({
         fehler={verlaufFehler}
         laedtMehr={laedtMehr}
         onMehrLaden={mehrLaden}
+        kennzeichneGanzeFirma={standortSync}
       />
     </div>
   );

@@ -6,7 +6,7 @@ import { KontextHinweis } from "@/components/kontext-hinweis";
 import { listKundenportalKontakteForFirma, type KundenportalKontakt } from "@/lib/dataverse/kontakte";
 import { SyncFreigabeBereich, type InitialerVerlauf } from "@/components/sync-freigabe-bereich";
 import { listSyncLaeufeForFirma } from "@/lib/dataverse/sync-laeufe";
-import { fehlendeSyncEinstellungen } from "@/lib/kundenportal-sync";
+import { fehlendeSyncEinstellungen, istStandortSyncAktiv } from "@/lib/kundenportal-sync";
 import { Card, CardContent } from "@/components/ui/card";
 
 function Hinweis({ children }: { children: React.ReactNode }) {
@@ -44,11 +44,13 @@ export default async function SyncFreigabePage() {
     );
   }
 
-  // PROJ-6: Verlauf parallel laden, aber mit eigenem Fehlerpfad — ist er nicht
-  // abrufbar, bleiben Kontakt-Freigabe und Sync-Button trotzdem bedienbar.
-  const verlaufPromise: Promise<InitialerVerlauf> = listSyncLaeufeForFirma(firmaId)
-    .then((v) => ({ ...v, fehler: null }))
-    .catch(() => ({ laeufe: [], hatMehr: false, fehler: "Der Sync-Verlauf konnte nicht geladen werden." }));
+  // PROJ-6: Verlauf mit eigenem Fehlerpfad — ist er nicht abrufbar, bleiben
+  // Kontakt-Freigabe und Sync-Button trotzdem bedienbar. PROJ-12: mit Standort
+  // nur Läufe dieses Standorts + der ganzen Firma.
+  const ladeVerlauf = (standortId: string | null): Promise<InitialerVerlauf> =>
+    listSyncLaeufeForFirma(firmaId, { standortId })
+      .then((v) => ({ ...v, fehler: null }))
+      .catch(() => ({ laeufe: [], hatMehr: false, fehler: "Der Sync-Verlauf konnte nicht geladen werden." }));
 
   let kontext: Arbeitskontext | null = null;
   let kontakte: KundenportalKontakt[] = [];
@@ -60,11 +62,11 @@ export default async function SyncFreigabePage() {
     if (kontext.zustand === "bereit") {
       [kontakte, verlauf] = await Promise.all([
         listKundenportalKontakteForFirma(firmaId, kontext.standorte, kontext.standort.id),
-        verlaufPromise,
+        ladeVerlauf(kontext.standort.id),
       ]);
     } else if (kontext.zustand === "firma-ohne-standort") {
       // QA BUG-2: ohne Standort keine Freigaben, aber Sync/Verlauf weiterhin nutzbar.
-      verlauf = await verlaufPromise;
+      verlauf = await ladeVerlauf(null);
     }
   } catch {
     ladefehler = true;
@@ -92,6 +94,8 @@ export default async function SyncFreigabePage() {
         // PROJ-11: Liste mit Standort (bei mehreren Standorten / gleichnamigen Firmen).
         standortId={standortId}
         listenTitel={kontextBezeichnung(kontext) ?? kontext.firma.anzeigename}
+        // PROJ-12: Sync pro Standort erst mit Schalter (Kundenportal muss den Standort kennen).
+        standortSync={standortId !== null && istStandortSyncAktiv()}
         kontakte={kontakte}
         fehlendeSyncEinstellungen={fehlendeSyncEinstellungen()}
         verlauf={verlauf}

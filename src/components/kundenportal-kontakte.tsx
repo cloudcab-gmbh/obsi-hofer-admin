@@ -12,6 +12,7 @@ export function KundenportalKontakte({
   kontakte,
   titel,
   standortId,
+  zaehltNurStandort = false,
   onZugriffeChange,
 }: {
   kontakte: KundenportalKontakt[];
@@ -19,6 +20,8 @@ export function KundenportalKontakte({
   titel: string;
   /** PROJ-11: Standort, für den die Häkchen gelten. */
   standortId: string;
+  /** PROJ-12: Sync-Voraussetzung zählt nur Zugänge zu DIESEM Standort. */
+  zaehltNurStandort?: boolean;
   /**
    * PROJ-5: meldet die Anzahl Kontakte MIT E-Mail, die für irgendeinen
    * Standort der Firma freigegeben sind (PROJ-11) — der Sync-Button wird
@@ -31,7 +34,9 @@ export function KundenportalKontakte({
   const [fehler, setFehler] = useState<string | null>(null);
 
   const anzahlFreigegeben = [...freigaben.values()].filter(Boolean).length;
-  const anzahlZugriffe = kontakte.filter((k) => k.email && (freigaben.get(k.id) || k.weitereStandorte.length > 0)).length;
+  const anzahlZugriffe = kontakte.filter(
+    (k) => k.email && (freigaben.get(k.id) || (!zaehltNurStandort && k.weitereStandorte.length > 0))
+  ).length;
 
   useEffect(() => {
     onZugriffeChange?.(anzahlZugriffe);

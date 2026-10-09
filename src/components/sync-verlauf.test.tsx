@@ -7,6 +7,7 @@ function lauf(overrides: Partial<SyncLauf> = {}): SyncLauf {
   return {
     id: "l1",
     firmaId: "11111111-1111-f111-aaaa-111111111111",
+    standortId: null,
     gestartetAm: "2026-10-07T12:30:00Z",
     dauerSekunden: 4,
     ausgeloestVon: "Robert Bienz",
@@ -80,5 +81,32 @@ describe("SyncVerlauf — HTML-Gültigkeit", () => {
     const button = screen.getByRole("button", { name: /07.10.2026, 14:30/ });
     expect(button.querySelector("div")).toBeNull();
     expect(button).toHaveTextContent("Erfolg");
+  });
+});
+
+// PROJ-12: Läufe der ganzen Firma im Verlauf eines Standorts kennzeichnen.
+describe("SyncVerlauf — ganze Firma (PROJ-12)", () => {
+  it("marks runs without Standort as 'ganze Firma' only in the Standort view", () => {
+    const { rerender } = render(
+      <SyncVerlauf
+        laeufe={[lauf({ id: "a", standortId: null }), lauf({ id: "b", standortId: "s1" })]}
+        hatMehr={false}
+        fehler={null}
+        laedtMehr={false}
+        onMehrLaden={() => {}}
+        kennzeichneGanzeFirma
+      />
+    );
+    expect(screen.getAllByText("ganze Firma")).toHaveLength(1);
+
+    rerender(
+      <SyncVerlauf laeufe={[lauf({ id: "a", standortId: null })]} hatMehr={false} fehler={null} laedtMehr={false} onMehrLaden={() => {}} />
+    );
+    expect(screen.queryByText("ganze Firma")).not.toBeInTheDocument();
+  });
+
+  it("speaks of the Standort when empty", () => {
+    render(<SyncVerlauf laeufe={[]} hatMehr={false} fehler={null} laedtMehr={false} onMehrLaden={() => {}} kennzeichneGanzeFirma />);
+    expect(screen.getByText("Noch kein Sync für diesen Standort.")).toBeInTheDocument();
   });
 });

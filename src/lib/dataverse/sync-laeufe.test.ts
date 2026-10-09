@@ -153,3 +153,52 @@ describe("listSyncLaeufeForFirma", () => {
     expect(lauf.ergebnis.probleme).toEqual(["Details konnten nicht gelesen werden."]);
   });
 });
+
+// PROJ-12: Läufe pro Standort.
+describe("Sync-Läufe pro Standort (PROJ-12)", () => {
+  const STANDORT_ID = "22222222-2222-f111-bbbb-222222222222";
+  const eingabe = {
+    firmaId: FIRMA_ID,
+    firmaName: "Bilfinger AG",
+    gestartetAm: new Date("2026-10-09T12:30:00Z"),
+    dauerSekunden: 4,
+    ausgeloestVon: "Robert Bienz",
+    ergebnis: ERFOLG,
+  };
+
+  it("binds the Standort and names the entry 'Firma · Standort – Zeit'", async () => {
+    const lauf = await erstelleSyncLauf({ ...eingabe, standort: { id: STANDORT_ID, name: "Pratteln" } });
+
+    const [, daten] = createRecord.mock.calls[0];
+    expect(daten["bmvcc_Standort@odata.bind"]).toBe(`/bmvcc_organizationlocations(${STANDORT_ID})`);
+    expect(daten.bmvcc_name).toBe("Bilfinger AG · Pratteln – 09.10.2026, 14:30");
+    expect(lauf.standortId).toBe(STANDORT_ID);
+  });
+
+  it("writes no Standort for a run of the whole Firma", async () => {
+    const lauf = await erstelleSyncLauf(eingabe);
+
+    const [, daten] = createRecord.mock.calls[0];
+    expect(daten).not.toHaveProperty("bmvcc_Standort@odata.bind");
+    expect(lauf.standortId).toBeNull();
+  });
+
+  it("lists the runs of this Standort plus the runs of the whole Firma", async () => {
+    listRecords.mockResolvedValue({
+      records: [rawLauf({ _bmvcc_standort_value: STANDORT_ID }), rawLauf({ bmvcc_synclaufid: "alt", _bmvcc_standort_value: null })],
+      nextPageCursor: null,
+    });
+
+    const { laeufe } = await listSyncLaeufeForFirma(FIRMA_ID, { standortId: STANDORT_ID });
+
+    expect(listRecords.mock.calls[0][1].filter).toBe(
+      `_bmvcc_firma_value eq ${FIRMA_ID} and (_bmvcc_standort_value eq ${STANDORT_ID} or _bmvcc_standort_value eq null)`
+    );
+    expect(laeufe.map((l) => l.standortId)).toEqual([STANDORT_ID, null]);
+  });
+
+  it("rejects an invalid standortId instead of building a broken filter", async () => {
+    await expect(listSyncLaeufeForFirma(FIRMA_ID, { standortId: "x' or 1 eq 1" })).rejects.toThrow();
+    expect(listRecords).not.toHaveBeenCalled();
+  });
+});

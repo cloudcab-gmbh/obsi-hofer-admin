@@ -4,7 +4,7 @@ import type { SyncLauf } from "@/lib/dataverse/sync-laeufe";
 import type { SyncStatus } from "@/lib/kundenportal-sync";
 
 const lauf = (status: SyncStatus) =>
-  ({ id: status, firmaId: "f", gestartetAm: "", dauerSekunden: 1, ausgeloestVon: "x", ergebnis: { status, meldung: "", bereiche: [], probleme: [] } }) satisfies SyncLauf;
+  ({ id: status, firmaId: "f", standortId: null, gestartetAm: "", dauerSekunden: 1, ausgeloestVon: "x", ergebnis: { status, meldung: "", bereiche: [], probleme: [] } }) satisfies SyncLauf;
 
 describe("wurdeBereitsUebertragen", () => {
   it("is false without any run", () => {
