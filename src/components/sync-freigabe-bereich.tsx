@@ -5,6 +5,7 @@ import { hatZugangBeiFirma, type KundenportalKontakt } from "@/lib/dataverse/kon
 import type { SyncLauf } from "@/lib/dataverse/sync-laeufe";
 import { wurdeBereitsUebertragen } from "@/lib/sync-lauf-regeln";
 import { KundenportalKontakte } from "@/components/kundenportal-kontakte";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SyncAusloesen } from "@/components/sync-ausloesen";
 import { SyncVerlauf } from "@/components/sync-verlauf";
 import { ladeSyncLaeufeAction } from "@/app/(protected)/sync-freigabe/actions";
@@ -32,8 +33,12 @@ export function SyncFreigabeBereich({
 }: {
   firmaId: string;
   firmaName: string;
-  /** PROJ-11: Standort, für den die Häkchen der Kontaktliste gelten. */
-  standortId: string;
+  /**
+   * PROJ-11: Standort, für den die Häkchen der Kontaktliste gelten.
+   * `null` = Firma ohne Standort (QA BUG-2): Hinweis statt Kontaktliste,
+   * Sync und Verlauf bleiben nutzbar.
+   */
+  standortId: string | null;
   /** Titel der Kontaktliste, z.B. "Firma · Standort". */
   listenTitel: string;
   kontakte: KundenportalKontakt[];
@@ -75,12 +80,26 @@ export function SyncFreigabeBereich({
 
   return (
     <div className="space-y-6">
-      <KundenportalKontakte
-        kontakte={kontakte}
-        titel={listenTitel}
-        standortId={standortId}
-        onZugriffeChange={setAnzahlZugriffe}
-      />
+      {standortId ? (
+        <KundenportalKontakte
+          kontakte={kontakte}
+          titel={listenTitel}
+          standortId={standortId}
+          onZugriffeChange={setAnzahlZugriffe}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Kundenportal-Zugang — {listenTitel}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Für diese Firma sind keine Standorte erfasst. Portal-Zugänge werden pro Standort vergeben und sind erst
+              möglich, sobald ein Standort existiert.
+            </p>
+          </CardContent>
+        </Card>
+      )}
       <SyncAusloesen
         firmaId={firmaId}
         firmaName={firmaName}

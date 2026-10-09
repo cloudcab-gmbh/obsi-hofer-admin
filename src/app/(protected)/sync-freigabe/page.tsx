@@ -62,6 +62,9 @@ export default async function SyncFreigabePage() {
         listKundenportalKontakteForFirma(firmaId, kontext.standorte, kontext.standort.id),
         verlaufPromise,
       ]);
+    } else if (kontext.zustand === "firma-ohne-standort") {
+      // QA BUG-2: ohne Standort keine Freigaben, aber Sync/Verlauf weiterhin nutzbar.
+      verlauf = await verlaufPromise;
     }
   } catch {
     ladefehler = true;
@@ -71,22 +74,23 @@ export default async function SyncFreigabePage() {
   if (ladefehler || !kontext || kontext.zustand === "keine-firma") {
     return <Hinweis>Die Kontakte konnten nicht geladen werden.</Hinweis>;
   }
-  if (kontext.zustand !== "bereit") {
+  if (kontext.zustand === "standort-waehlen") {
     return <KontextHinweis titel="Sync-Freigabe" kontext={kontext} />;
   }
+  const standortId = kontext.zustand === "bereit" ? kontext.standort.id : null;
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
       <h1 className="text-xl font-semibold">Sync-Freigabe</h1>
       {/* Neu aufbauen bei Firmen- oder Standortwechsel, damit kein Client-State des vorherigen bleibt. */}
       <SyncFreigabeBereich
-        key={`${firmaId}-${kontext.standort.id}`}
+        key={`${firmaId}-${standortId ?? "ohne-standort"}`}
         firmaId={firmaId}
         // PROJ-10 QA BUG-1: Anzeigename, damit gleichnamige Firmen im Sync-Dialog
         // unterscheidbar sind. Sync und Verlauf laufen über die Firmen-ID.
         firmaName={kontext.firma.anzeigename}
         // PROJ-11: Liste mit Standort (bei mehreren Standorten / gleichnamigen Firmen).
-        standortId={kontext.standort.id}
+        standortId={standortId}
         listenTitel={kontextBezeichnung(kontext) ?? kontext.firma.anzeigename}
         kontakte={kontakte}
         fehlendeSyncEinstellungen={fehlendeSyncEinstellungen()}

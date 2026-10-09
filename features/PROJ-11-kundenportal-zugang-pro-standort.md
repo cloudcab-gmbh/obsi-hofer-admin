@@ -231,7 +231,7 @@ Keine neuen Pakete.
 - [x] Gleichnamige Firmen → Freigabe hängt am Standort, eindeutig
 - [x] Übernahme wiederholbar, Kontakte ohne Firma/Standort gemeldet statt Fehler (`portalzugang-uebernahme.test.ts`; echte Daten: 0 solche Kontakte)
 - [ ] Siehe BUG-1: verwaiste Portalzugänge nach Löschen eines Standorts/Kontakts
-- [ ] Siehe BUG-2: Firma ohne Standort — Freigabe-Seite inkl. Sync nicht mehr nutzbar
+- [x] BUG-2 behoben 2026-10-09: Firma ohne Standort — Hinweis statt Liste, Sync/Verlauf nutzbar
 
 ### Security Audit Results
 - [x] Nur Freigeber (Seite + Server Action), unverändert
@@ -264,10 +264,11 @@ Keine neuen Pakete.
   3. Expected: unklar — vor PROJ-11 war ein Sync (nur Kontakte) möglich
   4. Actual: Hinweis "keine Standorte erfasst", weder Freigabe noch Sync. Fachlich folgerichtig (ohne Standort gibt es nichts freizugeben bzw. im Portal zu sehen), aber eine Verhaltensänderung
 - **Priority:** Nice to have — bewusst so lassen oder Sync-Bereich auch ohne Standort anzeigen
+- **Status:** ✅ Behoben (2026-10-09) — bei einer Firma ohne Standort zeigt `/sync-freigabe` statt der Kontaktliste den Hinweis "Für diese Firma sind keine Standorte erfasst …"; Sync und Verlauf bleiben nutzbar. Der Sync ist dort nur möglich, wenn die Firma schon einmal übertragen wurde (bestehende Regel aus PROJ-5/6), damit sich entzogene Zugänge ins Portal bringen lassen. Komponententest `sync-freigabe-bereich.test.tsx`.
 
 ### Summary
 - **Acceptance Criteria:** alle erfüllt (Sync-Voraussetzung per Test, manuell lokal wegen Sicherheitsschalter nicht prüfbar)
-- **Bugs Found:** 2 total (0 critical, 0 high, 0 medium, 2 low)
+- **Bugs Found:** 2 total (0 critical, 0 high, 0 medium, 2 low) — BUG-2 behoben; BUG-1 wartet auf die Dataverse-Einstellung (Löschweitergabe)
 - **Security:** Pass (inkl. Schliessen der PROJ-8-Lücke)
 - **Production Ready:** YES
 - **Recommendation:** Deployen; in Dataverse Löschweitergabe für die beiden Verweise einstellen (BUG-1); Kundenportal-Repo über die Tabelle und die Waisen-Regel informieren
