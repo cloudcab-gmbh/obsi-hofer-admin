@@ -205,6 +205,20 @@ describe("syncFirmaAction", () => {
     expect(starteFirmaSync).not.toHaveBeenCalled();
   });
 
+  // PROJ-11 (QA): Zugang zu irgendeinem Standort der Firma genügt — der Sync bleibt pro Firma.
+  it("allows the sync when a contact is released only for another Standort of the Firma", async () => {
+    bereit();
+    const standorte = [{ id: "s1", name: "Pratteln", firmaId: FIRMA_ID }];
+    listStandorteForFirma.mockResolvedValue(standorte);
+    listKundenportalKontakteForFirma.mockResolvedValue([kontakt({ freigegeben: false, weitereStandorte: ["Pratteln"] })]);
+
+    const result = await syncFirmaAction(FIRMA_ID);
+
+    expect(result.success).toBe(true);
+    expect(listKundenportalKontakteForFirma).toHaveBeenCalledWith(FIRMA_ID, standorte, "");
+    expect(starteFirmaSync).toHaveBeenCalledWith(FIRMA_ID, "Beispiel AG");
+  });
+
   it("triggers the sync for exactly the confirmed Firma and returns the result", async () => {
     bereit();
 

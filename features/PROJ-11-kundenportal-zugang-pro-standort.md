@@ -1,6 +1,6 @@
 # PROJ-11: Kundenportal-Zugang pro Standort
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-10-08
 **Last Updated:** 2026-10-08
 
@@ -195,7 +195,82 @@ Keine neuen Pakete.
 **Tests:** neu `portalzugaenge.test.ts`, `portalzugang-uebernahme.test.ts`; neu geschrieben `kontakte.test.ts`; erweitert `sync-freigabe/actions.test.ts` (Standort-Abgleich, Standort-ID-Prüfung), `kundenportal-kontakte.test.tsx` (Standort im Aufruf/Titel, Badge, Sync-Zähler). 400 Tests grün, Typecheck/Lint sauber.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-10-09
+**App URL:** http://localhost:3000
+**Tester:** QA Engineer (AI) + Browser-Test durch den Nutzer (Punkte 1–3 der Testanleitung)
+
+### Acceptance Criteria Status
+
+#### Liste und Freigabe
+- [x] Alle aktiven Kontakte der Firma mit Häkchen für den aktuellen Standort — Nutzer-Test + `kontakte.test.ts`
+- [x] Häkchen setzen legt den Portalzugang für genau diesen Standort an und bleibt nach Neuladen — Nutzer-Test (Eintrag in Dataverse) + Unit-Tests
+- [x] Häkchen entfernen entzieht nur diesen Standort — Nutzer-Test + `kontakte.test.ts`, `portalzugaenge.test.ts`
+- [x] Hinweis "auch freigegeben für: …" mit den anderen Standorten der Firma — Nutzer-Test (Standortwechsel) + Komponententest
+- [x] Firma mit einem Standort: Bedienung wie bisher
+- [x] Mehrere Standorte ohne Wahl → Hinweis mit Link zur Startseite (`KontextHinweis`)
+- [x] Kontakt mehrerer Firmen: Freigabe gilt nur für den Standort; Hinweis "Freigabe gilt auch für weitere Firmen" entfernt (Komponententest)
+- [x] Überschrift nennt den Standort — bei Firmen mit mehreren Standorten bzw. gleichnamigen Firmen ("Firma · Standort"); bei Firmen mit einem Standort nur die Firma, konsistent mit Header-Regel aus PROJ-10 (bewusste Auslegung)
+
+#### Unverändert aus PROJ-8
+- [x] Ohne E-Mail: Häkchen gesperrt, Entziehen möglich (serverseitig: E-Mail nur beim Freigeben geprüft)
+- [x] Inaktive Kontakte nicht in der Liste
+- [x] Hinweis "wirksam mit dem nächsten Sync"
+- [x] Bearbeiter: Seite und Aktion serverseitig verweigert (`actions.test.ts`)
+- [x] Fehler beim Speichern: Meldung + Rücksetzen (bestehende Komponententests)
+
+#### Umstellung und Übergang
+- [x] Einmalige Übernahme: Probelauf 4 Kontakte → 8 Zugänge; Echtlauf am 2026-10-09, Kontroll-Probelauf 0 offen / 8 vorhanden; Nutzer sah die übernommenen Freigaben (Andrea Häfliger, Sibylle Bienz) als gesetzt
+- [x] Bisheriges Häkchen wird mitgeführt (erster Zugang setzt, letzter entfernt, Zugänge bei anderen Firmen halten es) — `kontakte.test.ts`
+- [x] Sync-Voraussetzung "mindestens ein Kontakt mit E-Mail für irgendeinen Standort der Firma" — `actions.test.ts` (neuer QA-Test: nur anderer Standort freigegeben → Sync erlaubt). **Manuell nicht prüfbar:** lokal fehlt `KUNDENPORTAL_SYNC_AKTIV=true` in `.env.local`, daher ist der Button lokal gesperrt (die Ursache ist dieser Sicherheitsschalter aus PROJ-5, nicht das Kundenportal); in Production ist der Schalter gesetzt
+
+### Edge Cases Status
+- [x] Standortwechsel bei offener Seite → Aktion lehnt ab ("Firma oder Standort wurden inzwischen gewechselt …"), kein Schreiben in den falschen Standort (`actions.test.ts`)
+- [x] Gleichzeitige Klicks / Doppelungen → Häkchen gesperrt während Speichern; Dataverse-Schlüssel + idempotentes Anlegen (`portalzugaenge.test.ts`)
+- [x] Bereits von jemand anderem entfernt → kein Fehler
+- [x] Gleichnamige Firmen → Freigabe hängt am Standort, eindeutig
+- [x] Übernahme wiederholbar, Kontakte ohne Firma/Standort gemeldet statt Fehler (`portalzugang-uebernahme.test.ts`; echte Daten: 0 solche Kontakte)
+- [ ] Siehe BUG-1: verwaiste Portalzugänge nach Löschen eines Standorts/Kontakts
+- [ ] Siehe BUG-2: Firma ohne Standort — Freigabe-Seite inkl. Sync nicht mehr nutzbar
+
+### Security Audit Results
+- [x] Nur Freigeber (Seite + Server Action), unverändert
+- [x] Kontakt muss über eine aktive Relation zur Firma der Sitzung gehören — schliesst die PROJ-8-Lücke (direkter Aufruf mit beliebiger Kontakt-ID)
+- [x] Standort muss der aktuelle Standort der Sitzung sein (vom Browser übergebene Standort-ID wird abgeglichen)
+- [x] Alle IDs per Zod-GUID bzw. `requireValidGuid` geprüft, bevor sie in OData-Filter/-Pfade gelangen (Injection)
+- [x] Übernahme-Skript: liest Zugangsdaten nur aus `.env.local`, standardmässig Probelauf, nicht Teil des App-Bundles
+- [x] Neue Abhängigkeit `tsx` nur als Entwicklungsabhängigkeit; keine neuen Audit-Funde
+
+### Automatisierte Tests
+- [x] `npm test`: 33 Dateien, 401 Tests grün
+- [x] `npm run test:e2e`: 24/24 grün (Zugriffsschutz `/sync-freigabe` bereits durch PROJ-8-Suite abgedeckt; kein neuer E2E-Test, da Login nicht automatisierbar und Aktionen in produktive Daten schreiben)
+
+### Bugs Found
+
+#### BUG-1: Verwaiste Portalzugänge nach Löschen eines Standorts oder Kontakts
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Kontakt für einen Standort freigeben
+  2. Standort (oder Kontakt) in Dataverse löschen
+  3. Expected: Portalzugang verschwindet mit
+  4. Actual: Lookups der Tabelle stehen auf "Verknüpfung entfernen" — der Portalzugang bleibt mit leerem Verweis stehen. Das Tool ignoriert solche Waisen; das bisherige Häkchen am Kontakt wird aber erst bei der nächsten Änderung neu berechnet, und das Kundenportal muss Waisen ebenfalls ignorieren
+- **Priority:** Nice to have — Empfehlung: in Dataverse für beide Beziehungen "Löschweitergabe" einstellen
+
+#### BUG-2: Firma ohne Standort — Freigabe-Seite und Sync nicht mehr nutzbar
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Firma ohne Standort wählen (laut PROJ-10-Analyse einzelne Firmen, u.a. leere Hüllen)
+  2. `/sync-freigabe` öffnen
+  3. Expected: unklar — vor PROJ-11 war ein Sync (nur Kontakte) möglich
+  4. Actual: Hinweis "keine Standorte erfasst", weder Freigabe noch Sync. Fachlich folgerichtig (ohne Standort gibt es nichts freizugeben bzw. im Portal zu sehen), aber eine Verhaltensänderung
+- **Priority:** Nice to have — bewusst so lassen oder Sync-Bereich auch ohne Standort anzeigen
+
+### Summary
+- **Acceptance Criteria:** alle erfüllt (Sync-Voraussetzung per Test, manuell lokal wegen Sicherheitsschalter nicht prüfbar)
+- **Bugs Found:** 2 total (0 critical, 0 high, 0 medium, 2 low)
+- **Security:** Pass (inkl. Schliessen der PROJ-8-Lücke)
+- **Production Ready:** YES
+- **Recommendation:** Deployen; in Dataverse Löschweitergabe für die beiden Verweise einstellen (BUG-1); Kundenportal-Repo über die Tabelle und die Waisen-Regel informieren
 
 ## Deployment
 _To be added by /deploy_
