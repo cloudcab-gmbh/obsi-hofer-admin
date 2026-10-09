@@ -174,6 +174,15 @@ describe("starteFirmaSync mit Standort (PROJ-12)", () => {
     expect(ergebnis.probleme[0]).toContain("Standort-Filter ist dort offenbar nicht aktiv");
   });
 
+  // QA BUG-1
+  it("accepts the confirmed Standort regardless of upper/lower case", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, { entities: [entity("standorte", 1)], scope: { firmaId: FIRMA_ID, standortId: STANDORT_ID.toUpperCase() } })
+    );
+
+    expect((await starteFirmaSync(FIRMA_ID, "F", { id: STANDORT_ID })).status).toBe("erfolg");
+  });
+
   it("flags a confirmed Standort when more than one Standort was loaded", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(200, { entities: [entity("standorte", 2)], scope: { firmaId: FIRMA_ID, standortId: STANDORT_ID } })

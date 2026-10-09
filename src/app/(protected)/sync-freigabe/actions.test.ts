@@ -17,11 +17,15 @@ vi.mock("@/lib/dataverse/kontakte", async (importOriginal) => ({
   setStandortFreigabe: (...args: unknown[]) => setStandortFreigabe(...args),
   listKundenportalKontakteForFirma: (...args: unknown[]) => listKundenportalKontakteForFirma(...args),
 }));
-vi.mock("@/lib/dataverse/geraete", () => ({
+vi.mock("@/lib/dataverse/geraete", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/dataverse/geraete")>()),
   getFirma: (...args: unknown[]) => getFirma(...args),
   listStandorteForFirma: (...args: unknown[]) => listStandorteForFirma(...args),
 }));
-vi.mock("@/lib/arbeitskontext", () => ({ ladeArbeitskontext: () => ladeArbeitskontext() }));
+vi.mock("@/lib/arbeitskontext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/arbeitskontext")>()),
+  ladeArbeitskontext: () => ladeArbeitskontext(),
+}));
 const istStandortSyncAktiv = vi.fn();
 vi.mock("@/lib/kundenportal-sync", () => ({
   istSyncKonfiguriert: () => istSyncKonfiguriert(),
@@ -358,6 +362,13 @@ describe("syncFirmaAction pro Standort (PROJ-12)", () => {
   it("transfers only the current Standort when the switch is on, and logs it with the Standort", async () => {
     bereit();
     istStandortSyncAktiv.mockReturnValue(true);
+    ladeArbeitskontext.mockResolvedValue({
+      zustand: "bereit",
+      firma: { id: FIRMA_ID, name: "Bilfinger AG", anzeigename: "Bilfinger AG" },
+      standort: STANDORT,
+      standorte: [STANDORT, { id: "s2", name: "Boningen" }],
+      mehrereStandorte: true,
+    });
 
     const result = await syncFirmaAction(FIRMA_ID, STANDORT_ID);
 
@@ -365,6 +376,40 @@ describe("syncFirmaAction pro Standort (PROJ-12)", () => {
     expect(starteFirmaSync).toHaveBeenCalledWith(FIRMA_ID, "Bilfinger AG · Pratteln", STANDORT);
     expect(erstelleSyncLauf).toHaveBeenCalledWith(expect.objectContaining({ firmaName: "Bilfinger AG", standort: STANDORT }));
     expect(listKundenportalKontakteForFirma).toHaveBeenCalledWith(FIRMA_ID, [], STANDORT_ID);
+  });
+
+  // QA BUG-2: Meldungen mit derselben Bezeichnung wie Dialog/Header.
+  it("names a Firma with a single Standort without the Standort, like the UI", async () => {
+    bereit();
+    istStandortSyncAktiv.mockReturnValue(true);
+    ladeArbeitskontext.mockResolvedValue({
+      zustand: "bereit",
+      firma: { id: FIRMA_ID, name: "Firma", anzeigename: "Firma" },
+      standort: STANDORT,
+      standorte: [STANDORT],
+      mehrereStandorte: false,
+    });
+
+    await syncFirmaAction(FIRMA_ID, STANDORT_ID);
+
+    expect(starteFirmaSync).toHaveBeenCalledWith(FIRMA_ID, "Firma", STANDORT);
+  });
+
+  it("uses the display name of same-named Firmen (e.g. 'Bilfinger … · Pratteln'), not the full Standort name", async () => {
+    bereit();
+    istStandortSyncAktiv.mockReturnValue(true);
+    const voll = { id: STANDORT_ID, name: "Bilfinger AG - Pratteln" };
+    ladeArbeitskontext.mockResolvedValue({
+      zustand: "bereit",
+      firma: { id: FIRMA_ID, name: "Bilfinger AG", anzeigename: "Bilfinger AG · Pratteln", mehrdeutig: true },
+      standort: voll,
+      standorte: [voll],
+      mehrereStandorte: false,
+    });
+
+    await syncFirmaAction(FIRMA_ID, STANDORT_ID);
+
+    expect(starteFirmaSync).toHaveBeenCalledWith(FIRMA_ID, "Bilfinger AG · Pratteln", voll);
   });
 
   it("syncs the whole Firma as before while the switch is off, even if a Standort is passed", async () => {

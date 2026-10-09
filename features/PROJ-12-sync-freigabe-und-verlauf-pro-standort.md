@@ -204,8 +204,8 @@ Keine neuen Pakete.
 - [x] Sync läuft, Standort wird gewechselt → bestätigter Standort wird übertragen und protokolliert (Standort kommt aus dem Dialog, Prüfung beim Start)
 - [x] Zeitüberschreitung / Verlauf nicht speicherbar → unverändert wie PROJ-5/6
 - [x] Ungültige Standort-ID → abgelehnt, kein Aufruf (`actions.test.ts`, `kundenportal-sync.test.ts`, `sync-laeufe.test.ts`)
-- [ ] Siehe BUG-1 (Gross-/Kleinschreibung der zurückgemeldeten Standort-ID)
-- [ ] Siehe BUG-2 (Ergebnismeldung mit vollem Standortnamen)
+- [x] BUG-1 behoben 2026-10-09 (Gross-/Kleinschreibung der zurückgemeldeten Standort-ID)
+- [x] BUG-2 behoben 2026-10-09 (Ergebnismeldung mit Anzeigenamen)
 
 ### Security Audit Results
 - [x] Nur Freigeber (unverändert)
@@ -229,6 +229,7 @@ Keine neuen Pakete.
   3. Expected: als Bestätigung erkannt
   4. Actual: exakter Vergleich → "teilweise" mit Fehlwarnung "Standort-Filter … nicht aktiv", obwohl korrekt übertragen
 - **Priority:** Nice to have (vor dem Einschalten des Schalters beheben oder mit dem Portal abstimmen)
+- **Status:** ✅ Behoben (2026-10-09) — Vergleich ohne Rücksicht auf Gross-/Kleinschreibung (`kundenportal-sync.ts`), Test "accepts the confirmed Standort regardless of upper/lower case"
 
 #### BUG-2: Ergebnismeldung nennt den vollen Standortnamen statt des Anzeigenamens
 - **Severity:** Low
@@ -237,10 +238,11 @@ Keine neuen Pakete.
   2. Expected: "„Bilfinger … AG · Pratteln“ wurde … übertragen" (wie Dialog/Header)
   3. Actual: Server bildet "Firma · <voller Standortname>" → "„Bilfinger … AG · Bilfinger … AG - Pratteln“"; bei Firmen mit einem Standort zusätzlich " · <Standort>", obwohl die Oberfläche dort nur die Firma nennt
 - **Priority:** Nice to have
+- **Status:** ✅ Behoben (2026-10-09) — `syncFirmaAction` nutzt `kontextBezeichnung()` (wie Dialog/Header): "Firma · Standort" bei mehreren Standorten, nur die Firma bei einem Standort, Anzeigename mit Zusatz bei gleichnamigen Firmen. Tests in `actions.test.ts`
 
 ### Summary
 - **Acceptance Criteria:** alle per Test erfüllt; End-to-End-Prüfung des Standort-Syncs offen bis zum Kundenportal-Deploy
-- **Bugs Found:** 2 total (0 critical, 0 high, 0 medium, 2 low)
+- **Bugs Found:** 2 total (0 critical, 0 high, 0 medium, 2 low) — beide behoben
 - **Security:** Pass
 - **Production Ready:** YES — mit ausgeschaltetem Schalter ohne Verhaltensänderung deploybar
 - **Recommendation:** BUG-1/2 vor dem Einschalten des Schalters beheben; deployen (Schalter aus); Auftrag ans Kundenportal; nach Rückmeldung Schalter setzen und live testen

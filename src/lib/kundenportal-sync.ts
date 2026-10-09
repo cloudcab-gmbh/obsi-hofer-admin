@@ -183,7 +183,11 @@ export async function starteFirmaSync(
   // zurückmelden und darf nur einen Standort geladen haben.
   if (standort) {
     const standorte = entities.find((e) => e.slug === "standorte");
-    if (ergebnis.scope?.standortId !== standort.id || (standorte && standorte.fetched > 1)) {
+    // QA BUG-1: GUIDs ohne Rücksicht auf Gross-/Kleinschreibung vergleichen.
+    const bestaetigt =
+      typeof ergebnis.scope?.standortId === "string" &&
+      ergebnis.scope.standortId.toLowerCase() === standort.id.toLowerCase();
+    if (!bestaetigt || (standorte && standorte.fetched > 1)) {
       probleme.unshift(
         "Achtung: Das Kundenportal hat den Standort nicht bestätigt bzw. mehr als einen Standort übertragen — der Standort-Filter ist dort offenbar nicht aktiv."
       );

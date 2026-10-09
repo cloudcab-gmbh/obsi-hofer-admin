@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { aktuellerBenutzerIstFreigeber, aktuellerFreigeberName } from "@/lib/auth/freigeber";
 import { hatZugangBeiFirma, listKundenportalKontakteForFirma, setStandortFreigabe } from "@/lib/dataverse/kontakte";
 import { getFirma, listStandorteForFirma } from "@/lib/dataverse/geraete";
-import { ladeArbeitskontext } from "@/lib/arbeitskontext";
+import { kontextBezeichnung, ladeArbeitskontext } from "@/lib/arbeitskontext";
 import { DataverseError } from "@/lib/dataverse/errors";
 import { istStandortSyncAktiv, istSyncKonfiguriert, starteFirmaSync, type SyncErgebnis } from "@/lib/kundenportal-sync";
 import { erstelleSyncLauf, listSyncLaeufeForFirma, type SyncLauf } from "@/lib/dataverse/sync-laeufe";
@@ -131,7 +131,9 @@ export async function syncFirmaAction(firmaId: string, standortId: string | null
         };
       }
       standort = kontext.standort;
-      bezeichnung = `${firma.name} · ${kontext.standort.name}`;
+      // QA BUG-2: dieselbe Bezeichnung wie Dialog und Header ("Firma · Standort",
+      // bei Firmen mit einem Standort nur die Firma, gleichnamige Firmen mit Zusatz).
+      bezeichnung = kontextBezeichnung(kontext) ?? firma.name;
     }
 
     // PROJ-11/12: Zugang zu diesem Standort (Standort-Sync) bzw. zu irgendeinem Standort der Firma.
