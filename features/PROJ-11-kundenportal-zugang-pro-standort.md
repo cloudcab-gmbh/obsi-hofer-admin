@@ -288,3 +288,5 @@ Keine neuen Pakete.
 - **Verifikation:** Lokaler Produktions-Build, Lint, 403 Unit-Tests und 24 E2E-Tests grün; Vercel-Production-Build "Ready"; `/sync-freigabe` antwortet unauthentifiziert mit 307 → `/login`. Funktion vorab vom Nutzer lokal gegen die echten Daten geprüft
 - **Übergang:** Das Kundenportal wertet die Standort-Zugänge noch nicht aus (Auftrag `docs/kundenportal-auftrag-portalzugang.md`, offen); bis dahin wirkt weiterhin das automatisch mitgeführte Häkchen `bmvcc_kundenportal` — Portal-Benutzer sehen also vorerst noch alle Standorte ihrer Firma
 - **Offen (Low):** BUG-1 Restrisiko (Waisen nach Standort-Löschung, akzeptiert)
+
+**Nachtrag-Deployment (2026-10-09): Abbau des Übergangsfelds** — Commit `1299f00`, Tag `v1.10.1-PROJ-11`. Vercel-Production-Build "Ready", `/sync-freigabe` → 307 `/login`, 403 Tests grün. Das Admin-Tool schreibt `bmvcc_kundenportal` nicht mehr; das Kundenportal (PROJ-15) liest es ebenfalls nicht mehr.
