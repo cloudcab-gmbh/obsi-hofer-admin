@@ -230,7 +230,7 @@ Keine neuen Pakete.
 - [x] Bereits von jemand anderem entfernt → kein Fehler
 - [x] Gleichnamige Firmen → Freigabe hängt am Standort, eindeutig
 - [x] Übernahme wiederholbar, Kontakte ohne Firma/Standort gemeldet statt Fehler (`portalzugang-uebernahme.test.ts`; echte Daten: 0 solche Kontakte)
-- [ ] Siehe BUG-1: verwaiste Portalzugänge nach Löschen eines Standorts/Kontakts
+- [x] BUG-1 teilweise behoben 2026-10-09: Kontakt-Löschung räumt Zugänge auf; Standort-Löschung hinterlässt wirkungslose Waisen (Restrisiko akzeptiert)
 - [x] BUG-2 behoben 2026-10-09: Firma ohne Standort — Hinweis statt Liste, Sync/Verlauf nutzbar
 
 ### Security Audit Results
@@ -255,6 +255,7 @@ Keine neuen Pakete.
   3. Expected: Portalzugang verschwindet mit
   4. Actual: Lookups der Tabelle stehen auf "Verknüpfung entfernen" — der Portalzugang bleibt mit leerem Verweis stehen. Das Tool ignoriert solche Waisen; das bisherige Häkchen am Kontakt wird aber erst bei der nächsten Änderung neu berechnet, und das Kundenportal muss Waisen ebenfalls ignorieren
 - **Priority:** Nice to have — Empfehlung: in Dataverse für beide Beziehungen "Löschweitergabe" einstellen
+- **Status:** 🟡 Teilweise behoben, Restrisiko akzeptiert (2026-10-09, Nutzer-Entscheidung) — Beziehung Portalzugang → **Kontakt**: Löschen = "Alle weitergeben" (per Schema verifiziert). Beziehung → **Standort**: Dataverse lehnt eine zweite Löschweitergabe ab ("bmvcc_Portalzugang is parented to Entity … bmvcc_kontakt. Cannot create another parental relation with Entity: bmvcc_organizationlocation"), bleibt daher "Verknüpfung entfernen". Folge: Wird ein Standort gelöscht (selten), bleibt sein Portalzugang mit leerem Verweis stehen — ohne Wirkung, da Admin-Tool und Kundenportal (Auftrag) solche Einträge ignorieren
 
 #### BUG-2: Firma ohne Standort — Freigabe-Seite und Sync nicht mehr nutzbar
 - **Severity:** Low
@@ -268,10 +269,10 @@ Keine neuen Pakete.
 
 ### Summary
 - **Acceptance Criteria:** alle erfüllt (Sync-Voraussetzung per Test, manuell lokal wegen Sicherheitsschalter nicht prüfbar)
-- **Bugs Found:** 2 total (0 critical, 0 high, 0 medium, 2 low) — BUG-2 behoben; BUG-1 wartet auf die Dataverse-Einstellung (Löschweitergabe)
+- **Bugs Found:** 2 total (0 critical, 0 high, 0 medium, 2 low) — BUG-2 behoben; BUG-1 teilweise behoben (Kontakte), Restrisiko bei Standort-Löschung akzeptiert
 - **Security:** Pass (inkl. Schliessen der PROJ-8-Lücke)
 - **Production Ready:** YES
-- **Recommendation:** Deployen; in Dataverse Löschweitergabe für die beiden Verweise einstellen (BUG-1); Kundenportal-Repo über die Tabelle und die Waisen-Regel informieren
+- **Recommendation:** Deployen; Kundenportal-Repo über die Tabelle und die Waisen-Regel informieren (Auftrag liegt vor)
 
 ## Deployment
 _To be added by /deploy_
