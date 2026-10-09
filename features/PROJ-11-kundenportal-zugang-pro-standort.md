@@ -49,7 +49,7 @@
 
 **Umstellung und Übergang**
 - [ ] Angenommen ein Kontakt ist heute (PROJ-8) für das Kundenportal freigegeben, wenn PROJ-11 eingeführt wird, dann ist er danach für **alle Standorte aller seiner Firmen** freigegeben — niemand verliert seinen Zugang (einmalige Übernahme)
-- [ ] Angenommen ein Kontakt ist für mindestens einen Standort freigegeben, dann ist auch das bisherige Häkchen "Kundenportal" am Kontakt gesetzt; ist er für keinen Standort mehr freigegeben, wird es entfernt — so funktioniert das heutige Kundenportal in der Übergangszeit unverändert weiter
+- [ ] *(Übergangsregel, abgelöst 2026-10-09 nach Kundenportal PROJ-15 — siehe Nachtrag)* Angenommen ein Kontakt ist für mindestens einen Standort freigegeben, dann ist auch das bisherige Häkchen "Kundenportal" am Kontakt gesetzt; ist er für keinen Standort mehr freigegeben, wird es entfernt — so funktioniert das heutige Kundenportal in der Übergangszeit unverändert weiter
 - [ ] Angenommen eine Firma soll synchronisiert werden (PROJ-5), dann ist der Sync möglich, sobald mindestens ein Kontakt für mindestens einen Standort der Firma freigegeben ist
 
 ## Edge Cases
@@ -74,7 +74,7 @@
 - [x] Kundenportal: Umsetzung der Standort-Einschränkung → deployt 2026-10-09 (Kundenportal PROJ-15, Tag `v1.11.0-PROJ-15`); Zugang/Sichtbarkeit nur noch aus `bmvcc_portalzugang`, `bmvcc_kundenportal` wird vom Portal nicht mehr gelesen; live getestet (Teil-Freigabe, Entzug + Sync). Details: [docs/kundenportal-auftrag-portalzugang.md](../docs/kundenportal-auftrag-portalzugang.md)
 - [x] Wer führt die einmalige Übernahme aus und wann? → Skript mit Probelauf, vom Entwickler lokal ausgeführt, nach dem Anlegen der Tabelle und vor dem Deployment (2026-10-08)
 
-- [ ] Mitführen des Häkchens `bmvcc_kundenportal` im Admin-Tool abbauen — seit 2026-10-09 möglich (Portal liest das Feld nicht mehr); separater Aufräumschritt
+- [x] Mitführen des Häkchens `bmvcc_kundenportal` im Admin-Tool abbauen → erledigt 2026-10-09 (Nachtrag, siehe Implementation Notes)
 
 ## Decision Log
 
@@ -195,6 +195,8 @@ Keine neuen Pakete.
 - **Echtlauf ausgeführt 2026-10-09** (auf Freigabe des Nutzers): 8 Portalzugänge angelegt; anschliessender Probelauf zur Kontrolle: 0 anzulegen, 8 bereits vorhanden. Kontakte und deren Häkchen unverändert.
 
 **Tests:** neu `portalzugaenge.test.ts`, `portalzugang-uebernahme.test.ts`; neu geschrieben `kontakte.test.ts`; erweitert `sync-freigabe/actions.test.ts` (Standort-Abgleich, Standort-ID-Prüfung), `kundenportal-kontakte.test.tsx` (Standort im Aufruf/Titel, Badge, Sync-Zähler). 400 Tests grün, Typecheck/Lint sauber.
+
+**Nachtrag (2026-10-09): Abbau des Übergangs.** Nach dem Deploy von Kundenportal PROJ-15 (Tag `v1.11.0-PROJ-15`) liest das Portal `bmvcc_kundenportal` nicht mehr; Zugang und sichtbare Standorte kommen nur noch aus `bmvcc_portalzugang`. Daher schreibt `setStandortFreigabe()` das Feld nicht mehr (`aktualisiereKundenportalHaekchen()` entfernt) — ein Lese- und ein Schreibzugriff weniger pro Klick. Das Feld bleibt in Dataverse unverändert stehen (kann vom Nutzer später gelöscht werden). Übernahme-Skript als Archiv markiert. Test: `kontakte.test.ts` ("no longer writes the former contact flag").
 
 ## QA Test Results
 

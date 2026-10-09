@@ -159,10 +159,9 @@ describe("setStandortFreigabe", () => {
     listRecords.mockResolvedValue({ records: gehoert ? [{ bmvcc_relationid: "r1" }] : [], nextPageCursor: null });
   }
 
-  it("grants access: creates the Portalzugang with a readable name and sets the legacy flag", async () => {
+  it("grants access: creates the Portalzugang with a readable name", async () => {
     kontaktGehoertZurFirma();
     getRecord.mockResolvedValue({ bmvcc_mail: "max@example.ch", statecode: 0, bmvcc_name_1: "Muster", bmvcc_name_2: "Max" });
-    listPortalzugaengeForKontakte.mockResolvedValue([{ id: "z1", kontaktId: P1, standortId: S_PRATTELN }]);
 
     await setStandortFreigabe({ kontaktId: P1, firmaId: FIRMA_ID, standort: PRATTELN, freigegeben: true });
 
@@ -170,7 +169,6 @@ describe("setStandortFreigabe", () => {
       `_bmvcc_person_value eq ${P1} and _bmvcc_firma_value eq ${FIRMA_ID} and statecode eq 0`
     );
     expect(erstellePortalzugang).toHaveBeenCalledWith(P1, S_PRATTELN, "Max Muster – Pratteln");
-    expect(updateRecord).toHaveBeenCalledWith("bmvcc_kontakts", P1, { bmvcc_kundenportal: true });
   });
 
   it("rejects a contact that is not assigned to the Firma (direct Server Action call)", async () => {
@@ -180,7 +178,6 @@ describe("setStandortFreigabe", () => {
       setStandortFreigabe({ kontaktId: P1, firmaId: FIRMA_ID, standort: PRATTELN, freigegeben: true })
     ).rejects.toBeInstanceOf(DataverseError);
     expect(erstellePortalzugang).not.toHaveBeenCalled();
-    expect(updateRecord).not.toHaveBeenCalled();
   });
 
   it("rejects granting access to a contact without an email address", async () => {
@@ -203,23 +200,24 @@ describe("setStandortFreigabe", () => {
     expect(erstellePortalzugang).not.toHaveBeenCalled();
   });
 
-  it("revokes only this Standort and clears the legacy flag when no Portalzugang is left", async () => {
+  it("revokes only this Standort, without checking email or status", async () => {
     kontaktGehoertZurFirma();
 
     await setStandortFreigabe({ kontaktId: P1, firmaId: FIRMA_ID, standort: PRATTELN, freigegeben: false });
 
     expect(getRecord).not.toHaveBeenCalled();
     expect(entfernePortalzugang).toHaveBeenCalledWith(P1, S_PRATTELN);
-    expect(updateRecord).toHaveBeenCalledWith("bmvcc_kontakts", P1, { bmvcc_kundenportal: false });
   });
 
-  it("keeps the legacy flag when the contact still has access elsewhere (also at other Firmen)", async () => {
+  // Seit Kundenportal PROJ-15 zählt nur noch die Tabelle Portalzugang.
+  it("no longer writes the former contact flag bmvcc_kundenportal", async () => {
     kontaktGehoertZurFirma();
-    listPortalzugaengeForKontakte.mockResolvedValue([{ id: "z9", kontaktId: P1, standortId: S_FREMD }]);
+    getRecord.mockResolvedValue({ bmvcc_mail: "max@example.ch", statecode: 0 });
 
+    await setStandortFreigabe({ kontaktId: P1, firmaId: FIRMA_ID, standort: PRATTELN, freigegeben: true });
     await setStandortFreigabe({ kontaktId: P1, firmaId: FIRMA_ID, standort: PRATTELN, freigegeben: false });
 
-    expect(updateRecord).toHaveBeenCalledWith("bmvcc_kontakts", P1, { bmvcc_kundenportal: true });
+    expect(updateRecord).not.toHaveBeenCalled();
   });
 
   it("rejects ids that are not GUIDs before querying Dataverse", async () => {

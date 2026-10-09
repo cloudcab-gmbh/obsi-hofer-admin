@@ -1,4 +1,7 @@
 /**
+ * ARCHIV — einmalig ausgeführt am 2026-10-09 (8 Portalzugänge). Seit Kundenportal
+ * PROJ-15 und dem Abbau des Häkchens im Admin-Tool nicht mehr nötig.
+ *
  * PROJ-11: Einmalige Übernahme der bisherigen Kundenportal-Freigaben (Häkchen
  * bmvcc_kundenportal am Kontakt, PROJ-8) in Portalzugänge pro Standort.
  *

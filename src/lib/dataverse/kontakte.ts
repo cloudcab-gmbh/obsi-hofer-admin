@@ -1,4 +1,4 @@
-import { getRecord, listRecords, updateRecord } from "./records";
+import { getRecord, listRecords } from "./records";
 import { DataverseError } from "./errors";
 import { entfernePortalzugang, erstellePortalzugang, listPortalzugaengeForKontakte } from "./portalzugaenge";
 
@@ -152,9 +152,9 @@ export async function listKundenportalKontakteForFirma(
  * - Freigeben nur für aktive Kontakte mit E-Mail; Entziehen immer (PROJ-8).
  * Dass der Standort zur Firma gehört, prüft der Aufrufer (Arbeitskontext).
  *
- * Übergang: Das bisherige Feld bmvcc_kundenportal wird mitgeführt —
- * gesetzt, solange der Kontakt mindestens einen Portalzugang hat (über alle
- * Firmen), damit das heutige Kundenportal unverändert weiterläuft.
+ * Das frühere Feld bmvcc_kundenportal wird nicht mehr geschrieben: Seit
+ * Kundenportal PROJ-15 (2026-10-09) zählt ausschliesslich die Tabelle
+ * Portalzugang; das Portal liest das Feld nicht mehr.
  */
 export async function setStandortFreigabe(params: {
   kontaktId: string;
@@ -194,12 +194,4 @@ export async function setStandortFreigabe(params: {
   } else {
     await entfernePortalzugang(kontaktId, standort.id);
   }
-
-  await aktualisiereKundenportalHaekchen(kontaktId);
-}
-
-/** Übergang (PROJ-11): bmvcc_kundenportal = "hat mindestens einen Portalzugang". */
-export async function aktualisiereKundenportalHaekchen(kontaktId: string): Promise<void> {
-  const hatZugang = (await listPortalzugaengeForKontakte([kontaktId])).length > 0;
-  await updateRecord(KONTAKTE_ENTITY, kontaktId, { bmvcc_kundenportal: hatZugang });
 }
