@@ -9,7 +9,7 @@
 - Requires: PROJ-10 (Standort als Arbeitskontext) — der "aktuelle Standort", für den freigegeben wird
 - Requires: PROJ-1 (Rolle Freigeber)
 - **Dataverse (vom Nutzer anzulegen):** Eine neue Zuordnung "Kundenportal-Zugang" zwischen Kontakt und Standort — heute existiert laut Schema-Prüfung (2026-10-08) **keinerlei** Beziehung Kontakt ↔ Standort (Kontakte hängen nur über `bmvcc_relation` an der Firma). Form der Zuordnung legt `/architecture` fest; dazu die nötigen Rechte für den App-Benutzer
-- **Cross-Repo (Kundenportal, dort separat einzuplanen):** Der Sync übernimmt die Standort-Freigaben, und ein Kontakt sieht im Portal nur Geräte und Prüfberichte seiner freigegebenen Standorte. Bis dahin funktioniert das Portal unverändert weiter (siehe Übergang)
+- **Cross-Repo (Kundenportal, dort separat einzuplanen — Auftrag: [docs/kundenportal-auftrag-portalzugang.md](../docs/kundenportal-auftrag-portalzugang.md)):** Der Sync übernimmt die Standort-Freigaben, und ein Kontakt sieht im Portal nur Geräte und Prüfberichte seiner freigegebenen Standorte. Bis dahin funktioniert das Portal unverändert weiter (siehe Übergang)
 - Bezug zu PROJ-12: Der Sync bleibt in diesem Feature pro Firma und überträgt die Freigaben aller Standorte; Sync pro Standort folgt in PROJ-12
 
 ## User Stories
@@ -71,7 +71,7 @@
 ## Open Questions
 - [x] Form der neuen Zuordnung in Dataverse → eigene Tabelle "Portalzugang" (Kontakt, Standort), siehe Tech Design (2026-10-08)
 - [x] Exakter Tabellen- und Feldname → `bmvcc_portalzugangs` / `bmvcc_kontakt` / `bmvcc_standort`, aus dem Schema gelesen (2026-10-09)
-- [ ] Kundenportal: Wie genau schränkt das Portal pro Standort ein (Sync der Zuordnung, Rechteprüfung)? — mit dem Kundenportal-Repo abstimmen, bevor das bisherige Häkchen abgelöst wird
+- [ ] Kundenportal: Umsetzung der Standort-Einschränkung — Auftrag am 2026-10-09 formuliert ([docs/kundenportal-auftrag-portalzugang.md](../docs/kundenportal-auftrag-portalzugang.md)); offen bis zur Rückmeldung, dass er im Kundenportal deployt ist
 - [x] Wer führt die einmalige Übernahme aus und wann? → Skript mit Probelauf, vom Entwickler lokal ausgeführt, nach dem Anlegen der Tabelle und vor dem Deployment (2026-10-08)
 
 ## Decision Log
