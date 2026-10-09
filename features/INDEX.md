@@ -44,7 +44,7 @@
 - PROJ-9: Requires PROJ-7 (signiert das dort erzeugte PDF) — Phase 1: keine externe Abhängigkeit (Test-Zertifikat + Gratis-Zeitstempel, nur lokal/Preview); Phase 2 extern: Zertifikat einer von Adobe anerkannten Zertifizierungsstelle + Signierdienst mit API (kostenpflichtig, Anbieterwahl offen)
 - PROJ-10: Requires PROJ-3, PROJ-4, PROJ-7 (Geräte, Prüfberichte und PDF beziehen sich künftig auf den gewählten Standort) — Dataverse: bestehende Beziehungen Firma → Standort (1:n) → Geräte (1:n), keine Schemaänderung
 - PROJ-11: Requires PROJ-1, PROJ-8, PROJ-10 — Dataverse: neue Zuordnung "Kundenportal-Zugang" Kontakt ↔ Standort (existiert heute nicht, vom Nutzer anzulegen, Form in /architecture) + Rechte; Cross-Repo: Kundenportal schränkt pro Standort ein (dort separat einzuplanen, Admin-Tool kann vorher live gehen)
-- PROJ-12: Requires PROJ-5, PROJ-6, PROJ-10 — Cross-Repo: Standort-Filter im Sync-Endpoint des Kundenportal-Repos; Dataverse: Spalte "Standort" in der Tabelle der Sync-Läufe
+- PROJ-12: Requires PROJ-5, PROJ-6, PROJ-10, PROJ-11 — Cross-Repo: Standort-Filter im Sync-Endpoint des Kundenportal-Repos; Dataverse: Spalte "Standort" in der Tabelle der Sync-Läufe. Hinweis Kundenportal (2026-10-09): Wechselt ein Standort die Firma, wirkt ein Zugang zu ihm erst wieder, wenn die neue Firma synchronisiert ist
 
 ## Empfohlene Baureihenfolge
 1. PROJ-1 und PROJ-2 parallel (beide unabhängig, beide Grundlage für alles Weitere)

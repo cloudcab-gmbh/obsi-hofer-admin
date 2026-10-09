@@ -1,10 +1,12 @@
 # Auftrag ans Kundenportal: Portal-Zugang pro Standort
 
 > Gegenstück zu **PROJ-11** im Admin-Tool (`features/PROJ-11-kundenportal-zugang-pro-standort.md`).
-> Erstellt 2026-10-09 für die Claude-Code-Session im Kundenportal-Repo. Status: **im Kundenportal spezifiziert (PROJ-15, P1), Deploy offen**.
+> Erstellt 2026-10-09 für die Claude-Code-Session im Kundenportal-Repo. Status: **erledigt — im Kundenportal deployt (PROJ-15, Tag v1.11.0-PROJ-15, 2026-10-09)**.
 
 ## Rückmeldungen aus dem Kundenportal
 - **2026-10-09:** Applikationsbenutzer des Kundenportals kann `bmvcc_portalzugang` lesen (rein lesend geprüft). Stand: 8 Zugänge für 4 Kontakte, keine verwaisten Datensätze; die 4 Kontakte mit Zugang sind genau die 4 mit `bmvcc_kundenportal`. Im Portal als **PROJ-15 (P1)** spezifiziert. Massgeblich wird nur noch die Tabelle — das Häkchen `bmvcc_kundenportal` prüft das Portal danach nicht mehr. Rückmeldung folgt nach dem Deploy.
+- **2026-10-09 — deployt** (Kundenportal PROJ-15, Tag `v1.11.0-PROJ-15`): Zugang und sichtbare Standorte kommen ausschliesslich aus `bmvcc_portalzugang`. Das Portal liest `bmvcc_kundenportal` nicht mehr (auch nicht beim Sync) — das Admin-Tool kann es als Übergangsfeld abbauen, ohne dass das Portal bricht. Der Sync pro Firma übernimmt die Zugänge der Standorte dieser Firma; gelöschte Zugänge verschwinden beim nächsten Sync der Firma (ohne 20-%-Schwelle). Kontakte mit Zugang werden auch ohne Relation zur Firma synchronisiert. Live getestet: bestehende Benutzer unverändert, Teil-Freigabe zeigt nur den freigegebenen Standort, Entzug + Sync ergibt "Kein Zugang".
+- **Hinweis für Admin-Tool PROJ-12 (Sync pro Standort):** Wechselt ein Standort die Firma, wirkt ein Zugang zu ihm erst wieder, wenn die neue Firma synchronisiert ist.
 
 ## Ausgangslage
 Bisher entscheidet das Ja/Nein-Feld `bmvcc_kundenportal` am Kontakt (`bmvcc_kontakt`), ob ein Kontakt Portal-Benutzer wird (Kundenportal PROJ-13). Ein Portal-Benutzer sieht alle Standorte seiner Firma.
