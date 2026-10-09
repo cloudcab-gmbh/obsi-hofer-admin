@@ -248,4 +248,15 @@ Keine neuen Pakete.
 - **Recommendation:** BUG-1/2 vor dem Einschalten des Schalters beheben; deployen (Schalter aus); Auftrag ans Kundenportal; nach Rückmeldung Schalter setzen und live testen
 
 ## Deployment
-_To be added by /deploy_
+
+### Code deployt, Schalter aus — 2026-10-09
+- **Production URL:** https://obsi-hofer-admin.vercel.app/sync-freigabe
+- **Commit:** `5feb2e2`, **Tag:** `v1.11.0-PROJ-12`
+- **Schalter `KUNDENPORTAL_STANDORT_SYNC_AKTIV`:** in Vercel **nicht gesetzt** (per `vercel env ls` geprüft, nur Namen) → die Freigabe-Seite überträgt wie bisher die ganze Firma; keine Verhaltensänderung für die Freigeber
+- **Verifikation:** Lokaler Produktions-Build, Lint, 424 Unit-Tests und 24 E2E-Tests grün; Vercel-Production-Build "Ready"; `/sync-freigabe` → 307 `/login`
+- **Status bleibt "Approved"** (wie PROJ-9 Phase 1): "Deployed" erst nach der Aktivierung
+
+### Noch offen bis zur Aktivierung
+1. Kundenportal setzt `docs/kundenportal-auftrag-sync-pro-standort.md` um und meldet den Deploy
+2. Nutzer setzt `KUNDENPORTAL_STANDORT_SYNC_AKTIV=true` (Vercel, Production) + Redeploy
+3. Live-Test: Standort A übertragen, Standort B im Portal unverändert; Verlauf mit Standort und Badge "ganze Firma"
