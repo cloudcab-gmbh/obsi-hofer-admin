@@ -1,7 +1,10 @@
 # Auftrag ans Kundenportal: Portal-Zugang pro Standort
 
 > Gegenstück zu **PROJ-11** im Admin-Tool (`features/PROJ-11-kundenportal-zugang-pro-standort.md`).
-> Erstellt 2026-10-09 für die Claude-Code-Session im Kundenportal-Repo. Status: **offen**.
+> Erstellt 2026-10-09 für die Claude-Code-Session im Kundenportal-Repo. Status: **im Kundenportal spezifiziert (PROJ-15, P1), Deploy offen**.
+
+## Rückmeldungen aus dem Kundenportal
+- **2026-10-09:** Applikationsbenutzer des Kundenportals kann `bmvcc_portalzugang` lesen (rein lesend geprüft). Stand: 8 Zugänge für 4 Kontakte, keine verwaisten Datensätze; die 4 Kontakte mit Zugang sind genau die 4 mit `bmvcc_kundenportal`. Im Portal als **PROJ-15 (P1)** spezifiziert. Massgeblich wird nur noch die Tabelle — das Häkchen `bmvcc_kundenportal` prüft das Portal danach nicht mehr. Rückmeldung folgt nach dem Deploy.
 
 ## Ausgangslage
 Bisher entscheidet das Ja/Nein-Feld `bmvcc_kundenportal` am Kontakt (`bmvcc_kontakt`), ob ein Kontakt Portal-Benutzer wird (Kundenportal PROJ-13). Ein Portal-Benutzer sieht alle Standorte seiner Firma.

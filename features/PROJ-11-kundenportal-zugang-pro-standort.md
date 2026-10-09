@@ -71,8 +71,10 @@
 ## Open Questions
 - [x] Form der neuen Zuordnung in Dataverse → eigene Tabelle "Portalzugang" (Kontakt, Standort), siehe Tech Design (2026-10-08)
 - [x] Exakter Tabellen- und Feldname → `bmvcc_portalzugangs` / `bmvcc_kontakt` / `bmvcc_standort`, aus dem Schema gelesen (2026-10-09)
-- [ ] Kundenportal: Umsetzung der Standort-Einschränkung — Auftrag am 2026-10-09 formuliert ([docs/kundenportal-auftrag-portalzugang.md](../docs/kundenportal-auftrag-portalzugang.md)); offen bis zur Rückmeldung, dass er im Kundenportal deployt ist
+- [ ] Kundenportal: Umsetzung der Standort-Einschränkung — Auftrag am 2026-10-09 formuliert ([docs/kundenportal-auftrag-portalzugang.md](../docs/kundenportal-auftrag-portalzugang.md)); offen bis zur Rückmeldung, dass er im Kundenportal deployt ist. **Stand 2026-10-09:** im Kundenportal als PROJ-15 (P1) spezifiziert, Lesezugriff des Portal-App-Benutzers auf `bmvcc_portalzugang` bestätigt, Daten konsistent (8 Zugänge / 4 Kontakte = 4 Kontakte mit Häkchen). Nach dem Portal-Deploy wertet das Portal das Häkchen nicht mehr aus
 - [x] Wer führt die einmalige Übernahme aus und wann? → Skript mit Probelauf, vom Entwickler lokal ausgeführt, nach dem Anlegen der Tabelle und vor dem Deployment (2026-10-08)
+
+- [ ] Nach dem Deploy von Kundenportal PROJ-15: Mitführen des Häkchens `bmvcc_kundenportal` im Admin-Tool abbauen (separater Aufräumschritt, eigenes kleines Ticket)
 
 ## Decision Log
 
