@@ -2,7 +2,9 @@
 
 ## Status: Deployed
 **Created:** 2026-10-06
-**Last Updated:** 2026-10-06
+**Last Updated:** 2026-10-11
+
+> **Abgelöst durch [PROJ-11](PROJ-11-kundenportal-zugang-pro-standort.md) (Kundenportal-Zugang pro Standort).** Das Häkchen `bmvcc_kundenportal` am Kontakt wird seit 2026-10-09 weder vom Admin-Tool geschrieben noch vom Kundenportal gelesen; massgeblich ist ausschliesslich die Tabelle Portalzugang (Kontakt ↔ Standort). Die Reste wurden am 2026-10-11 abgebaut (siehe "Abbau des Häkchens" am Ende). Die Spec unten beschreibt den ursprünglichen Stand und bleibt als Historie erhalten.
 
 ## Dependencies
 - Requires: PROJ-1 (Entra-ID-Login mit Rollen) — nur Freigeber dürfen Kontakte freigeben
@@ -71,6 +73,9 @@
 ## Open Questions
 - [x] Welche Kontakt-Rollen gibt es, sollen bestimmte ausgeblendet werden? — **geklärt (2026-10-06, nach Erteilen des Leserechts):** `bmvcc_role_description` ist Freitext aus Bexio (403 verschiedene Werte, 84 leer, z.B. "Geschäftsführer", "Hauswart"), keine Status-Rolle wie "ehemalig" → Rolle wird unverändert angezeigt, nichts ausgeblendet
 - [x] Ist die Zuordnung über `bmvcc_relation` vollständig gepflegt? — **geklärt:** 557 Relationen, alle mit Firma und Person, keine Duplikate; 546 Kontakte zugeordnet, 11 davon mehreren Firmen; 13 aktive Kontakte ohne Zuordnung; 277 von 305 Firmen haben mindestens einen Kontakt (siehe Edge Cases)
+- [x] Kann das Häkchen `bmvcc_kundenportal` abgebaut werden? → Ja, Kundenportal liest es nicht mehr ([Rückmeldung 2026-10-11](../docs/kundenportal-rueckmeldung-2026-10-11.md)); vollständiger Abbau beschlossen (2026-10-11)
+- [ ] Dataverse (Nutzer): Spalte `bmvcc_kundenportal` in `bmvcc_kontakt` löschen
+- [ ] Dataverse (Nutzer): Schreibrecht des App-Benutzers "# OBSI Hofer Admin" auf `bmvcc_kontakt` entziehen (Lesen und "Anfügen an" bleiben, PROJ-11 braucht sie)
 
 ## Decision Log
 
@@ -84,6 +89,8 @@
 | Freigabe-Änderungen werden sofort in Dataverse gespeichert, im Portal aber erst mit dem nächsten Sync wirksam (Hinweis auf der Seite) | Kein zusätzlicher Mechanismus zum Kundenportal nötig; konsistent mit dem Grundsatz "Sync nur manuell per Freigabe" | 2026-10-06 |
 | Bewusste, eng begrenzte Ausnahme vom PRD-Non-Goal "Keine Bearbeitung von Kontakten": nur das Häkchen `bmvcc_kundenportal` wird geschrieben | Die Portal-Zugangsentscheidung gehört fachlich ins Admin-Tool; alle übrigen Kontaktdaten bleiben Bexio/Dataverse-Stammdaten | 2026-10-06 |
 | Firma↔Kontakt-Zuordnung über `bmvcc_relation` (Bexio-Relation) | Einzige in den echten Daten befüllte Verknüpfung; `bmvcc_parent_account` und die N:N-Beziehung sind leer | 2026-10-06 |
+| Häkchen `bmvcc_kundenportal` komplett abbauen: Übernahme-Code löschen, Spalte in Dataverse löschen, Schreibrecht auf `bmvcc_kontakt` entziehen | Kundenportal bestätigt 2026-10-11, dass es das Feld weder liest noch beim Sync abfragt; das Admin-Tool schreibt es seit PROJ-11 nicht mehr, die einmalige Übernahme ist erledigt. Ein totes Feld würde Bearbeiter in Dataverse nur verwirren (Nutzer-Entscheidung) | 2026-10-11 |
+| PRD-Ausnahme vom Non-Goal "Keine Bearbeitung von Kontakten" entfällt | Das Admin-Tool ändert keine Kontaktfelder mehr; Portalzugänge sind eigene Datensätze (PROJ-11), keine Kontaktdaten | 2026-10-11 |
 
 ### Technical Decisions
 | Decision | Rationale | Date |
@@ -236,3 +243,10 @@ Umgesetzt in einem Durchlauf (UI + Server Action + Datenzugriff), wie bei PROJ-3
   - Nicht separat live geprüft: der BUG-1-Fix (Rücksetzen bei fehlgeschlagenem Aufruf) — per Komponententest abgedeckt
 - **Hinweis für den Betrieb:** Noch kein Kontakt ist fürs Kundenportal freigegeben (Ausnahme: Testkontakt wieder entzogen). Wirksam im Portal wird die Freigabe erst mit PROJ-5 und der Cross-Repo-Anpassung des Kundenportal-Syncs.
 - **Betriebshinweis (Stand 2026-10-07):** Seit PROJ-13 im Kundenportal deployt ist, wertet der Portal-Sync das Häkchen aus. Beim nächsten Sync einer Firma verlieren alle ihre Kontakte **ohne** Häkchen den Portal-Zugang — vor dem Sync die Kontakte der Firma freigeben.
+
+## Abbau des Häkchens — 2026-10-11
+- **Anlass:** Kundenportal-Rückmeldung vom 2026-10-11: `bmvcc_kundenportal` wird vom Portal weder gelesen noch beim Sync abgefragt und kann abgebaut werden
+- **Stand vorher:** Seit dem PROJ-11-Nachtrag vom 2026-10-09 schreibt das Admin-Tool das Feld nicht mehr. Gelesen wurde es nur noch vom einmaligen Übernahme-Skript (`scripts/portalzugaenge-uebernehmen.ts` mit Planung `src/lib/portalzugang-uebernahme.ts`), dessen Übernahme am 2026-10-09 ausgeführt wurde
+- **Repo:** Übernahme-Skript, Planung und deren Tests entfernt; danach liest oder schreibt kein Code mehr `bmvcc_kundenportal` (verbleibend nur ein Kommentar in `kontakte.ts` und der Regressionstest "no longer writes the former contact flag" in `kontakte.test.ts`). Typecheck, Lint und 419 Unit-Tests grün
+- **PRD:** Ausnahme beim Non-Goal "Keine Bearbeitung von Kontakten" entfernt, Roadmap-Zeile auf "abgelöst durch PROJ-11" angepasst
+- **Dataverse (vom Nutzer, offen):** Spalte `bmvcc_kundenportal` löschen; Schreibrecht des App-Benutzers auf `bmvcc_kontakt` entziehen

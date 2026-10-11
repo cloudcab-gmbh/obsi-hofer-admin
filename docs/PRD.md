@@ -19,7 +19,7 @@ Anmeldung über das bestehende Microsoft-365-/Entra-ID-Konto (interner Firmen-Te
 | P0 (MVP) | Geräte-Verwaltung (Anzeigen, Bearbeiten, live gegen Dataverse — keine Neuanlage, siehe PROJ-3 Product Decisions) | Deployed |
 | P0 (MVP) | Prüfberichte-Verwaltung (Erfassen, Bearbeiten, Stornieren statt Löschen) | Deployed |
 | P0 (MVP) | Sync-Freigabe pro Firma (löst den angepassten Kundenportal-Sync-Endpoint gezielt für eine Firma aus) | Deployed |
-| P0 (MVP) | Kundenportal-Zugang pro Kontakt (Freigeber setzt pro Kontakt der Firma das Häkchen „Kundenportal“; Voraussetzung für den Sync) | Deployed |
+| P0 (MVP) | Kundenportal-Zugang pro Kontakt (Freigeber setzt pro Kontakt der Firma das Häkchen „Kundenportal“; Voraussetzung für den Sync) — abgelöst durch den Zugang pro Standort, Häkchen abgebaut 2026-10-11 | Deployed |
 | P1 | Sync-Status/-Verlauf einsehen (letzter Lauf pro Firma, Erfolg/Fehler, Zeitpunkt) | Deployed |
 | P1 | PDF-Export Prüfberichte (kundenspezifisches Excel-Template pro Firma, via SharePoint) | Deployed |
 | P0 | PDF-Export digital signieren (elektronisches Firmen-Siegel von OBSI Hofer, im PDF-Viewer als gültig signiert erkennbar) | Planned |
@@ -36,13 +36,13 @@ Anmeldung über das bestehende Microsoft-365-/Entra-ID-Konto (interner Firmen-Te
 - Team: 1 Entwickler (Nutzer selbst), mehrere interne Nutzer (Bearbeiter/Freigeber)
 - Backend: Dataverse Web API direkt, kein eigenes Supabase-Projekt — Rollen über Entra-ID-App-Roles, keine eigene Datenbank
 - Sync-Trigger ruft den bestehenden `/api/cron/sync-dataverse`-Endpoint des Kundenportal-Repos auf (mit `CRON_SECRET`) — keine Duplikation der Sync-Logik
-- **Cross-Repo-Abhängigkeit:** Der bestehende Sync-Endpoint muss im Kundenportal-Repo (separates Projekt) um einen optionalen Firma-Filter erweitert werden (aktuell synct er global) — Voraussetzung für die Sync-Freigabe-Feature. Artikel (`dv_artikel`, firmenübergreifende Stammdaten) werden bei jeder Firma-Freigabe der Einfachheit halber mitsynchronisiert (kleine Datenmenge). Zusätzlich muss der Kundenportal-Sync künftig nur Kontakte mit gesetztem Häkchen `bmvcc_kundenportal` als Portal-Benutzer übernehmen (PROJ-8) **— umgesetzt und deployt 2026-10-07 (Kundenportal PROJ-12: Firma-Filter, inzwischen Pflichtparameter; PROJ-13: Häkchen-Auswertung).**
+- **Cross-Repo-Abhängigkeit:** Der bestehende Sync-Endpoint muss im Kundenportal-Repo (separates Projekt) um einen optionalen Firma-Filter erweitert werden (aktuell synct er global) — Voraussetzung für die Sync-Freigabe-Feature. Artikel (`dv_artikel`, firmenübergreifende Stammdaten) werden bei jeder Firma-Freigabe der Einfachheit halber mitsynchronisiert (kleine Datenmenge). Zusätzlich muss der Kundenportal-Sync künftig nur Kontakte mit gesetztem Häkchen `bmvcc_kundenportal` als Portal-Benutzer übernehmen (PROJ-8) **— umgesetzt und deployt 2026-10-07 (Kundenportal PROJ-12: Firma-Filter, inzwischen Pflichtparameter; PROJ-13: Häkchen-Auswertung).** Inzwischen abgelöst: Das Portal wertet nur noch die Portalzugänge pro Standort aus (Kundenportal PROJ-15, Admin-Tool PROJ-11).
 - Der bisherige automatische nächtliche Cron-Trigger (`vercel.json`, 03:00 Uhr) im Kundenportal-Repo entfällt vollständig
 - Design: übernimmt das bestehende Design-System des Kundenportals (`globals.css`, Stahlblau-Palette) sowie shadcn/ui-Komponenten
 - Auth: Microsoft Entra ID, interner OBSI-Hofer-Firmen-Tenant
 
 ## Non-Goals
-- Keine Bearbeitung von Firmen/Kontakten/Artikeln (bleiben Stammdaten, weiterhin direkt in Dataverse gepflegt) — einzige, bewusst eng begrenzte Ausnahme: das Freigabe-Häkchen `bmvcc_kundenportal` eines Kontakts (PROJ-8)
+- Keine Bearbeitung von Firmen/Kontakten/Artikeln (bleiben Stammdaten, weiterhin direkt in Dataverse gepflegt). Portalzugänge pro Standort (PROJ-11) sind eigene Datensätze, keine Kontaktdaten; das frühere Häkchen `bmvcc_kundenportal` (PROJ-8) ist seit 2026-10-11 abgebaut
 - Kein echtes Löschen von Prüfberichten (nur Stornieren/Ungültig-Markierung)
 - Kein Kundenzugriff — rein internes Tool
 - Keine eigene Datenbank/kein Supabase-Projekt für dieses Tool
