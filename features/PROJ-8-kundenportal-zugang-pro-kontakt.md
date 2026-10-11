@@ -74,8 +74,8 @@
 - [x] Welche Kontakt-Rollen gibt es, sollen bestimmte ausgeblendet werden? — **geklärt (2026-10-06, nach Erteilen des Leserechts):** `bmvcc_role_description` ist Freitext aus Bexio (403 verschiedene Werte, 84 leer, z.B. "Geschäftsführer", "Hauswart"), keine Status-Rolle wie "ehemalig" → Rolle wird unverändert angezeigt, nichts ausgeblendet
 - [x] Ist die Zuordnung über `bmvcc_relation` vollständig gepflegt? — **geklärt:** 557 Relationen, alle mit Firma und Person, keine Duplikate; 546 Kontakte zugeordnet, 11 davon mehreren Firmen; 13 aktive Kontakte ohne Zuordnung; 277 von 305 Firmen haben mindestens einen Kontakt (siehe Edge Cases)
 - [x] Kann das Häkchen `bmvcc_kundenportal` abgebaut werden? → Ja, Kundenportal liest es nicht mehr ([Rückmeldung 2026-10-11](../docs/kundenportal-rueckmeldung-2026-10-11.md)); vollständiger Abbau beschlossen (2026-10-11)
-- [ ] Dataverse (Nutzer): Spalte `bmvcc_kundenportal` in `bmvcc_kontakt` löschen
-- [ ] Dataverse (Nutzer): Schreibrecht des App-Benutzers "# OBSI Hofer Admin" auf `bmvcc_kontakt` entziehen (Lesen und "Anfügen an" bleiben, PROJ-11 braucht sie)
+- [x] Dataverse (Nutzer): Spalte `bmvcc_kundenportal` in `bmvcc_kontakt` löschen → erledigt, rein lesend verifiziert (Attribut-Abfrage 404) (2026-10-11)
+- [x] Dataverse (Nutzer): Schreibrecht des App-Benutzers "# OBSI Hofer Admin" auf `bmvcc_kontakt` entziehen (Lesen und "Anfügen an" bleiben, PROJ-11 braucht sie) → erledigt, per `RetrieveUserPrivileges` verifiziert: auf `bmvcc_kontakt` nur noch Lesen und Anfügen an (Organisation), Lesen funktional geprüft (2026-10-11)
 
 ## Decision Log
 
@@ -249,4 +249,5 @@ Umgesetzt in einem Durchlauf (UI + Server Action + Datenzugriff), wie bei PROJ-3
 - **Stand vorher:** Seit dem PROJ-11-Nachtrag vom 2026-10-09 schreibt das Admin-Tool das Feld nicht mehr. Gelesen wurde es nur noch vom einmaligen Übernahme-Skript (`scripts/portalzugaenge-uebernehmen.ts` mit Planung `src/lib/portalzugang-uebernahme.ts`), dessen Übernahme am 2026-10-09 ausgeführt wurde
 - **Repo:** Übernahme-Skript, Planung und deren Tests entfernt; danach liest oder schreibt kein Code mehr `bmvcc_kundenportal` (verbleibend nur ein Kommentar in `kontakte.ts` und der Regressionstest "no longer writes the former contact flag" in `kontakte.test.ts`). Typecheck, Lint und 419 Unit-Tests grün
 - **PRD:** Ausnahme beim Non-Goal "Keine Bearbeitung von Kontakten" entfernt, Roadmap-Zeile auf "abgelöst durch PROJ-11" angepasst
-- **Dataverse (vom Nutzer, offen):** Spalte `bmvcc_kundenportal` löschen; Schreibrecht des App-Benutzers auf `bmvcc_kontakt` entziehen
+- **Dataverse (vom Nutzer, erledigt):** Spalte `bmvcc_kundenportal` gelöscht; Schreibrecht des App-Benutzers auf `bmvcc_kontakt` entzogen. Verbleibende Rechte auf `bmvcc_kontakt`: Lesen + Anfügen an (Organisation)
+- **Stolperstein:** Beim Entziehen fielen zunächst alle Rechte auf `bmvcc_kontakt` weg (Lesen → 403), was Kontaktliste und Portalzugänge auf `/sync-freigabe` gebrochen hätte; Lesen und Anfügen an wurden gleichentags wiederhergestellt und verifiziert
