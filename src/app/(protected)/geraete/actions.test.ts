@@ -214,9 +214,11 @@ describe("generatePdfAction", () => {
 
     await generatePdfAction(["g1"], null);
 
-    const [{ firmaName, standortName }] = generatePruefberichtPdf.mock.calls[0];
+    const [{ firmaName, standortName, standortVollname }] = generatePruefberichtPdf.mock.calls[0];
     expect(firmaName).toBe(NAME);
     expect(standortName).toBe("Pratteln");
+    // Kopfbereich: voller Standort-Name.
+    expect(standortVollname).toBe(`${NAME} - Pratteln`);
   });
 
   it("uses no Standort folder when the Standort is named exactly like the Firma (main site)", async () => {
@@ -227,8 +229,9 @@ describe("generatePdfAction", () => {
 
     await generatePdfAction(["g1"], null);
 
-    const [{ standortName }] = generatePruefberichtPdf.mock.calls[0];
+    const [{ standortName, standortVollname }] = generatePruefberichtPdf.mock.calls[0];
     expect(standortName).toBeNull();
+    expect(standortVollname).toBeNull();
   });
 
   it("silently drops a requested id that doesn't belong to the current Standort's Geräte", async () => {

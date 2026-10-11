@@ -60,8 +60,8 @@ function zellFarbe(zeile: TableCell[], spalte: number): string | undefined {
 }
 
 describe("buildDocumentDefinition", () => {
-  // PROJ-10: Standort unter dem Firmennamen, nur wenn angegeben.
-  it("shows the Standort below the Firma name in the header only when given", () => {
+  // PROJ-10: Standort statt Firmenname, nur wenn angegeben.
+  it("shows the Standort instead of the Firma name in the header only when given", () => {
     const basis = {
       headerZeile: HEADER,
       mapping: mapping(),
@@ -74,8 +74,12 @@ describe("buildDocumentDefinition", () => {
     const kopfTexte = (doc: ReturnType<typeof buildDocumentDefinition>) =>
       JSON.stringify((doc.content as unknown[])[0]);
 
-    expect(kopfTexte(buildDocumentDefinition(basis))).not.toContain("Haupthaus");
-    expect(kopfTexte(buildDocumentDefinition({ ...basis, standortName: "Haupthaus" }))).toContain('"text":"Haupthaus"');
+    const ohneStandort = kopfTexte(buildDocumentDefinition(basis));
+    expect(ohneStandort).toContain('"text":"Beispiel-Firma"');
+    expect(ohneStandort).not.toContain("Haupthaus");
+    const mitStandort = kopfTexte(buildDocumentDefinition({ ...basis, standortName: "Haupthaus" }));
+    expect(mitStandort).toContain('"text":"Haupthaus"');
+    expect(mitStandort).not.toContain("Beispiel-Firma");
   });
 
   // PROJ-9: sichtbarer Signaturvermerk nur, wenn signiert wird.

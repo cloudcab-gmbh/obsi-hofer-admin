@@ -332,14 +332,14 @@ function buildTableBody(
 function buildKopfbereich(firmaName: string, standortName: string | null, logoDataUrl: string | null): Content {
   const spalten: Column[] = [];
   if (logoDataUrl) {
-    spalten.push({ image: logoDataUrl, width: 70 });
+    spalten.push({ image: logoDataUrl, width: 30 });
   }
   spalten.push({
     stack: [
       { text: "Prüfbericht Absturzsicherungen", bold: true, fontSize: 14 },
-      { text: firmaName, bold: true, fontSize: 14, margin: [0, 6, 0, 0] },
-      // PROJ-10: Standort unter dem Firmennamen, nur bei Firmen mit mehreren Standorten.
-      ...(standortName ? [{ text: standortName, fontSize: 12, margin: [0, 2, 0, 0] as [number, number, number, number] }] : []),
+      // PROJ-10: Bei Firmen mit mehreren Standorten steht nur der Standort im Kopf,
+      // sonst der Firmenname.
+      { text: standortName ?? firmaName, bold: true, fontSize: 14, margin: [0, 6, 0, 0] },
     ],
     width: "*",
   });
@@ -364,7 +364,7 @@ export interface PdfBuildInput {
   textMesser?: TextMesser;
   /** PROJ-9: sichtbarer Signaturvermerk in der Fusszeile jeder Seite; fehlt → keine Fusszeile (unsigniert). */
   signaturVermerk?: string;
-  /** PROJ-10: Standort im Kopfbereich (nur bei Firmen mit mehreren Standorten). */
+  /** PROJ-10: voller Standort-Name im Kopfbereich statt des Firmennamens (nur bei Firmen mit mehreren Standorten). */
   standortName?: string;
 }
 

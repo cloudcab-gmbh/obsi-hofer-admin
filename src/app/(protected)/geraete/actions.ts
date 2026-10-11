@@ -84,10 +84,13 @@ export async function generatePdfAction(geraetIds: string[], lagerortFilter: str
     const geraetById = new Map(geraeteDesStandorts.map((g) => [g.id, g]));
     const geraete = [...new Set(geraetIds)].flatMap((id) => geraetById.get(id) ?? []);
 
+    const standortName = pdfStandortZusatz(kontext);
     const { pdfBuffer, dateiname } = await generatePruefberichtPdf({
       firmaName: kontext.firma.name,
       // Nur bei mehreren Standorten bzw. gleichnamigen Firmen in Dateiname, Kopfbereich und Ablage.
-      standortName: pdfStandortZusatz(kontext),
+      standortName,
+      // Im Kopfbereich der volle Standort-Name (statt Firma + Kurzname).
+      standortVollname: standortName ? kontext.standort.name.trim() : null,
       geraete,
       lagerortFilter,
     });

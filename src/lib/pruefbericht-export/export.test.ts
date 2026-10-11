@@ -336,6 +336,22 @@ describe("generatePruefberichtPdf", () => {
       expect(optionen).toEqual({ standortName: "Haupthaus" });
     });
 
+    it("shows the full Standort name in the header, but keeps the short name for file name and folder", async () => {
+      const { dateiname } = await generatePruefberichtPdf({
+        firmaName: "Bilfinger AG",
+        standortName: "Pratteln",
+        standortVollname: "Bilfinger AG - Pratteln",
+        geraete: [geraet()],
+        lagerortFilter: null,
+      });
+
+      expect(dateiname).toMatch(/ - Bilfinger AG - Pratteln\.pdf$/);
+      const [archivPfad] = uploadKundenDateiMock.mock.calls[0];
+      expect(archivPfad).toContain("Bilfinger AG/Standort Pratteln/");
+      const [, , , optionen] = erzeugePdfMock.mock.calls[0];
+      expect(optionen).toEqual({ standortName: "Bilfinger AG - Pratteln" });
+    });
+
     it("keeps looking for the template per Firma", async () => {
       await generatePruefberichtPdf({ firmaName: "Rehaklinik Bellikon", standortName: "Haupthaus", geraete: [geraet()], lagerortFilter: null });
       expect(downloadKundenDateiMock).toHaveBeenCalledWith("Rehaklinik Bellikon/Prüfberichte/vorlage_pruefberichtraport.xlsx");

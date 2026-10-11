@@ -333,3 +333,8 @@ Keine neuen Pakete.
 - **Verifikation:** Lokaler Produktions-Build, Lint, 375 Unit-Tests und 24 E2E-Tests grün; Vercel-Production-Build "Ready"; `/start`, `/geraete`, `/pruefberichte` antworten unauthentifiziert mit 307 → `/login`. Funktion vorab vom Nutzer lokal gegen die echten Daten geprüft (Firmen-/Standortauswahl, Header, PDF-Ablage im Standort-Ordner).
 - **Hinweis für bestehende Sitzungen:** Bei Firmen mit genau einem Standort ändert sich nichts (automatische Wahl). Wer eine Firma mit mehreren Standorten gewählt hatte, sieht auf Geräte/Prüfberichte einen Hinweis und wählt einmal den Standort auf der Startseite.
 - **Offen (Low):** QA BUG-2 (abgelehnte Standort-Wahl ohne Meldung), BUG-3 (bereits gewählte inaktive Firma bleibt aktiv).
+
+### Nachtrag 2026-10-11: PDF-Kopfbereich
+- Bei Firmen mit mehreren Standorten (bzw. gleichnamigen Firmen) steht im Kopf nur noch der **volle Standort-Name** statt Firmenname + Kurzname; bei Firmen mit einem Standort weiterhin der Firmenname. Dateiname und SharePoint-Ordner nutzen unverändert den Kurznamen.
+- Logo im PDF-Kopf verkleinert (Breite 70 → 30 pt).
+- Tag: `v1.11.1-PROJ-10`

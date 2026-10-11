@@ -115,6 +115,8 @@ export interface GeneratePdfParams {
    * Ablageordner "Standort <Name>". `null`: alles wie bisher.
    */
   standortName?: string | null;
+  /** Voller Standort-Name für den Kopfbereich; fehlt → Kurzname. Nur wirksam mit `standortName`. */
+  standortVollname?: string | null;
   geraete: Geraet[];
   lagerortFilter: string | null;
 }
@@ -164,7 +166,7 @@ export async function generatePruefberichtPdf(params: GeneratePdfParams): Promis
   // Vorlage bleibt pro Firma (PROJ-10 Product Decision).
   const vorlageBuffer = await ladeVorlage(firmaOrdner);
   const dateiname = buildDateiname(firmaName, standortName, lagerortFilter);
-  const kopfOptionen = standortName ? { standortName } : {};
+  const kopfOptionen = standortName ? { standortName: params.standortVollname || standortName } : {};
 
   if (signatur.modus === "test") {
     // PROJ-9 Phase 1: Vermerk mit Test-Kennzeichnung, Signatur mit dem
