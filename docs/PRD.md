@@ -25,7 +25,7 @@ Anmeldung über das bestehende Microsoft-365-/Entra-ID-Konto (interner Firmen-Te
 | P0 | PDF-Export digital signieren (elektronisches Firmen-Siegel von OBSI Hofer, im PDF-Viewer als gültig signiert erkennbar) | Planned |
 | P1 | Standort als Arbeitskontext (Auswahl Firma → Standort; Geräte, Prüfberichte und PDF beziehen sich auf den Standort) | Deployed |
 | P1 | Kundenportal-Zugang pro Standort | Deployed |
-| P1 | Sync-Freigabe und -Verlauf pro Standort | Planned |
+| P1 | Sync-Freigabe und -Verlauf pro Standort | Deployed |
 
 ## Success Metrics
 - Keine direkte Dateneingabe mehr in Dataverse/Dynamics nötig für Geräte/Prüfberichte

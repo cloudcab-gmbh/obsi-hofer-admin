@@ -1,8 +1,8 @@
 # PROJ-12: Sync-Freigabe und -Verlauf pro Standort
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-10-09
-**Last Updated:** 2026-10-09
+**Last Updated:** 2026-10-11
 
 ## Dependencies
 - Requires: PROJ-5 (Sync-Freigabe pro Firma) — Button, Bestätigungsdialog, Aufruf des Kundenportal-Syncs
@@ -66,8 +66,8 @@
 - Der Standort-Parameter darf nie dazu führen, dass mehr als die gewählte Firma übertragen wird (bestehende Absicherungen aus PROJ-5 bleiben)
 
 ## Open Questions
-- [ ] Kundenportal: Schnittstelle für den Standort — Vorschlag: Parameter `standortId` zusätzlich zu `firmaId`; in der Antwort Rückmeldung des Umfangs (übertragener Standort bzw. Anzahl geladener Standorte). Auftrag formuliert 2026-10-09 ([docs/kundenportal-auftrag-sync-pro-standort.md](../docs/kundenportal-auftrag-sync-pro-standort.md)): Parameter `standortId`, Rückmeldung `scope` in der Antwort; offen bis zur Rückmeldung des Kundenportals
-- [ ] Werden Kontakte/Zugänge anderer Standorte bei einem Standort-Lauf im Portal unverändert gelassen? (Erwartung: ja) — mit Kundenportal klären
+- [x] Kundenportal: Schnittstelle für den Standort — Vorschlag: Parameter `standortId` zusätzlich zu `firmaId`; in der Antwort Rückmeldung des Umfangs (übertragener Standort bzw. Anzahl geladener Standorte). Auftrag formuliert 2026-10-09 ([docs/kundenportal-auftrag-sync-pro-standort.md](../docs/kundenportal-auftrag-sync-pro-standort.md)): Parameter `standortId`, Rückmeldung `scope` in der Antwort; umgesetzt im Kundenportal PROJ-16, bestätigt 2026-10-11
+- [x] Werden Kontakte/Zugänge anderer Standorte bei einem Standort-Lauf im Portal unverändert gelassen? (Erwartung: ja) — bestätigt vom Kundenportal 2026-10-11
 - [x] Exakter Name der neuen Verlaufsspalte → `bmvcc_standort` (Navigation `bmvcc_Standort`), aus dem Schema gelesen (2026-10-09)
 
 ## Decision Log
@@ -260,3 +260,10 @@ Keine neuen Pakete.
 1. Kundenportal setzt `docs/kundenportal-auftrag-sync-pro-standort.md` um und meldet den Deploy
 2. Nutzer setzt `KUNDENPORTAL_STANDORT_SYNC_AKTIV=true` (Vercel, Production) + Redeploy
 3. Live-Test: Standort A übertragen, Standort B im Portal unverändert; Verlauf mit Standort und Badge "ganze Firma"
+
+### Aktiviert — 2026-10-11
+- **Kundenportal:** Sync pro Standort live (dort PROJ-16), Rückmeldung in [docs/kundenportal-rueckmeldung-2026-10-11.md](../docs/kundenportal-rueckmeldung-2026-10-11.md)
+- **Schalter `KUNDENPORTAL_STANDORT_SYNC_AKTIV`:** in Vercel Production gesetzt; aktiv seit dem Production-Deployment vom 2026-10-11 (Commit `81876a6`)
+- **Live-Test:** vom Kundenportal mit gesetztem Schalter durchgeführt — Antwort liefert `scope.standortId`, `standorte.fetched` = 1, übrige Standorte unverändert. Der Schalter bleibt aktiv
+- **Hinweise des Kundenportals:** Bei einem Firmenwechsel eines Standorts genügt ein Standort-Lauf bei der neuen Firma. Die 20-%-Löschbremse greift erst ab mehr als 10 vorher bekannten Einträgen; Portalzugänge werden immer ohne Bremse gelöscht
+- **Status:** Deployed
