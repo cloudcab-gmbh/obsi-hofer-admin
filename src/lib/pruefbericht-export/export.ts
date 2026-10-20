@@ -87,6 +87,28 @@ function zuExportZeile(geraet: Geraet, pruefbericht: Pruefbericht, artikel: Arti
   };
 }
 
+const textVergleich = new Intl.Collator("de-CH", { numeric: true, sensitivity: "base" });
+const SORTIER_FELDER = ["lagerort", "artikel", "typ", "serienummer", "barcode"] as const;
+
+// Feste Reihenfolge der PDF-Zeilen (Nutzer-Vorgabe 2026-10-20), unabhängig von
+// der Spaltensortierung der Geräteliste: Lagerort → Artikel → Typ → Serien-Nr.
+// → Scancode. Leere Werte stehen pro Feld am Ende; bei vollem Gleichstand
+// bleibt die übergebene Reihenfolge (stabile Sortierung).
+export function sortiereExportZeilen(zeilen: ExportZeile[]): ExportZeile[] {
+  return [...zeilen].sort((a, b) => {
+    for (const feld of SORTIER_FELDER) {
+      const wa = a[feld]?.trim() || null;
+      const wb = b[feld]?.trim() || null;
+      if (wa === wb) continue;
+      if (wa === null) return 1;
+      if (wb === null) return -1;
+      const diff = textVergleich.compare(wa, wb);
+      if (diff !== 0) return diff;
+    }
+    return 0;
+  });
+}
+
 /**
  * Fester Dateiname der firmenspezifischen Vorlage, direkt im Ordner
  * `<Firma>/Prüfberichte/` (Nutzer-Entscheidung 2026-10-06): kein Jahresordner,
@@ -145,12 +167,14 @@ export async function generatePruefberichtPdf(params: GeneratePdfParams): Promis
   const artikelIds = geraeteMitPruefbericht.map((g) => g.artikelId).filter((id): id is string => !!id);
   const artikelMap = await listArtikelByIds(artikelIds);
 
-  const zeilen = geraeteMitPruefbericht.map((geraet) =>
-    zuExportZeile(
-      geraet,
-      // Vorhandensein bereits oben via `geraeteMitPruefbericht`-Filter sichergestellt.
-      pruefberichte.get(geraet.id)!,
-      geraet.artikelId ? artikelMap.get(geraet.artikelId) : undefined
+  const zeilen = sortiereExportZeilen(
+    geraeteMitPruefbericht.map((geraet) =>
+      zuExportZeile(
+        geraet,
+        // Vorhandensein bereits oben via `geraeteMitPruefbericht`-Filter sichergestellt.
+        pruefberichte.get(geraet.id)!,
+        geraet.artikelId ? artikelMap.get(geraet.artikelId) : undefined
+      )
     )
   );
 

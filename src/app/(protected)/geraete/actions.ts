@@ -79,8 +79,10 @@ export async function generatePdfAction(geraetIds: string[], lagerortFilter: str
     if (kontext.zustand !== "bereit") return { success: false, message: "Kein Standort ausgewählt." };
 
     const geraeteDesStandorts = await listGeraeteForStandorte([kontext.standort.id]);
-    // Reihenfolge der Client-IDs übernehmen (= Sortierung der Geräteliste),
-    // die Daten selbst aber nur aus der Standort-gescopten Liste.
+    // Auswahl und Reihenfolge der Client-IDs übernehmen, die Daten selbst aber
+    // nur aus der Standort-gescopten Liste. Die PDF-Zeilen sortiert der Export
+    // danach fest (sortiereExportZeilen); die Reihenfolge hier entscheidet nur
+    // bei vollem Gleichstand.
     const geraetById = new Map(geraeteDesStandorts.map((g) => [g.id, g]));
     const geraete = [...new Set(geraetIds)].flatMap((id) => geraetById.get(id) ?? []);
 

@@ -89,7 +89,8 @@ export function GeraeteListe({
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [geraete]);
 
-  // Gefiltert UND sortiert — die Reihenfolge bestimmt auch die Reihenfolge im PDF-Export.
+  // Gefiltert UND sortiert. Der PDF-Export übernimmt die Auswahl, sortiert aber
+  // fest nach Lagerort, Artikel, Typ, Serien-Nr., Scancode (sortiereExportZeilen).
   const gefiltert = useMemo(() => {
     const treffer = geraete.filter((g) =>
       matchesGeraeteFilter(g, {

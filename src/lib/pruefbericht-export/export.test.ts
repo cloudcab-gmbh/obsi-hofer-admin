@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Geraet } from "@/lib/dataverse/geraete";
 import type { Pruefbericht } from "@/lib/dataverse/pruefberichte";
+import type { ExportZeile } from "./feld-mapping";
 
 const listArtikelByIdsMock = vi.fn();
 vi.mock("@/lib/dataverse/geraete", () => ({ listArtikelByIds: (...args: unknown[]) => listArtikelByIdsMock(...args) }));
@@ -30,7 +31,7 @@ vi.mock("@/lib/pdf-signatur/signiere-pdf", () => ({ signierePdf: (...args: unkno
 const holeZeitstempelMock = vi.fn();
 vi.mock("@/lib/pdf-signatur/zeitstempel", () => ({ holeZeitstempel: (...args: unknown[]) => holeZeitstempelMock(...args) }));
 
-import { generatePruefberichtPdf, ExportFehler } from "./export";
+import { generatePruefberichtPdf, ExportFehler, sortiereExportZeilen } from "./export";
 import { SignaturFehler } from "@/lib/pdf-signatur/konfiguration";
 import { SharePointError } from "@/lib/sharepoint/errors";
 
@@ -228,6 +229,22 @@ describe("generatePruefberichtPdf", () => {
     expect(zeilen[0]).toMatchObject({ herstelljahr: "01.2017" });
   });
 
+  it("hands the rows to the PDF generator sorted by Lagerort, not in the order of the Geräteliste", async () => {
+    getAktuellstePruefberichteForGeraeteMock.mockResolvedValue(
+      new Map([["g1", pruefbericht()], ["g2", pruefbericht()]])
+    );
+    downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
+
+    await generatePruefberichtPdf({
+      firmaName: "Firma",
+      geraete: [geraet({ id: "g1", lagerort: "Trakt 2" }), geraet({ id: "g2", lagerort: "Trakt 1" })],
+      lagerortFilter: null,
+    });
+
+    const [, zeilen] = erzeugePdfMock.mock.calls[0];
+    expect(zeilen.map((z: { lagerort: string }) => z.lagerort)).toEqual(["Trakt 1", "Trakt 2"]);
+  });
+
   describe("PROJ-9 Signatur", () => {
     const testSchluessel = { zertifikatDer: Buffer.from([0]), unterschreibe: vi.fn() };
 
@@ -377,5 +394,43 @@ describe("generatePruefberichtPdf", () => {
       expect(archivPfad).toBe(`Firma/Prüfberichte/${new Date().getFullYear()}/${dateiname}`);
       expect(erzeugePdfMock.mock.calls[0]).toHaveLength(3);
     });
+  });
+});
+
+describe("sortiereExportZeilen", () => {
+  const leer: ExportZeile = {
+    lagerort: null, invNr: null, artikel: null, typ: null, dimension: null, serienummer: null, barcode: null,
+    hersteller: null, herstelljahr: null, erstgebrauch: null, ablegereife: null, zubehoer: null, kundenId: null,
+    geprueft: null, pruefer: null, pruefergebnis: null, bemerkungen: null,
+  };
+  const zeile = (invNr: string, werte: Partial<ExportZeile>): ExportZeile => ({ ...leer, invNr, ...werte });
+  const reihenfolge = (zeilen: ExportZeile[]) => sortiereExportZeilen(zeilen).map((z) => z.invNr);
+
+  it("sorts by Lagerort, Artikel, Typ, Serien-Nr. and Scancode in that order", () => {
+    expect(
+      reihenfolge([
+        zeile("d", { lagerort: "Trakt 2", artikel: "Auffanggurt" }),
+        zeile("c", { lagerort: "Trakt 1", artikel: "Seil", typ: "B", serienummer: "1" }),
+        zeile("b", { lagerort: "Trakt 1", artikel: "Seil", typ: "A", serienummer: "9" }),
+        zeile("e", { lagerort: "Trakt 1", artikel: "Seil", typ: "B", serienummer: "1", barcode: "X2" }),
+        zeile("a", { lagerort: "Trakt 1", artikel: "Auffanggurt", typ: "Z" }),
+        zeile("f", { lagerort: "Trakt 1", artikel: "Seil", typ: "B", serienummer: "1", barcode: "X1" }),
+      ])
+    ).toEqual(["a", "b", "f", "e", "c", "d"]);
+  });
+
+  it("compares numbers naturally and ignores case", () => {
+    expect(reihenfolge([zeile("b", { lagerort: "trakt 10" }), zeile("a", { lagerort: "Trakt 2" })])).toEqual(["a", "b"]);
+  });
+
+  it("puts empty values last for each field and keeps the given order on a full tie", () => {
+    expect(
+      reihenfolge([
+        zeile("ohne-lagerort", { artikel: "Auffanggurt" }),
+        zeile("x", { lagerort: "Trakt 1" }),
+        zeile("y", { lagerort: "Trakt 1", artikel: "  " }),
+        zeile("z", { lagerort: "Trakt 1", artikel: "Seil" }),
+      ])
+    ).toEqual(["z", "x", "y", "ohne-lagerort"]);
   });
 });

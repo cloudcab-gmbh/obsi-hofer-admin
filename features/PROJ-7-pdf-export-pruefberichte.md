@@ -2,7 +2,7 @@
 
 ## Status: Deployed
 **Created:** 2026-10-05
-**Last Updated:** 2026-10-06
+**Last Updated:** 2026-10-20
 
 ## Dependencies
 - Requires: PROJ-1 (Entra-ID-Login mit Rollen) — Bearbeiter/Freigeber müssen eingeloggt sein
@@ -293,3 +293,9 @@ Siehe Decision Log → Technical Decisions oben.
 - **Voraussetzungen vom Nutzer bereits erledigt:** Microsoft-Graph-Berechtigung (`Sites.Selected`, `write`) für die App "OBSI Hofer Admin" auf die Site `obsihofer.sharepoint.com` gewährt; Standard-Vorlage unter `Kunden/_PBVorlage/pruefberichtraport.xlsx` abgelegt; `SHAREPOINT_STANDARD_VORLAGE_PFAD=_PBVorlage/pruefberichtraport.xlsx` in Vercel (Production) gesetzt
 - **Verifiziert:** Produktions-Build erfolgreich, `https://obsi-hofer-admin.vercel.app/login` antwortet mit HTTP 200 (keine Regression). Der eigentliche Export gegen die echte SharePoint-Instanz (Logo-Erhalt in der Arbeitskopie, tatsächliches Verhalten der Graph-PDF-Konvertierung, echte bedingte Formatierung) ist aus der Code-Umgebung heraus nicht testbar — **steht als Live-Verifikation durch den Nutzer noch aus**, idealerweise einmal für eine Firma mit eigener Jahres-Vorlage und einmal für eine ohne (Standard-Vorlage-Fallback)
 - **Live-Abnahme durch den Nutzer (2026-10-06):** Export nach allen Nachbesserungen (pdfmake-Rendering, Spaltenbreiten, Tabellen-Optik, Seitenumbruch, feste Vorlage `vorlage_pruefberichtraport.xlsx`, Seriennummern-Umbruch) für "9.81 Arbeitssicherheit AG" und "Rehaklinik Bellikon" geprüft und als erledigt/ok abgenommen. Live gesehen: Firmen-Vorlage, Gerätedaten mit Prüfbericht, Farben Freigabe/keine Freigabe, mehrseitige Tabelle. Die übrigen Acceptance Criteria (Standard-Vorlage-Fallback, leere Liste, Lagerort-Zusatz im Dateinamen, "letzte Freigabe"-Farbe, Ausschluss nie geprüfter Geräte) sind per Unit-Test abgedeckt, wurden live aber nicht gezielt einzeln vorgeführt. Das Register "Daten" in den Vorlagen wird nicht gelesen und darf gelöscht werden (gelesen wird nur das Blatt "Bericht" bzw. das erste Blatt).
+
+### Nachtrag 2026-10-20: Feste Zeilen-Sortierung im PDF
+- Die PDF-Zeilen sind jetzt immer nach **Lagerort → Artikel → Typ → Serien-Nr. → Scancode** sortiert (Nutzer-Vorgabe), unabhängig von der Spaltensortierung der Geräteliste. Bisher übernahm das PDF die Reihenfolge der Liste (Standard: letzte Prüfung absteigend).
+- Die Geräteliste selbst ist unverändert; sie bestimmt weiterhin, **welche** Geräte exportiert werden (Filter/Auswahl).
+- Vergleich wie in der Liste: Schweizer Sortierregeln, Zahlen natürlich ("Trakt 2" vor "Trakt 10"), ohne Gross-/Kleinschreibung; leere Werte pro Feld am Ende; bei vollem Gleichstand bleibt die Reihenfolge der Liste.
+- Code: `sortiereExportZeilen()` in `src/lib/pruefbericht-export/export.ts`; Tests in `export.test.ts`. 423 Unit-Tests, Typecheck und Lint grün.
