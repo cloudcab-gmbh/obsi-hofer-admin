@@ -65,6 +65,7 @@ For first deployment, guide the user through these setup guides:
 ### 6. Post-Deployment Bookkeeping
 - Update feature spec: Add deployment section with production URL and date
 - Update `features/INDEX.md`: Set status to **Deployed**
+- Update `CHANGELOG.md`: Add a new version section at the top (`## [X.Y.Z] – YYYY-MM-DD · PROJ-X Feature Name`, version = the tag below without `v` and `-PROJ-X`) with 1–4 plain-language bullets under `### Neu` / `### Geändert` / `### Behoben` / `### Entfernt` — what users can now do or what behaves differently, no file paths or commit hashes. Small fixes released without a feature deploy get a patch version (e.g. `1.12.1`) and their own tag
 - Create git tag: `git tag -a v1.X.0-PROJ-X -m "Deploy PROJ-X: [Feature Name]"`
 - Push tag: `git push origin v1.X.0-PROJ-X`
 
@@ -102,6 +103,7 @@ If production is broken:
 - [ ] Lighthouse score checked (target > 90)
 - [ ] Feature spec updated with deployment info
 - [ ] `features/INDEX.md` updated to Deployed
+- [ ] `CHANGELOG.md` entry added
 - [ ] Git tag created and pushed
 - [ ] User has verified production deployment
 
