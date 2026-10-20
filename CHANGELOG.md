@@ -2,6 +2,10 @@
 
 Alle für Nutzer relevanten Änderungen am Admin-Tool. Neueste Version zuerst. Versionen entsprechen den Git-Tags `vX.Y.Z-PROJ-N`.
 
+## [1.12.2] – 2026-10-20 · PROJ-7 PDF-Export Prüfberichte (kundenspezifisches Template)
+### Neu
+- Vorbereitet: Das PDF kann unten rechts ein Visum (Unterschrift) tragen. Es ist noch ausgeschaltet; bis zur Freigabe ändert sich am PDF nichts.
+
 ## [1.12.1] – 2026-10-20 · PROJ-7 PDF-Export Prüfberichte (kundenspezifisches Template)
 ### Geändert
 - Die Zeilen im PDF sind fest sortiert: nach Lagerort, dann Artikel, Typ, Serien-Nr. und Scancode.
