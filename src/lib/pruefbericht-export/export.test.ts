@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import sharp from "sharp";
 import type { Geraet } from "@/lib/dataverse/geraete";
 import type { Pruefbericht } from "@/lib/dataverse/pruefberichte";
 import type { ExportZeile } from "./feld-mapping";
@@ -451,17 +452,48 @@ describe("generatePruefberichtPdf – Visum aus SharePoint", () => {
     expect(erzeugePdfMock.mock.calls[0]).toHaveLength(3);
   });
 
-  it("loads the Visum from the configured SharePoint path and hands it to the PDF as a data URL", async () => {
+  // Echtes Bild in der Grösse des Original-Visums (1068 × 207 px).
+  async function bild(format: "jpeg" | "png", width = 1068, height = 207): Promise<ArrayBuffer> {
+    const b = await sharp({ create: { width, height, channels: 3, background: "#ffffff" } })[format]().toBuffer();
+    return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
+  }
+  async function breiteAusDataUrl(dataUrl: string): Promise<number | undefined> {
+    return (await sharp(Buffer.from(dataUrl.split(",")[1], "base64")).metadata()).width;
+  }
+
+  it("loads the Visum from the configured SharePoint path and shrinks it to print size (330 px wide)", async () => {
     vi.stubEnv("SHAREPOINT_VISUM_PFAD", "_PBVorlage/visumfabian.jpeg");
-    downloadKundenDateiMock.mockImplementation(async (pfad: string) =>
-      pfad.endsWith(".jpeg") ? new Uint8Array([0xff, 0xd8, 0xff]).buffer : new ArrayBuffer(3)
-    );
+    const visum = await bild("jpeg");
+    downloadKundenDateiMock.mockImplementation(async (pfad: string) => (pfad.endsWith(".jpeg") ? visum : new ArrayBuffer(3)));
 
     await generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: null });
 
     expect(downloadKundenDateiMock).toHaveBeenCalledWith("_PBVorlage/visumfabian.jpeg");
     const [, , , optionen] = erzeugePdfMock.mock.calls[0];
-    expect(optionen).toEqual({ visumDataUrl: "data:image/jpeg;base64,/9j/" });
+    expect(optionen.visumDataUrl).toMatch(/^data:image\/jpeg;base64,/);
+    expect(await breiteAusDataUrl(optionen.visumDataUrl)).toBe(330);
+  });
+
+  it("keeps a PNG as PNG and never enlarges a Visum that is already small", async () => {
+    vi.stubEnv("SHAREPOINT_VISUM_PFAD", "_PBVorlage/visum.png");
+    const visum = await bild("png", 200, 40);
+    downloadKundenDateiMock.mockImplementation(async (pfad: string) => (pfad.endsWith(".png") ? visum : new ArrayBuffer(3)));
+
+    await generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: null });
+
+    const [, , , optionen] = erzeugePdfMock.mock.calls[0];
+    expect(optionen.visumDataUrl).toMatch(/^data:image\/png;base64,/);
+    expect(await breiteAusDataUrl(optionen.visumDataUrl)).toBe(200);
+  });
+
+  it("aborts with an ExportFehler when the Visum file is not a valid image", async () => {
+    vi.stubEnv("SHAREPOINT_VISUM_PFAD", "_PBVorlage/visumfabian.jpeg");
+    downloadKundenDateiMock.mockResolvedValue(new ArrayBuffer(3));
+
+    await expect(
+      generatePruefberichtPdf({ firmaName: "Firma", geraete: [geraet()], lagerortFilter: null })
+    ).rejects.toThrow(new ExportFehler("Das Visum in SharePoint ist keine gültige Bilddatei (Kunden/_PBVorlage/visumfabian.jpeg)."));
+    expect(erzeugePdfMock).not.toHaveBeenCalled();
   });
 
   it("aborts with an ExportFehler instead of silently leaving out the Visum when the file is missing", async () => {

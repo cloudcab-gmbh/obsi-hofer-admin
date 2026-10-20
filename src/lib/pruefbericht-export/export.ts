@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import type { ArtikelInfo, Geraet } from "@/lib/dataverse/geraete";
 import { listArtikelByIds } from "@/lib/dataverse/geraete";
 import { getAktuellstePruefberichteForGeraete, type Pruefbericht } from "@/lib/dataverse/pruefberichte";
@@ -129,6 +130,9 @@ async function ladeVorlage(firmaOrdner: string): Promise<ArrayBuffer> {
   return downloadKundenDatei(requireEnv("SHAREPOINT_STANDARD_VORLAGE_PFAD"));
 }
 
+/** 80 pt Druckbreite im PDF bei 300 dpi ≈ 333 px. */
+const VISUM_PIXEL_BREITE = 330;
+
 /**
  * Visum (Unterschrift) für die Fusszeile, aus SharePoint statt aus dem Repo
  * (Nutzer-Entscheidung 2026-10-20: das Repo ist öffentlich, die Unterschrift
@@ -140,17 +144,30 @@ async function ladeVorlage(firmaOrdner: string): Promise<ArrayBuffer> {
 async function ladeVisumDataUrl(): Promise<string | null> {
   const pfad = process.env.SHAREPOINT_VISUM_PFAD;
   if (!pfad) return null;
-  const mimeTyp = /\.png$/i.test(pfad) ? "image/png" : /\.jpe?g$/i.test(pfad) ? "image/jpeg" : null;
-  if (!mimeTyp) throw new Error(`SHAREPOINT_VISUM_PFAD muss auf eine .jpeg-, .jpg- oder .png-Datei zeigen: ${pfad}`);
+  const istPng = /\.png$/i.test(pfad);
+  if (!istPng && !/\.jpe?g$/i.test(pfad)) {
+    throw new Error(`SHAREPOINT_VISUM_PFAD muss auf eine .jpeg-, .jpg- oder .png-Datei zeigen: ${pfad}`);
+  }
+  let original: ArrayBuffer;
   try {
-    const buffer = await downloadKundenDatei(pfad);
-    return `data:${mimeTyp};base64,${Buffer.from(buffer).toString("base64")}`;
+    original = await downloadKundenDatei(pfad);
   } catch (error) {
     if (error instanceof SharePointError && error.category === "not_found") {
       throw new ExportFehler(`Das Visum wurde in SharePoint nicht gefunden (Kunden/${pfad}).`);
     }
     throw error;
   }
+  // Auf Druckqualität verkleinert (Nutzer-Entscheidung 2026-10-20): Wer das PDF
+  // erhält, kann eingebettete Bilder herauskopieren — eine kleine Auflösung
+  // sieht gedruckt gleich aus, taugt aber schlechter als Vorlage für Fälschungen.
+  let verkleinert: Buffer;
+  try {
+    const bild = sharp(Buffer.from(original)).resize({ width: VISUM_PIXEL_BREITE, withoutEnlargement: true });
+    verkleinert = await (istPng ? bild.png() : bild.jpeg({ quality: 85 })).toBuffer();
+  } catch {
+    throw new ExportFehler(`Das Visum in SharePoint ist keine gültige Bilddatei (Kunden/${pfad}).`);
+  }
+  return `data:${istPng ? "image/png" : "image/jpeg"};base64,${verkleinert.toString("base64")}`;
 }
 
 export interface GeneratePdfParams {
