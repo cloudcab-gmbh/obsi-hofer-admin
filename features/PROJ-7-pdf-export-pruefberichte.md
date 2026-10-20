@@ -304,3 +304,10 @@ Siehe Decision Log → Technical Decisions oben.
 - Jede Seite trägt unten in der Mitte **"Seite X von Y"** (8 pt), innerhalb des unteren Seitenrands — Spaltenbreiten und Seitenumbrüche des Berichts bleiben unverändert.
 - Bei signierten PDFs (PROJ-9) steht der Signaturvermerk als zweite Zeile darunter (7 pt, grau); die Fusszeile beginnt dann etwas höher, damit beide Zeilen in den 24-pt-Rand passen.
 - Code: `footer` in `buildDocumentDefinition` (`src/lib/pruefbericht-export/pdf-generator.ts`), jetzt als Funktion mit Seitennummer und Seitenzahl; Test in `pdf-generator.test.ts`.
+
+### Nachtrag 2026-10-20: Visum in der Fusszeile
+- Jede Seite trägt unten rechts **"Visum:"** mit der Unterschrift (80 pt breit), wie im Muster des Nutzers; die Seitenzahl bleibt in der Seitenmitte (gleich breite Aussenspalten).
+- **Ablage in SharePoint, nicht im Repo** (Nutzer-Entscheidung): Das GitHub-Repo ist öffentlich — es muss es bleiben, weil der Vercel-Hobby-Plan keine privaten Repos einer GitHub-Organisation deployt. Die Unterschrift liegt deshalb in `Kunden/_PBVorlage/visumfabian.jpeg` (neben der Standard-Vorlage) und wird beim Export geladen.
+- Neue Umgebungsvariable `SHAREPOINT_VISUM_PFAD` (relativ zur Bibliothek "Kunden", z.B. `_PBVorlage/visumfabian.jpeg`): leer → PDF ohne Visum; gesetzt, aber Datei fehlt → Export bricht mit "Das Visum wurde in SharePoint nicht gefunden (…)" ab, damit nie unbemerkt ein PDF ohne erwartetes Visum entsteht.
+- Code: `ladeVisumDataUrl()` in `src/lib/pruefbericht-export/export.ts` (parallel zur Vorlage geladen), Fusszeile in `pdf-generator.ts`; Tests in `export.test.ts` und `pdf-generator.test.ts`. 426 Unit-Tests, Typecheck und Lint grün. Die Darstellung hat der Nutzer lokal mit der früheren Ablage in `public/` geprüft; das Laden aus SharePoint lokal ebenfalls (2026-10-20). Die frühere Kopie in `public/` ist gelöscht.
+- **Status: noch nicht publiziert** — bewusst nicht committet, bis die Sicherheitsfrage geklärt ist. Vor dem Go-live: `SHAREPOINT_VISUM_PFAD` in Vercel (Production) setzen und neu deployen.

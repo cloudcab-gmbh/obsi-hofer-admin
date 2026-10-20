@@ -94,22 +94,33 @@ describe("buildDocumentDefinition", () => {
       logoDataUrl: null,
     };
 
+    // Fusszeile = drei Spalten: leer | Seitenzahl (+ Vermerk) | Visum.
+    type Fusszeile = { columns: [unknown, { alignment: string; stack: { text: string }[] }, unknown] };
     const fusszeile = (doc: ReturnType<typeof buildDocumentDefinition>, seite: number, von: number) =>
-      (doc.footer as (aktuelleSeite: number, seitenzahl: number) => unknown)(seite, von);
+      (doc.footer as (aktuelleSeite: number, seitenzahl: number) => Fusszeile)(seite, von);
 
     const ohneVermerk = fusszeile(buildDocumentDefinition(basis), 2, 5);
-    expect(ohneVermerk).toMatchObject({ alignment: "center", stack: [{ text: "Seite 2 von 5" }] });
-    expect((ohneVermerk as { stack: unknown[] }).stack).toHaveLength(1);
+    expect(ohneVermerk.columns[1]).toMatchObject({ alignment: "center", stack: [{ text: "Seite 2 von 5" }] });
+    expect(ohneVermerk.columns[1].stack).toHaveLength(1);
+    // Ohne Visum-Bild bleibt die rechte Spalte leer.
+    expect(ohneVermerk.columns[2]).toEqual({ width: "*", text: "" });
 
     const vermerk = "TEST-Signatur – nicht gültig – OBSI Hofer GmbH, 07.10.2026 14:30";
     const mitVermerk = buildDocumentDefinition({ ...basis, signaturVermerk: vermerk });
-    expect(fusszeile(mitVermerk, 1, 3)).toMatchObject({
+    expect(fusszeile(mitVermerk, 1, 3).columns[1]).toMatchObject({
       alignment: "center",
       stack: [{ text: "Seite 1 von 3" }, { text: vermerk }],
     });
     // Layout des Berichts selbst bleibt unverändert.
     expect(mitVermerk.pageMargins).toEqual(buildDocumentDefinition(basis).pageMargins);
     expect(tableFromContent(mitVermerk).widths).toEqual(tableFromContent(buildDocumentDefinition(basis)).widths);
+
+    // Visum rechts: "Visum:" gefolgt vom Bild, auf jeder Seite.
+    const visum = "data:image/jpeg;base64,AAAA";
+    const mitVisum = fusszeile(buildDocumentDefinition({ ...basis, visumDataUrl: visum }), 3, 3);
+    expect(mitVisum.columns[2]).toMatchObject({
+      columns: [{ text: "" }, { text: "Visum:" }, { image: visum }],
+    });
   });
 
   it("puts the header texts in the first table row, and marks it as the repeating header", () => {

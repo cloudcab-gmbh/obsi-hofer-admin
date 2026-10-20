@@ -101,6 +101,12 @@ function ladeLogoDataUrl(): string {
   return `data:image/png;base64,${buffer.toString("base64")}`;
 }
 
+// Visum (Unterschrift) unten rechts in der Fusszeile jeder Seite (Nutzer-Vorgabe
+// 2026-10-20), Seitenverhältnis 1068:207. 80 pt breit → rund 15.5 pt hoch, passt
+// mit Abstand in den 24-pt-Seitenrand. Das Bild selbst kommt aus SharePoint
+// (export.ts, ladeVisumDataUrl), nicht aus dem öffentlichen Repo.
+const VISUM_BREITE = 80;
+
 /** Wandelt eine ARGB-Farbe (Excel-Konvention, z.B. "FF92D050") in eine für pdfmake/CSS gültige "#RRGGBB"-Farbe um. */
 function argbZuCssFarbe(argb: string): string {
   return `#${argb.slice(2)}`;
@@ -366,6 +372,8 @@ export interface PdfBuildInput {
   signaturVermerk?: string;
   /** PROJ-10: voller Standort-Name im Kopfbereich statt des Firmennamens (nur bei Firmen mit mehreren Standorten). */
   standortName?: string;
+  /** Visum (Unterschrift) unten rechts in der Fusszeile jeder Seite; fehlt → kein Visum. */
+  visumDataUrl?: string | null;
 }
 
 /**
@@ -393,16 +401,33 @@ export function buildDocumentDefinition(input: PdfBuildInput): TDocumentDefiniti
     defaultStyle: { font: "Roboto", fontSize: 9 },
     // Fusszeile innerhalb des unteren Seitenrands — ändert damit weder
     // Spaltenbreiten noch Seitenumbrüche des Berichts. Seitenzahl "Seite X von Y"
-    // mittig (Nutzer-Vorgabe 2026-10-20); bei signierten PDFs darunter dezent
-    // der Signaturvermerk (PROJ-9), dann rückt die Fusszeile näher an die Tabelle,
-    // damit beide Zeilen in den Seitenrand passen.
+    // mittig, rechts "Visum:" mit der Unterschrift (Nutzer-Vorgaben 2026-10-20);
+    // bei signierten PDFs unter der Seitenzahl dezent der Signaturvermerk (PROJ-9).
+    // Gleich breite Aussenspalten halten die Seitenzahl in der Seitenmitte.
     footer: (aktuelleSeite: number, seitenzahl: number): Content => ({
-      stack: [
-        { text: `Seite ${aktuelleSeite} von ${seitenzahl}`, fontSize: 8 },
-        ...(input.signaturVermerk ? [{ text: input.signaturVermerk, fontSize: 7, color: "#808080" }] : []),
+      columns: [
+        { width: "*", text: "" },
+        {
+          width: "auto",
+          stack: [
+            { text: `Seite ${aktuelleSeite} von ${seitenzahl}`, fontSize: 8 },
+            ...(input.signaturVermerk ? [{ text: input.signaturVermerk, fontSize: 7, color: "#808080" }] : []),
+          ],
+          alignment: "center",
+          margin: [0, input.signaturVermerk ? 0 : 4, 0, 0],
+        },
+        input.visumDataUrl
+          ? {
+              width: "*",
+              columns: [
+                { width: "*", text: "" },
+                { width: "auto", text: "Visum:", fontSize: 7, margin: [0, 8, 4, 0] },
+                { width: VISUM_BREITE, image: input.visumDataUrl },
+              ],
+            }
+          : { width: "*", text: "" },
       ],
-      alignment: "center",
-      margin: [SEITENRAND, input.signaturVermerk ? 4 : SEITENRAND / 3, SEITENRAND, 0],
+      margin: [SEITENRAND, 4, SEITENRAND, 0],
     }),
     content: [
       buildKopfbereich(firmaName, input.standortName ?? null, logoDataUrl),
@@ -451,7 +476,7 @@ export async function erzeugePdf(
   vorlageBuffer: ArrayBuffer,
   zeilen: ExportZeile[],
   firmaName: string,
-  optionen: { signaturVermerk?: string; standortName?: string } = {}
+  optionen: { signaturVermerk?: string; standortName?: string; visumDataUrl?: string } = {}
 ): Promise<Buffer> {
   registriereFontsFallsNoetig();
 
@@ -467,6 +492,7 @@ export async function erzeugePdf(
     zeilen,
     firmaName,
     logoDataUrl: ladeLogoDataUrl(),
+    visumDataUrl: optionen.visumDataUrl ?? null,
     textMesser: erstelleTextMesser(),
     signaturVermerk: optionen.signaturVermerk,
     standortName: optionen.standortName,

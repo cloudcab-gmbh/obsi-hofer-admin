@@ -129,6 +129,30 @@ async function ladeVorlage(firmaOrdner: string): Promise<ArrayBuffer> {
   return downloadKundenDatei(requireEnv("SHAREPOINT_STANDARD_VORLAGE_PFAD"));
 }
 
+/**
+ * Visum (Unterschrift) für die Fusszeile, aus SharePoint statt aus dem Repo
+ * (Nutzer-Entscheidung 2026-10-20: das Repo ist öffentlich, die Unterschrift
+ * darf nicht hinein). Pfad relativ zur Bibliothek "Kunden" über
+ * `SHAREPOINT_VISUM_PFAD`, z.B. "_PBVorlage/visumfabian.jpeg". Nicht gesetzt →
+ * PDF ohne Visum. Gesetzt, aber nicht ladbar → Export bricht ab, damit nie
+ * unbemerkt ein PDF ohne das erwartete Visum entsteht.
+ */
+async function ladeVisumDataUrl(): Promise<string | null> {
+  const pfad = process.env.SHAREPOINT_VISUM_PFAD;
+  if (!pfad) return null;
+  const mimeTyp = /\.png$/i.test(pfad) ? "image/png" : /\.jpe?g$/i.test(pfad) ? "image/jpeg" : null;
+  if (!mimeTyp) throw new Error(`SHAREPOINT_VISUM_PFAD muss auf eine .jpeg-, .jpg- oder .png-Datei zeigen: ${pfad}`);
+  try {
+    const buffer = await downloadKundenDatei(pfad);
+    return `data:${mimeTyp};base64,${Buffer.from(buffer).toString("base64")}`;
+  } catch (error) {
+    if (error instanceof SharePointError && error.category === "not_found") {
+      throw new ExportFehler(`Das Visum wurde in SharePoint nicht gefunden (Kunden/${pfad}).`);
+    }
+    throw error;
+  }
+}
+
 export interface GeneratePdfParams {
   firmaName: string;
   /**
@@ -188,9 +212,12 @@ export async function generatePruefberichtPdf(params: GeneratePdfParams): Promis
   const ordnerPfad = `${firmaOrdner}${standortOrdner}/Prüfberichte/${new Date().getFullYear()}`;
 
   // Vorlage bleibt pro Firma (PROJ-10 Product Decision).
-  const vorlageBuffer = await ladeVorlage(firmaOrdner);
+  const [vorlageBuffer, visumDataUrl] = await Promise.all([ladeVorlage(firmaOrdner), ladeVisumDataUrl()]);
   const dateiname = buildDateiname(firmaName, standortName, lagerortFilter);
-  const kopfOptionen = standortName ? { standortName: params.standortVollname || standortName } : {};
+  const kopfOptionen = {
+    ...(standortName ? { standortName: params.standortVollname || standortName } : {}),
+    ...(visumDataUrl ? { visumDataUrl } : {}),
+  };
 
   if (signatur.modus === "test") {
     // PROJ-9 Phase 1: Vermerk mit Test-Kennzeichnung, Signatur mit dem
@@ -211,10 +238,11 @@ export async function generatePruefberichtPdf(params: GeneratePdfParams): Promis
     return { pdfBuffer, dateiname };
   }
 
-  // Ohne Standort exakt der bisherige Aufruf (drei Argumente).
-  const pdfBuffer = standortName
-    ? await erzeugePdf(vorlageBuffer, zeilen, firmaName, kopfOptionen)
-    : await erzeugePdf(vorlageBuffer, zeilen, firmaName);
+  // Ohne Standort und ohne Visum exakt der bisherige Aufruf (drei Argumente).
+  const pdfBuffer =
+    Object.keys(kopfOptionen).length > 0
+      ? await erzeugePdf(vorlageBuffer, zeilen, firmaName, kopfOptionen)
+      : await erzeugePdf(vorlageBuffer, zeilen, firmaName);
   try {
     // QA BUG-3: Ein Fehler bei der zusätzlichen Archiv-Ablage darf dem
     // Bearbeiter nicht den bereits fertig generierten Download verwehren.
