@@ -299,3 +299,8 @@ Siehe Decision Log → Technical Decisions oben.
 - Die Geräteliste selbst ist unverändert; sie bestimmt weiterhin, **welche** Geräte exportiert werden (Filter/Auswahl).
 - Vergleich wie in der Liste: Schweizer Sortierregeln, Zahlen natürlich ("Trakt 2" vor "Trakt 10"), ohne Gross-/Kleinschreibung; leere Werte pro Feld am Ende; bei vollem Gleichstand bleibt die Reihenfolge der Liste.
 - Code: `sortiereExportZeilen()` in `src/lib/pruefbericht-export/export.ts`; Tests in `export.test.ts`. 423 Unit-Tests, Typecheck und Lint grün.
+
+### Nachtrag 2026-10-20: Seitenzahl in der Fusszeile
+- Jede Seite trägt unten in der Mitte **"Seite X von Y"** (8 pt), innerhalb des unteren Seitenrands — Spaltenbreiten und Seitenumbrüche des Berichts bleiben unverändert.
+- Bei signierten PDFs (PROJ-9) steht der Signaturvermerk als zweite Zeile darunter (7 pt, grau); die Fusszeile beginnt dann etwas höher, damit beide Zeilen in den 24-pt-Rand passen.
+- Code: `footer` in `buildDocumentDefinition` (`src/lib/pruefbericht-export/pdf-generator.ts`), jetzt als Funktion mit Seitennummer und Seitenzahl; Test in `pdf-generator.test.ts`.

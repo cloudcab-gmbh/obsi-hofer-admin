@@ -82,7 +82,7 @@ describe("buildDocumentDefinition", () => {
     expect(mitStandort).not.toContain("Beispiel-Firma");
   });
 
-  // PROJ-9: sichtbarer Signaturvermerk nur, wenn signiert wird.
+  // PROJ-9: sichtbarer Signaturvermerk nur, wenn signiert wird; die Seitenzahl immer.
   it("adds the signature note as a footer on every page only when one is given", () => {
     const basis = {
       headerZeile: HEADER,
@@ -94,11 +94,19 @@ describe("buildDocumentDefinition", () => {
       logoDataUrl: null,
     };
 
-    expect(buildDocumentDefinition(basis).footer).toBeUndefined();
+    const fusszeile = (doc: ReturnType<typeof buildDocumentDefinition>, seite: number, von: number) =>
+      (doc.footer as (aktuelleSeite: number, seitenzahl: number) => unknown)(seite, von);
+
+    const ohneVermerk = fusszeile(buildDocumentDefinition(basis), 2, 5);
+    expect(ohneVermerk).toMatchObject({ alignment: "center", stack: [{ text: "Seite 2 von 5" }] });
+    expect((ohneVermerk as { stack: unknown[] }).stack).toHaveLength(1);
 
     const vermerk = "TEST-Signatur – nicht gültig – OBSI Hofer GmbH, 07.10.2026 14:30";
     const mitVermerk = buildDocumentDefinition({ ...basis, signaturVermerk: vermerk });
-    expect(mitVermerk.footer).toMatchObject({ text: vermerk, alignment: "center" });
+    expect(fusszeile(mitVermerk, 1, 3)).toMatchObject({
+      alignment: "center",
+      stack: [{ text: "Seite 1 von 3" }, { text: vermerk }],
+    });
     // Layout des Berichts selbst bleibt unverändert.
     expect(mitVermerk.pageMargins).toEqual(buildDocumentDefinition(basis).pageMargins);
     expect(tableFromContent(mitVermerk).widths).toEqual(tableFromContent(buildDocumentDefinition(basis)).widths);

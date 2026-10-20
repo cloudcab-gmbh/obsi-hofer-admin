@@ -391,19 +391,19 @@ export function buildDocumentDefinition(input: PdfBuildInput): TDocumentDefiniti
     pageOrientation: "landscape",
     pageMargins: [SEITENRAND, SEITENRAND, SEITENRAND, SEITENRAND],
     defaultStyle: { font: "Roboto", fontSize: 9 },
-    // PROJ-9: dezent unten auf jeder Seite, innerhalb des unteren Seitenrands —
-    // ändert damit weder Spaltenbreiten noch Seitenumbrüche des Berichts.
-    ...(input.signaturVermerk
-      ? {
-          footer: {
-            text: input.signaturVermerk,
-            alignment: "center" as const,
-            fontSize: 7,
-            color: "#808080",
-            margin: [SEITENRAND, SEITENRAND / 3, SEITENRAND, 0] as [number, number, number, number],
-          },
-        }
-      : {}),
+    // Fusszeile innerhalb des unteren Seitenrands — ändert damit weder
+    // Spaltenbreiten noch Seitenumbrüche des Berichts. Seitenzahl "Seite X von Y"
+    // mittig (Nutzer-Vorgabe 2026-10-20); bei signierten PDFs darunter dezent
+    // der Signaturvermerk (PROJ-9), dann rückt die Fusszeile näher an die Tabelle,
+    // damit beide Zeilen in den Seitenrand passen.
+    footer: (aktuelleSeite: number, seitenzahl: number): Content => ({
+      stack: [
+        { text: `Seite ${aktuelleSeite} von ${seitenzahl}`, fontSize: 8 },
+        ...(input.signaturVermerk ? [{ text: input.signaturVermerk, fontSize: 7, color: "#808080" }] : []),
+      ],
+      alignment: "center",
+      margin: [SEITENRAND, input.signaturVermerk ? 4 : SEITENRAND / 3, SEITENRAND, 0],
+    }),
     content: [
       buildKopfbereich(firmaName, input.standortName ?? null, logoDataUrl),
       {
