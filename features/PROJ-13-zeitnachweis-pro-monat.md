@@ -47,13 +47,14 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 - [ ] Angenommen Person und Monat sind gewählt, wenn der Zeitnachweis lädt, dann erscheint jeder Kalendertag des Monats als Zeile mit Datum und Wochentag
 - [ ] Angenommen eine Person hat an einem Tag einen oder mehrere Einträge vom Typ "Arbeitszeit", wenn der Tag angezeigt wird, dann zeigt er alle Kommen/Gehen-Paare des Tages in zeitlicher Reihenfolge (z.B. "07:30–12:00, 12:45–17:15"), und das Ist ist die Summe (Gehen − Kommen) aller Einträge des Tages
 - [ ] Angenommen ein Eintrag hat ein "Kommen", aber kein "Gehen", dann zählt er nicht ins Ist und die Zeile ist als "offen – Gehen fehlt" markiert; beim laufenden Tag (heute) ohne Warnung, an vergangenen Tagen als Warnung
-- [ ] Angenommen das Tagestotal des Power-Automate-Flows weicht vom selbst berechneten Ist des Tages ab, dann zeigt die Zeile einen dezenten Hinweis mit beiden Werten; massgeblich bleibt das selbst berechnete Ist
+- [ ] Angenommen das Tagestotal des Power-Automate-Flows (`bmvcc_aznetto4`) weicht vom selbst berechneten Ist des Tages ab, dann zeigt die Zeile einen dezenten Hinweis mit beiden Werten; massgeblich bleibt das selbst berechnete Ist
 - [ ] Angenommen ein Tag ist laut Arbeitsmodell ein Arbeitstag und weder Feiertag noch Ferientag, dann ist sein Soll das Soll des Wochentags aus dem Arbeitsmodell, das an diesem Datum gilt
 - [ ] Angenommen ein Tag ist ein gesetzlicher Feiertag im Aargau, ein Ferientag (PROJ-15) oder laut Arbeitsmodell kein Arbeitstag, dann ist sein Soll 0 und der Grund steht in der Zeile ("Feiertag: Auffahrt", "Ferien", "frei")
 - [ ] Angenommen ein Tag hat einen Eintrag vom Typ "Krankheit", dann gilt das Soll als erfüllt (Ist = Soll), die Gleitzeit bleibt unverändert, und die Zeile ist als "Krankheit" gekennzeichnet
 - [ ] Angenommen ein Tag hat einen Eintrag vom Typ "Komp. GLZ", dann ist das Ist 0, die Gleitzeit sinkt um das Soll des Tages, und die Zeile ist als "Komp. GLZ" gekennzeichnet
 - [ ] Angenommen ein Tag hat Ist und Soll, dann zeigt die Zeile die Abweichung (Ist − Soll) und den fortlaufenden Gleitzeit-Saldo nach diesem Tag
-- [ ] Angenommen ein Eintrag hat eine Bemerkung oder Mittag-/Abendessen gesetzt, dann wird beides in der Tageszeile angezeigt
+- [ ] Angenommen mindestens ein Eintrag eines Tages hat "Mittagessen" gesetzt, dann gilt der ganze Tag als "Mittagessen: ja" (auch wenn andere Einträge des Tages "nein" haben); dasselbe gilt für "Abendessen"
+- [ ] Angenommen ein Eintrag hat eine Bemerkung, dann wird sie in der Tageszeile angezeigt
 
 **Monatssummen und Saldo**
 - [ ] Angenommen ein Monat wird angezeigt, dann stehen über bzw. unter der Tabelle: Saldo Vormonat, Summe Ist, Summe Soll, Abweichung des Monats, Gleitzeit-Saldo am Monatsende in Stunden und in Tagen (Stunden ÷ 8)
@@ -91,9 +92,10 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 - [x] Woher kommen die Einträge? → Die neue Erfassung speichert in Dataverse, jedes Kommen/Gehen als eigener Eintrag; die SharePoint-Liste der Excel-Mappe ist abgelöst und nicht mehr relevant (Nutzer, 2026-10-26)
 - [x] Netto-Arbeitszeit aus `bmvcc_networkinghours` oder `bmvcc_aznetto4`? → keines von beiden: Das Ist wird aus Kommen/Gehen gerechnet (Nutzer-Entscheidung 2026-10-26). Befund der Daten: `bmvcc_networkinghours` 1× gefüllt, `bmvcc_aznetto4` 127× (von 143), entspricht aber nur 12× der Dauer des Eintrags
 - [x] Muss der Zeitnachweis Pausen abziehen? → Nein: Pausen sind Lücken zwischen den Einträgen; die Pausenfelder sind praktisch leer (5× bzw. 3× von 143)
-- [ ] Welches Feldpaar ist Kommen/Gehen: `bmvcc_kommen`/`bmvcc_gehen` (139/127 gefüllt) oder `bmvcc_activitystarttime`/`bmvcc_checkouttime` (143/129)? Beide stimmen in 129 von 139 Fällen überein — Erfassungs-App bzw. Flow prüfen (/architecture)
-- [ ] In welches Feld und in welcher Einheit schreibt der Flow das Tagestotal (`bmvcc_tagestotal`, vermutlich Minuten)? Steht es auf jedem Eintrag des Tages oder nur auf einem? (für den Abgleich-Hinweis)
-- [ ] Mittagessen: `bmvcc_mittagessen` und `bmvcc_essen` sind fast identisch (141 von 143) — welches ist massgeblich? `bmvcc_abendessen` 14× gesetzt
+- [x] Welches Feldpaar ist Kommen/Gehen? → Die Erfassungs-App setzt beim Kommen `Kommen` und `astart`, beim Gehen `Gehen` und `checkout` jeweils gleichzeitig auf die aktuelle Zeit (Code vom Nutzer, 2026-10-26). Massgeblich: `bmvcc_kommen`/`bmvcc_gehen`, bei leeren Werten (ältere Einträge) `bmvcc_activitystarttime`/`bmvcc_checkouttime`. Abweichungen zwischen beiden Paaren (10 von 139) stammen vermutlich aus älteren Einträgen oder Korrekturen
+- [x] Wohin schreibt der Flow das Tagestotal? → in `bmvcc_aznetto4` (Nutzer, 2026-10-26) — erklärt, warum `aznetto4` selten der Dauer eines einzelnen Eintrags entspricht
+- [ ] Einheit von `bmvcc_aznetto4` (Stunden dezimal?) und ob es auf jedem Eintrag des Tages oder nur auf dem letzten steht; die App rechnet intern mit `WorkMinutes(Start; Ende)` — rundet diese Funktion (z.B. auf ganze Minuten)? (/architecture)
+- [x] Mittagessen: welches Feld? → Die App schreibt `mittagessen` (Ja/Nein, `bmvcc_essen`) und `Mittagessen` (Yes/No, `bmvcc_mittagessen`) immer gleich; massgeblich `bmvcc_mittagessen`, Abendessen `bmvcc_abendessen`. Pro Tag "ja", sobald ein Eintrag des Tages "ja" hat (Nutzer, 2026-10-26)
 - [ ] Der letzte Eintrag in Dataverse wurde am 02.09.2026 erstellt (143 Einträge, 5 Personen, seit April). Läuft die neue Erfassung schon produktiv? Für den lokalen Test braucht es aktuelle Daten
 - [ ] Gehören 1. Mai oder Fronleichnam zu den Feiertagen von OBSI Hofer? (in der bisherigen Excel-Liste nicht enthalten)
 
@@ -113,6 +115,7 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 | Gleitzeit in Tagen = Stunden ÷ 8 | Wie in der bisherigen Excel-Mappe | 2026-10-26 |
 | Zeitnachweis nur lesend | Korrekturen gehören ins Erfassungs-Werkzeug; vermeidet zwei Stellen zum Ändern derselben Daten | 2026-10-26 |
 | Quelle ist ausschliesslich Dataverse (neue Erfassung, ein Eintrag pro Kommen/Gehen); die SharePoint-Liste wird nicht angebunden | Die SharePoint-Erfassung ist abgelöst (Nutzer, 2026-10-26) | 2026-10-26 |
+| Mittag-/Abendessen pro Tag = ja, sobald ein Eintrag des Tages ja hat | Die App fragt bei jedem Kommen/Gehen erneut; ein Tag mit Mittagessen soll nicht durch einen späteren Eintrag "nein" verlieren (Nutzer-Vorgabe) | 2026-10-26 |
 | Ist = Summe (Gehen − Kommen) der Einträge, selbst berechnet; das Flow-Tagestotal nur als Abgleich-Hinweis | Nachvollziehbar Zeile für Zeile und unabhängig von Fehlern im Flow; in den bisherigen Daten passen Flow-Total und Einzeleinträge selten zusammen (Nutzer-Entscheidung) | 2026-10-26 |
 | PDF als eigenes Feature (PROJ-16), obwohl Bildschirm + PDF gewünscht | Einzeln testbar und baut auf der fertigen Berechnung auf; gleiches Vorgehen wie Geräteliste (PROJ-3) und Prüfbericht-PDF (PROJ-7) | 2026-10-26 |
 
