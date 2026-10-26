@@ -96,7 +96,8 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 - [x] Wohin schreibt der Flow das Tagestotal? → in `bmvcc_aznetto4` (Nutzer, 2026-10-26) — erklärt, warum `aznetto4` selten der Dauer eines einzelnen Eintrags entspricht
 - [ ] Einheit von `bmvcc_aznetto4` (Stunden dezimal?) und ob es auf jedem Eintrag des Tages oder nur auf dem letzten steht; die App rechnet intern mit `WorkMinutes(Start; Ende)` — rundet diese Funktion (z.B. auf ganze Minuten)? (/architecture)
 - [x] Mittagessen: welches Feld? → Die App schreibt `mittagessen` (Ja/Nein, `bmvcc_essen`) und `Mittagessen` (Yes/No, `bmvcc_mittagessen`) immer gleich; massgeblich `bmvcc_mittagessen`, Abendessen `bmvcc_abendessen`. Pro Tag "ja", sobald ein Eintrag des Tages "ja" hat (Nutzer, 2026-10-26)
-- [ ] Der letzte Eintrag in Dataverse wurde am 02.09.2026 erstellt (143 Einträge, 5 Personen, seit April). Läuft die neue Erfassung schon produktiv? Für den lokalen Test braucht es aktuelle Daten
+- [x] Läuft die neue Erfassung schon produktiv? → Nein: Die 143 Einträge in Dataverse (April bis 02.09.2026, 5 Personen) sind alles Testdaten (Nutzer, 2026-10-26). Lokal wird mit diesen Testdaten getestet; Monate ab September sind dabei leer
+- [x] Kann beim Stempeln ein anderer Tag gewählt werden? → Nein, immer heute (Nutzer, 2026-10-26); Aktivitätsdatum und Uhrzeit von Kommen gehören also zum selben Tag
 - [ ] Gehören 1. Mai oder Fronleichnam zu den Feiertagen von OBSI Hofer? (in der bisherigen Excel-Liste nicht enthalten)
 
 ## Decision Log
