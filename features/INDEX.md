@@ -28,7 +28,7 @@
 | PROJ-11 | Kundenportal-Zugang pro Standort | Deployed | [Spec](../features/PROJ-11-kundenportal-zugang-pro-standort.md) | 2026-10-08 |
 | PROJ-12 | Sync-Freigabe und -Verlauf pro Standort | Deployed | [Spec](../features/PROJ-12-sync-freigabe-und-verlauf-pro-standort.md) | 2026-10-08 |
 | PROJ-13 | Zeitnachweis pro Monat | Planned | [Spec](../features/PROJ-13-zeitnachweis-pro-monat.md) | 2026-10-26 |
-| PROJ-14 | Arbeitsmodell pro Person (Soll je Wochentag, Gleitzeit-Startsaldo) | Roadmap | — | 2026-10-26 |
+| PROJ-14 | Arbeitsmodell pro Person (Pensum, Arbeitstage, Gleitzeit-Startsaldo) | Planned | [Spec](../features/PROJ-14-arbeitsmodell-pro-person.md) | 2026-10-26 |
 | PROJ-15 | Ferien erfassen und Feriensaldo | Roadmap | — | 2026-10-26 |
 | PROJ-16 | Zeitnachweis als PDF | Roadmap | — | 2026-10-26 |
 
@@ -50,7 +50,7 @@
 - PROJ-11: Requires PROJ-1, PROJ-8, PROJ-10 — Dataverse: neue Zuordnung "Kundenportal-Zugang" Kontakt ↔ Standort (existiert heute nicht, vom Nutzer anzulegen, Form in /architecture) + Rechte; Cross-Repo: Kundenportal schränkt pro Standort ein (dort separat einzuplanen, Admin-Tool kann vorher live gehen)
 - PROJ-12: Requires PROJ-5, PROJ-6, PROJ-10, PROJ-11 — Cross-Repo: Standort-Filter im Sync-Endpoint des Kundenportal-Repos; Dataverse: Spalte "Standort" in der Tabelle der Sync-Läufe. Hinweis Kundenportal (2026-10-09): Wechselt ein Standort die Firma, wirkt ein Zugang zu ihm erst wieder, wenn die neue Firma synchronisiert ist **— Cross-Repo-Teil erledigt 2026-10-11 (dort PROJ-16 deployt); bei Firmenwechsel genügt ein Standort-Lauf bei der neuen Firma.**
 - PROJ-13: Requires PROJ-1, PROJ-2, PROJ-14 (Personenliste, Soll, Gleitzeit-Startsaldo); optional PROJ-15 (Ferientage) — Dataverse: Lesen auf `bmvcc_timetrackingentry` für den App-Benutzer (heute 403). Grundlage: [docs/zeiterfassung-ausgangslage.md](../docs/zeiterfassung-ausgangslage.md)
-- PROJ-14: Requires PROJ-1, PROJ-2 — Dataverse: Ablage für Arbeitsmodell und Startsaldo (existiert noch nicht, Form in /architecture)
+- PROJ-14: Requires PROJ-1, PROJ-2 — Dataverse: Lesen auf `bmvcc_timetrackingentry` (erteilt), Ablage für Arbeitsmodell, Name und Startsaldo (existiert noch nicht, Form in /architecture)
 - PROJ-15: Requires PROJ-1, PROJ-2, PROJ-14 (Pensum für den Ferienanspruch) — Dataverse: Ablage für Ferientage (existiert noch nicht)
 - PROJ-16: Requires PROJ-13 (Berechnung), Muster: PDF-Export aus PROJ-7
 

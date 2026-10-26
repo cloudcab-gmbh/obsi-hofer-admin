@@ -20,7 +20,7 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 - Als Freigeber möchte ich pro Tag Ist, Soll und Abweichung sehen, damit ich Über- und Unterzeit erkenne.
 - Als Freigeber möchte ich den Gleitzeit-Saldo am Monatsende (in Stunden und in Tagen) sehen, inklusive Übertrag aus dem Vormonat, damit ich den Stand jeder Person kenne.
 - Als Freigeber möchte ich erkennen, warum ein Tag kein Soll hat (Feiertag, Ferien, kein Arbeitstag laut Arbeitsmodell), damit der Nachweis nachvollziehbar ist.
-- Als Freigeber möchte ich auf Einträge hingewiesen werden, die keiner Person mit Arbeitsmodell zugeordnet werden können, damit keine Stunden verloren gehen.
+- Als Freigeber möchte ich erkennen, für welche Personen mit Zeiteinträgen noch kein Arbeitsmodell erfasst ist, damit keine Stunden ohne Soll ausgewertet werden.
 - Als Bearbeiter möchte ich diese Funktion nicht sehen, da Zeitdaten der Mitarbeitenden vertraulich sind.
 
 ## Out of Scope
@@ -40,7 +40,7 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 
 **Zugriff und Auswahl**
 - [ ] Angenommen ein Benutzer hat nur die Rolle "Bearbeiter", wenn er den Zeitnachweis direkt aufruft, dann wird der Zugriff serverseitig verweigert (nicht nur der Menüpunkt ausgeblendet)
-- [ ] Angenommen ein Freigeber öffnet den Zeitnachweis, wenn die Seite lädt, dann kann er eine Person (alle Personen mit Arbeitsmodell, PROJ-14) und einen Monat wählen; vorausgewählt ist der aktuelle Monat
+- [ ] Angenommen ein Freigeber öffnet den Zeitnachweis, wenn die Seite lädt, dann kann er eine Person (alle Personen aus PROJ-14 ausser den als "nicht auswerten" markierten, angezeigt mit Name bzw. E-Mail) und einen Monat wählen; vorausgewählt ist der aktuelle Monat
 - [ ] Angenommen ein Freigeber hat Person und Monat gewählt, wenn er die Seite neu lädt oder zurückkehrt, dann bleiben Person und Monat gewählt
 
 **Tageszeilen**
@@ -63,7 +63,7 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 - [ ] Angenommen der gewählte Monat ist der laufende Monat, dann zählen Tage nach dem heutigen Datum weder Soll noch Ist, und der Saldo ist als "Stand heute" bezeichnet
 
 **Zuordnung und Hinweise**
-- [ ] Angenommen es gibt im gewählten Monat Einträge mit einer Mitarbeiter-E-Mail, für die kein Arbeitsmodell existiert, dann erscheint ein Hinweis mit diesen E-Mail-Adressen und der Anzahl Einträge
+- [ ] Angenommen die gewählte Person hat für den Monat (oder Teile davon) kein Arbeitsmodell, dann zeigen die betroffenen Tage Soll 0 mit dem Hinweis "kein Arbeitsmodell", das Ist zählt trotzdem, und oben steht ein Hinweis mit Link zur Pflege in PROJ-14
 - [ ] Angenommen eine Person hat im Monat keine Einträge, dann wird der Zeitnachweis trotzdem angezeigt (alle Tage mit Ist 0, Soll laut Arbeitsmodell) mit einem Hinweis "Keine Zeiteinträge in diesem Monat"
 - [ ] Angenommen das Laden aus Dataverse schlägt fehl (nicht erreichbar, fehlende Berechtigung), dann erscheint eine verständliche Fehlermeldung statt eines unvollständigen Nachweises
 
@@ -115,6 +115,7 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 | Gesetzliche Feiertage Aargau automatisch, ohne Pflege | Liste aus der bisherigen Excel-Mappe; bewegliche Feiertage werden pro Jahr berechnet (Nutzer-Entscheidung) | 2026-10-26 |
 | Gleitzeit in Tagen = Stunden ÷ 8 | Wie in der bisherigen Excel-Mappe | 2026-10-26 |
 | Zeitnachweis nur lesend | Korrekturen gehören ins Erfassungs-Werkzeug; vermeidet zwei Stellen zum Ändern derselben Daten | 2026-10-26 |
+| Personenauswahl = alle Personen aus PROJ-14 (automatisch aus den E-Mails der Zeiteinträge), ausser "nicht auswerten"; fehlendes Arbeitsmodell als Hinweis im Zeitnachweis | Folge der PROJ-14-Entscheidung, Personen automatisch zu bilden | 2026-10-26 |
 | Quelle ist ausschliesslich Dataverse (neue Erfassung, ein Eintrag pro Kommen/Gehen); die SharePoint-Liste wird nicht angebunden | Die SharePoint-Erfassung ist abgelöst (Nutzer, 2026-10-26) | 2026-10-26 |
 | Mittag-/Abendessen pro Tag = ja, sobald ein Eintrag des Tages ja hat | Die App fragt bei jedem Kommen/Gehen erneut; ein Tag mit Mittagessen soll nicht durch einen späteren Eintrag "nein" verlieren (Nutzer-Vorgabe) | 2026-10-26 |
 | Ist = Summe (Gehen − Kommen) der Einträge, selbst berechnet; das Flow-Tagestotal nur als Abgleich-Hinweis | Nachvollziehbar Zeile für Zeile und unabhängig von Fehlern im Flow; in den bisherigen Daten passen Flow-Total und Einzeleinträge selten zusammen (Nutzer-Entscheidung) | 2026-10-26 |
