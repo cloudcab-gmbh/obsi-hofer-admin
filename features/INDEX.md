@@ -27,10 +27,14 @@
 | PROJ-10 | Standort als Arbeitskontext | Deployed | [Spec](../features/PROJ-10-standort-als-arbeitskontext.md) | 2026-10-08 |
 | PROJ-11 | Kundenportal-Zugang pro Standort | Deployed | [Spec](../features/PROJ-11-kundenportal-zugang-pro-standort.md) | 2026-10-08 |
 | PROJ-12 | Sync-Freigabe und -Verlauf pro Standort | Deployed | [Spec](../features/PROJ-12-sync-freigabe-und-verlauf-pro-standort.md) | 2026-10-08 |
+| PROJ-13 | Zeitnachweis pro Monat | Planned | [Spec](../features/PROJ-13-zeitnachweis-pro-monat.md) | 2026-10-26 |
+| PROJ-14 | Arbeitsmodell pro Person (Soll je Wochentag, Gleitzeit-Startsaldo) | Roadmap | — | 2026-10-26 |
+| PROJ-15 | Ferien erfassen und Feriensaldo | Roadmap | — | 2026-10-26 |
+| PROJ-16 | Zeitnachweis als PDF | Roadmap | — | 2026-10-26 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-13
+## Next Available ID: PROJ-17
 
 ## Dependencies (für /write-spec)
 - PROJ-1: None
@@ -45,6 +49,10 @@
 - PROJ-10: Requires PROJ-3, PROJ-4, PROJ-7 (Geräte, Prüfberichte und PDF beziehen sich künftig auf den gewählten Standort) — Dataverse: bestehende Beziehungen Firma → Standort (1:n) → Geräte (1:n), keine Schemaänderung
 - PROJ-11: Requires PROJ-1, PROJ-8, PROJ-10 — Dataverse: neue Zuordnung "Kundenportal-Zugang" Kontakt ↔ Standort (existiert heute nicht, vom Nutzer anzulegen, Form in /architecture) + Rechte; Cross-Repo: Kundenportal schränkt pro Standort ein (dort separat einzuplanen, Admin-Tool kann vorher live gehen)
 - PROJ-12: Requires PROJ-5, PROJ-6, PROJ-10, PROJ-11 — Cross-Repo: Standort-Filter im Sync-Endpoint des Kundenportal-Repos; Dataverse: Spalte "Standort" in der Tabelle der Sync-Läufe. Hinweis Kundenportal (2026-10-09): Wechselt ein Standort die Firma, wirkt ein Zugang zu ihm erst wieder, wenn die neue Firma synchronisiert ist **— Cross-Repo-Teil erledigt 2026-10-11 (dort PROJ-16 deployt); bei Firmenwechsel genügt ein Standort-Lauf bei der neuen Firma.**
+- PROJ-13: Requires PROJ-1, PROJ-2, PROJ-14 (Personenliste, Soll, Gleitzeit-Startsaldo); optional PROJ-15 (Ferientage) — Dataverse: Lesen auf `bmvcc_timetrackingentry` für den App-Benutzer (heute 403). Grundlage: [docs/zeiterfassung-ausgangslage.md](../docs/zeiterfassung-ausgangslage.md)
+- PROJ-14: Requires PROJ-1, PROJ-2 — Dataverse: Ablage für Arbeitsmodell und Startsaldo (existiert noch nicht, Form in /architecture)
+- PROJ-15: Requires PROJ-1, PROJ-2, PROJ-14 (Pensum für den Ferienanspruch) — Dataverse: Ablage für Ferientage (existiert noch nicht)
+- PROJ-16: Requires PROJ-13 (Berechnung), Muster: PDF-Export aus PROJ-7
 
 ## Empfohlene Baureihenfolge
 1. PROJ-1 und PROJ-2 parallel (beide unabhängig, beide Grundlage für alles Weitere)
@@ -55,3 +63,4 @@
 6. PROJ-7 (PDF-Export, kann unabhängig von PROJ-5/6 jederzeit nach PROJ-4 gebaut werden)
 7. PROJ-9 (PDF-Export digital signieren, P0) — als Nächstes; Phase 1 mit Test-Zertifikat sofort möglich, parallel Anbieter/Zertifikat für Phase 2 wählen
 8. PROJ-10 (Standort als Arbeitskontext, P1) — nur dieses Repo, sofort machbar; danach PROJ-11 und PROJ-12, sobald die Fragen zu Dataverse (Kontakt ↔ Standort) und zum Kundenportal-Sync geklärt sind
+9. Zeiterfassung: PROJ-14 (Arbeitsmodell) → PROJ-13 (Zeitnachweis) → PROJ-15 (Ferien) → PROJ-16 (PDF). Nutzer-Vorgabe 2026-10-26: erst alles lokal testen, kein Deploy vorher
