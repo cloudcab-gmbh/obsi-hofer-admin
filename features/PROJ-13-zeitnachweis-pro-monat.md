@@ -9,11 +9,11 @@
 - Requires: PROJ-2 (Dataverse-Web-API-Anbindung) — Lesen der Zeiteinträge
 - Requires: PROJ-14 (Arbeitsmodell pro Person) — liefert die Personenliste, das Soll je Wochentag und den Gleitzeit-Startsaldo
 - Optional: PROJ-15 (Ferien erfassen und Feriensaldo) — solange PROJ-15 nicht live ist, kennt der Zeitnachweis keine Ferientage
-- **Dataverse-Voraussetzung:** Der App-Benutzer "# OBSI Hofer Admin" braucht **Lesen** auf `bmvcc_timetrackingentry` (heute 403, geprüft 2026-10-26)
+- **Dataverse-Voraussetzung:** Der App-Benutzer "# OBSI Hofer Admin" braucht **Lesen** auf `bmvcc_timetrackingentry` — vom Nutzer erteilt und verifiziert 2026-10-26
 - Grundlage: [docs/zeiterfassung-ausgangslage.md](../docs/zeiterfassung-ausgangslage.md) (bisherige Excel-Mappe, Dataverse-Schema)
 
 ## Ausgangslage
-Die Arbeitszeiten der Mitarbeitenden stehen bereits in Dataverse (`bmvcc_timetrackingentry`, Typen Arbeitszeit, Komp. GLZ, Krankheit). Ausgewertet wird heute in einer Excel-Mappe: pro Person und Monat ein Blatt "Zeitnachweis" mit Ist, Soll, Abweichung, fortlaufender Gleitzeit und Feriensaldo; Soll und Ferien werden dort von Hand eingetragen. Dieses Feature ersetzt die Monatsauswertung.
+Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen Arbeitszeit, Komp. GLZ, Krankheit): **jedes Kommen/Gehen ist ein eigener Eintrag**, ein Tag hat also oft mehrere Einträge (z.B. Vormittag und Nachmittag); die Pause ist die Lücke dazwischen. Ein Power-Automate-Flow berechnet zusätzlich ein Tagestotal. Die frühere Erfassung in einer SharePoint-Liste (ein Datensatz pro Tag und Person) und die Excel-Auswertung darauf werden abgelöst; aus Excel wird nur noch der Gleitzeit-Stand als Startsaldo übernommen (PROJ-14). In Excel hiess die Monatsauswertung pro Person "Zeitnachweis" (Ist, Soll, Abweichung, fortlaufende Gleitzeit, Feriensaldo; Soll und Ferien von Hand). Dieses Feature ersetzt die Monatsauswertung.
 
 ## User Stories
 - Als Freigeber möchte ich eine Person und einen Monat wählen und den Zeitnachweis Tag für Tag sehen, damit ich die Excel-Mappe nicht mehr führen muss.
@@ -45,7 +45,9 @@ Die Arbeitszeiten der Mitarbeitenden stehen bereits in Dataverse (`bmvcc_timetra
 
 **Tageszeilen**
 - [ ] Angenommen Person und Monat sind gewählt, wenn der Zeitnachweis lädt, dann erscheint jeder Kalendertag des Monats als Zeile mit Datum und Wochentag
-- [ ] Angenommen eine Person hat an einem Tag einen oder mehrere Einträge vom Typ "Arbeitszeit", wenn der Tag angezeigt wird, dann zeigt er Kommen, Pausenbeginn, Pausenende und Gehen, und das Ist ist die Summe der Netto-Arbeitszeit aller Einträge des Tages
+- [ ] Angenommen eine Person hat an einem Tag einen oder mehrere Einträge vom Typ "Arbeitszeit", wenn der Tag angezeigt wird, dann zeigt er alle Kommen/Gehen-Paare des Tages in zeitlicher Reihenfolge (z.B. "07:30–12:00, 12:45–17:15"), und das Ist ist die Summe (Gehen − Kommen) aller Einträge des Tages
+- [ ] Angenommen ein Eintrag hat ein "Kommen", aber kein "Gehen", dann zählt er nicht ins Ist und die Zeile ist als "offen – Gehen fehlt" markiert; beim laufenden Tag (heute) ohne Warnung, an vergangenen Tagen als Warnung
+- [ ] Angenommen das Tagestotal des Power-Automate-Flows weicht vom selbst berechneten Ist des Tages ab, dann zeigt die Zeile einen dezenten Hinweis mit beiden Werten; massgeblich bleibt das selbst berechnete Ist
 - [ ] Angenommen ein Tag ist laut Arbeitsmodell ein Arbeitstag und weder Feiertag noch Ferientag, dann ist sein Soll das Soll des Wochentags aus dem Arbeitsmodell, das an diesem Datum gilt
 - [ ] Angenommen ein Tag ist ein gesetzlicher Feiertag im Aargau, ein Ferientag (PROJ-15) oder laut Arbeitsmodell kein Arbeitstag, dann ist sein Soll 0 und der Grund steht in der Zeile ("Feiertag: Auffahrt", "Ferien", "frei")
 - [ ] Angenommen ein Tag hat einen Eintrag vom Typ "Krankheit", dann gilt das Soll als erfüllt (Ist = Soll), die Gleitzeit bleibt unverändert, und die Zeile ist als "Krankheit" gekennzeichnet
@@ -65,13 +67,15 @@ Die Arbeitszeiten der Mitarbeitenden stehen bereits in Dataverse (`bmvcc_timetra
 - [ ] Angenommen das Laden aus Dataverse schlägt fehl (nicht erreichbar, fehlende Berechtigung), dann erscheint eine verständliche Fehlermeldung statt eines unvollständigen Nachweises
 
 ## Edge Cases
-- **Mehrere Einträge am selben Tag** (z.B. Vormittag und Nachmittag getrennt erfasst): Ist = Summe; Kommen = frühester Beginn, Gehen = spätestes Ende; Pausenangaben aus dem jeweiligen Eintrag
+- **Mehrere Einträge am selben Tag** (der Normalfall seit der neuen Erfassung): alle Paare in zeitlicher Reihenfolge, Ist = Summe der Paare; Pausen sind die Lücken dazwischen und werden nicht abgezogen
+- **Überlappende Einträge** (z.B. 08:00–12:00 und 11:30–13:00): überlappende Zeit zählt nur einmal; die Zeile zeigt einen Hinweis "Einträge überschneiden sich"
+- **Eintrag über Mitternacht** (Gehen am Folgetag): zählt vollständig zum Tag des Kommens
 - **Eintrag an einem Tag ohne Soll** (Wochenende, Feiertag, freier Tag): Ist zählt voll, Abweichung = Ist, Gleitzeit steigt
 - **Krankheit an einem Tag ohne Soll**: Ist = 0, keine Auswirkung
 - **Komp. GLZ und Arbeitszeit am selben Tag** (z.B. halber Tag frei): Ist = Summe der Arbeitszeit-Einträge; das Soll bleibt das volle Soll des Tages — die Gleitzeit sinkt um die nicht gearbeiteten Stunden
 - **Arbeitsmodell ändert sich mitten im Monat** (z.B. Pensum ab 15.): jeder Tag nimmt das an seinem Datum gültige Modell
 - **Person tritt mitten im Monat ein / aus** (Arbeitsmodell gültig ab/bis): Tage ausserhalb haben kein Soll und sind als "nicht angestellt" gekennzeichnet
-- **Eintrag ohne Netto-Arbeitszeit** (leeres Feld) oder mit unplausiblem Wert (negativ, mehr als 24 h): zählt nicht ins Ist, Tageszeile mit Warnhinweis
+- **Unplausibler Eintrag** (Gehen vor Kommen, mehr als 14 h am Stück): zählt nicht ins Ist, Tageszeile mit Warnhinweis
 - **Mitternacht/Zeitzone**: Ein Eintrag zählt zu dem Tag seines Aktivitätsdatums in Schweizer Zeit, auch wenn Dataverse UTC speichert
 - **Feiertag fällt auf einen freien Tag oder ein Wochenende**: kein zusätzlicher Effekt (Soll ist ohnehin 0)
 - **Ferientag und Arbeitszeit-Eintrag am selben Tag**: Ist zählt, Soll 0 (Ferien) → Gleitzeit steigt; Zeile mit Hinweis "Ferien und Arbeitszeit am selben Tag"
@@ -84,11 +88,14 @@ Die Arbeitszeiten der Mitarbeitenden stehen bereits in Dataverse (`bmvcc_timetra
 - Alle Zeiten in Schweizer Zeit; Stunden mit zwei Nachkommastellen
 
 ## Open Questions
-- [ ] Welches Feld ist die massgebliche Netto-Arbeitszeit: `bmvcc_networkinghours` ("aznetto") oder `bmvcc_aznetto4`? Und Kommen/Gehen aus `bmvcc_kommen`/`bmvcc_gehen` oder `bmvcc_activitystarttime`/`bmvcc_checkouttime`? — erst prüfbar, wenn das Leserecht erteilt ist (/architecture)
-- [ ] Welche der drei Essens-Felder (`bmvcc_mittagessen`, `bmvcc_essen`, `bmvcc_abendessen`) sind in Gebrauch?
-- [ ] Wird die Netto-Arbeitszeit vom Erfassungs-Werkzeug bereits ohne Pause berechnet, oder muss der Zeitnachweis die Pause abziehen?
+- [x] Woher kommen die Einträge? → Die neue Erfassung speichert in Dataverse, jedes Kommen/Gehen als eigener Eintrag; die SharePoint-Liste der Excel-Mappe ist abgelöst und nicht mehr relevant (Nutzer, 2026-10-26)
+- [x] Netto-Arbeitszeit aus `bmvcc_networkinghours` oder `bmvcc_aznetto4`? → keines von beiden: Das Ist wird aus Kommen/Gehen gerechnet (Nutzer-Entscheidung 2026-10-26). Befund der Daten: `bmvcc_networkinghours` 1× gefüllt, `bmvcc_aznetto4` 127× (von 143), entspricht aber nur 12× der Dauer des Eintrags
+- [x] Muss der Zeitnachweis Pausen abziehen? → Nein: Pausen sind Lücken zwischen den Einträgen; die Pausenfelder sind praktisch leer (5× bzw. 3× von 143)
+- [ ] Welches Feldpaar ist Kommen/Gehen: `bmvcc_kommen`/`bmvcc_gehen` (139/127 gefüllt) oder `bmvcc_activitystarttime`/`bmvcc_checkouttime` (143/129)? Beide stimmen in 129 von 139 Fällen überein — Erfassungs-App bzw. Flow prüfen (/architecture)
+- [ ] In welches Feld und in welcher Einheit schreibt der Flow das Tagestotal (`bmvcc_tagestotal`, vermutlich Minuten)? Steht es auf jedem Eintrag des Tages oder nur auf einem? (für den Abgleich-Hinweis)
+- [ ] Mittagessen: `bmvcc_mittagessen` und `bmvcc_essen` sind fast identisch (141 von 143) — welches ist massgeblich? `bmvcc_abendessen` 14× gesetzt
+- [ ] Der letzte Eintrag in Dataverse wurde am 02.09.2026 erstellt (143 Einträge, 5 Personen, seit April). Läuft die neue Erfassung schon produktiv? Für den lokalen Test braucht es aktuelle Daten
 - [ ] Gehören 1. Mai oder Fronleichnam zu den Feiertagen von OBSI Hofer? (in der bisherigen Excel-Liste nicht enthalten)
-- [ ] Wer schreibt die Einträge heute in `bmvcc_timetrackingentry` (welches Erfassungs-Werkzeug), und wie viele Einträge kommen pro Monat zusammen?
 
 ## Decision Log
 
@@ -105,6 +112,8 @@ Die Arbeitszeiten der Mitarbeitenden stehen bereits in Dataverse (`bmvcc_timetra
 | Gesetzliche Feiertage Aargau automatisch, ohne Pflege | Liste aus der bisherigen Excel-Mappe; bewegliche Feiertage werden pro Jahr berechnet (Nutzer-Entscheidung) | 2026-10-26 |
 | Gleitzeit in Tagen = Stunden ÷ 8 | Wie in der bisherigen Excel-Mappe | 2026-10-26 |
 | Zeitnachweis nur lesend | Korrekturen gehören ins Erfassungs-Werkzeug; vermeidet zwei Stellen zum Ändern derselben Daten | 2026-10-26 |
+| Quelle ist ausschliesslich Dataverse (neue Erfassung, ein Eintrag pro Kommen/Gehen); die SharePoint-Liste wird nicht angebunden | Die SharePoint-Erfassung ist abgelöst (Nutzer, 2026-10-26) | 2026-10-26 |
+| Ist = Summe (Gehen − Kommen) der Einträge, selbst berechnet; das Flow-Tagestotal nur als Abgleich-Hinweis | Nachvollziehbar Zeile für Zeile und unabhängig von Fehlern im Flow; in den bisherigen Daten passen Flow-Total und Einzeleinträge selten zusammen (Nutzer-Entscheidung) | 2026-10-26 |
 | PDF als eigenes Feature (PROJ-16), obwohl Bildschirm + PDF gewünscht | Einzeln testbar und baut auf der fertigen Berechnung auf; gleiches Vorgehen wie Geräteliste (PROJ-3) und Prüfbericht-PDF (PROJ-7) | 2026-10-26 |
 
 ### Technical Decisions

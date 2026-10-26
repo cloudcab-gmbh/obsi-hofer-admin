@@ -6,7 +6,7 @@ Grundlage für `/write-spec` (neues Feature im Admin-Tool). Zusammengestellt aus
 
 | Blatt | Inhalt |
 | --- | --- |
-| `query`, `Tabelle_query` | Rohdaten, rund 1'425 Einträge, per Datenverbindung (`query.iqy`) aus Dataverse/SharePoint gezogen |
+| `query`, `Tabelle_query` | Rohdaten, rund 1'425 Einträge, per Datenverbindung (`query.iqy`) aus einer **SharePoint-Liste** (frühere Erfassung, ein Datensatz pro Tag und Person) — abgelöst, nicht mehr relevant |
 | `xxxx YY-26` | Monatsblatt pro Person: Check-in Vor- und Nachmittag, Pause, Feierabend, Ist, Soll, Differenz, Gleitzeit, Ferienbezug, Feriensaldo, Mittag, Bemerkung |
 | `Berechnungen Ferien, GLZ, Solls` | Hilfsberechnungen für Ferien, Gleitzeit (GLZ) und Sollzeiten |
 | `Tabelle1` | Hilfstabelle |
@@ -16,6 +16,8 @@ Spalten der Rohdaten: Titel, Aktivitätsdatum, Name, Arbeitsbeginn (AStart), Pau
 Die Auswertung (Ist/Soll, Gleitzeit, Ferien) passiert heute in Excel-Formeln. Diese Regeln müssen im neuen Tool nachgebaut werden — die genauen Formeln sind in den Specs zu klären.
 
 ## Datenquelle: Dataverse-Tabelle `bmvcc_timetrackingentry`
+
+Die **neue Erfassung** speichert hier: jedes Kommen/Gehen als eigener Eintrag (mehrere pro Tag); ein Power-Automate-Flow berechnet das Tagestotal. Stand 2026-10-26: 143 Einträge, 5 Personen, April bis September 2026, letzter Eintrag erstellt am 02.09.2026.
 
 Anzeigename "Time Tracking Entry", Entity-Set `bmvcc_timetrackingentries`, gleiche Dataverse-Umgebung wie das Admin-Tool (`obsi-hofer-admin`).
 
@@ -38,8 +40,9 @@ Anzeigename "Time Tracking Entry", Entity-Set `bmvcc_timetrackingentries`, gleic
 
 Beobachtungen:
 - Mehrere Felder wirken doppelt (z.B. Kommen/Gehen vs. Arbeitsbeginn/Checkout, drei Mittagessen-Felder, zwei AZ-netto-Felder) — welche massgeblich sind, ist offen.
-- Die Werte des Aktivitätstyps (Auswahlliste) sind noch nicht ausgelesen.
-- Der App-Benutzer des Admin-Tools hat **keinen** Lesezugriff auf die Daten (403, geprüft 2026-10-26). Für das Feature braucht der App-Benutzer "# OBSI Hofer Admin" zusätzliche Rechte auf diese Tabelle.
+- Aktivitätstyp (Auswahlliste): 0 = Arbeitszeit, 1 = Komp. GLZ, 2 = Krankheit; einen Typ "Ferien" gibt es nicht.
+- Lesezugriff des App-Benutzers "# OBSI Hofer Admin" vom Nutzer erteilt und verifiziert (2026-10-26).
+- Befunde zu den Feldern (Kommen/Gehen-Paare, aznetto, Pausen, Essen) stehen in der Spec PROJ-13 unter Open Questions.
 
 ## Bezug zum Admin-Tool
 
