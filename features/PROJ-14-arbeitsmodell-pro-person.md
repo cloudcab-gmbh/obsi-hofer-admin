@@ -1,6 +1,6 @@
 # PROJ-14: Arbeitsmodell pro Person
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-10-26
 **Last Updated:** 2026-10-26
 
@@ -86,7 +86,8 @@ In der bisherigen Excel-Mappe wurde das Soll pro Tag von Hand eingetragen, der G
 - 100-%-Woche: 40 h, fest
 
 ## Open Questions
-- [ ] Wo werden Arbeitsmodell, Name, "nicht auswerten" und Startsaldo in Dataverse abgelegt (neue Tabelle(n), vom Nutzer anzulegen)? — /architecture
+- [x] Wo werden Arbeitsmodell, Name, "nicht auswerten" und Startsaldo abgelegt? → zwei neue Dataverse-Tabellen "Zeiterfassung Person" und "Arbeitsmodell", siehe Tech Design (2026-10-26)
+- [ ] Nutzer: Tabellen und Rechte in Dataverse anlegen (Spalten siehe Tech Design B)
 - [ ] Wird bei einem E-Mail-Wechsel einer Person eine Zusammenführung benötigt? (vorerst nein)
 - [ ] Soll der Stichtag des Startsaldos für alle Personen gleich sein (Umstellungstag), oder pro Person frei? (Spec: pro Person frei)
 
@@ -106,13 +107,108 @@ In der bisherigen Excel-Mappe wurde das Soll pro Tag von Hand eingetragen, der G
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
-| _wird in /architecture ergänzt_ | | |
+| Zwei neue Dataverse-Tabellen "Zeiterfassung Person" und "Arbeitsmodell", vom Nutzer angelegt | Keine eigene Datenbank (PRD); Person einmalig, Versionen mehrfach; Dataverse führt erstellt/geändert automatisch | 2026-10-26 |
+| E-Mail in Kleinbuchstaben als Schlüssel der Person | Einzige Verbindung zu den Zeiteinträgen; Schreibweise darf keine zweite Person erzeugen | 2026-10-26 |
+| "Gültig bis" einer Version wird abgeleitet, nicht gespeichert; Austritt an der Person | Keine Lücken oder Überschneidungen zwischen Versionen möglich | 2026-10-26 |
+| Arbeitstage als 7 Ja/Nein-Spalten | Einfacher und robuster als eine Mehrfachauswahl in Dataverse | 2026-10-26 |
+| Personenliste über zusammenfassende Abfrage der E-Mails; alle Seiten einer Abfrage nachladen | Bleibt schnell bei vielen Einträgen; kein Abschneiden bei 500 Datensätzen (Konsistenzprüfung K5) | 2026-10-26 |
+| Soll-Berechnung als reine, eigens getestete Rechenregel, von PROJ-13/15 wiederverwendet | Eine Stelle für die Regel 40 h × Pensum ÷ Arbeitstage | 2026-10-26 |
+| Eigener Menüpunkt "Zeiterfassung" mit Unterseiten, unabhängig vom Arbeitskontext Firma/Standort | Betrifft die eigenen Mitarbeitenden, nicht Kunden | 2026-10-26 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Ausgangslage
+- Personen gibt es in Dataverse nicht als eigene Datensätze — die Zeiteinträge (`bmvcc_timetrackingentry`) kennen nur die E-Mail. Lesen ist erteilt (2026-10-26).
+- Im Tool gibt es eine wiederverwendbare Freigeber-Prüfung (PROJ-8) und Dataverse-Hilfsfunktionen zum Lesen/Schreiben (PROJ-2). Diese laden heute aber nur die erste Seite einer Abfrage (Konsistenzprüfung K5) — für die Zeiterfassung muss das Nachladen weiterer Seiten dazukommen.
+- Die Seiten der Zeiterfassung hängen **nicht** am Arbeitskontext Firma/Standort (PROJ-10); sie betreffen die eigenen Mitarbeitenden.
+
+### A) Bausteine
+```
+Kopfzeile (bestehend)
++-- neuer Menüpunkt "Zeiterfassung" (nur Freigeber), Unterseiten:
+      "Zeitnachweis" (PROJ-13) · "Personen" (PROJ-14) · später "Ferien" (PROJ-15)
+
+/zeiterfassung/personen (nur Freigeber)
++-- Personenliste (Tabelle)
+|   +-- Spalten: Name bzw. E-Mail · Pensum + Arbeitstage (aktuell gültig) · Soll pro Arbeitstag
+|   |            · Startsaldo (Stichtag) · Status (ohne Arbeitsmodell / ausgetreten)
+|   +-- Filter "nur ohne Arbeitsmodell" · Schalter "ausgeblendete anzeigen"
+|   +-- Leer-Hinweis, wenn es noch keine Zeiteinträge gibt
+|   +-- Klick auf eine Person → Detailseite
+
+/zeiterfassung/personen/[Person] (nur Freigeber)
++-- Stammdaten: Name · "nicht auswerten" · Austritt (gültig bis)
++-- Gleitzeit-Startsaldo: Stunden + Stichtag
++-- Arbeitsmodell-Verlauf (Tabelle, neueste Version zuerst)
+|   +-- gültig ab · Pensum · Arbeitstage · berechnetes Soll pro Arbeitstag
+|   +-- "Neue Version" / "Bearbeiten" → Dialog mit Datum, Pensum, Arbeitstagen (Mo–So);
+|   |    das Soll pro Arbeitstag wird im Dialog laufend angezeigt
+|   +-- "Löschen" → Bestätigungsdialog
++-- Fehlermeldungen beim Speichern; Eingaben bleiben erhalten
+
+Server (Aktionen, je mit Freigeber-Prüfung und Prüfung der Eingaben)
++-- Personen ermitteln: verschiedene E-Mails aus den Zeiteinträgen + gespeicherte Personendaten
++-- Name / "nicht auswerten" / Austritt / Startsaldo speichern
++-- Arbeitsmodell-Version anlegen, ändern, löschen
+
+Gemeinsame Rechenregel (für PROJ-13 wiederverwendet)
++-- "Soll einer Person an einem Datum": gültige Version → Arbeitstag? → 40 h × Pensum ÷ Anzahl Arbeitstage;
+     vor der ersten Version oder nach dem Austritt 0
+```
+
+### B) Datenmodell (in Worten)
+Zwei neue Dataverse-Tabellen, **vom Nutzer anzulegen** (Vorgehen wie "Portalzugang" in PROJ-11). Schema-Namen werden nach dem Anlegen gelesen und in den Implementation Notes festgehalten.
+
+**Tabelle "Zeiterfassung Person"** — ein Datensatz pro Person, für die der Freigeber etwas erfasst hat:
+- E-Mail (Primärspalte, Text, Pflicht; in Kleinbuchstaben gespeichert; alternativer Schlüssel, damit es jede E-Mail nur einmal gibt)
+- Name (Text, optional)
+- Nicht auswerten (Ja/Nein, Standard Nein)
+- Austritt am (Datum, optional) — letzter Tag mit Soll
+- Gleitzeit-Startsaldo (Dezimalzahl, Stunden, 2 Nachkommastellen, auch negativ, optional)
+- Startsaldo-Stichtag (Datum, optional; Pflicht, sobald ein Startsaldo erfasst ist)
+
+**Tabelle "Arbeitsmodell"** — ein Datensatz pro Version:
+- Name (Primärspalte, vom Tool gefüllt, z.B. "anna@… ab 01.11.2026")
+- Person (Verweis auf "Zeiterfassung Person", Pflicht)
+- Gültig ab (Datum, Pflicht)
+- Pensum (Dezimalzahl in %, 0–100)
+- Arbeitstag Montag … Arbeitstag Sonntag (7 Ja/Nein-Spalten)
+- empfohlen: alternativer Schlüssel (Person + Gültig ab) → Dataverse verhindert zwei Versionen am selben Datum
+
+Eine Version gilt bis zum Tag vor der nächsten Version; die letzte Version gilt bis zum Austritt bzw. offen. "Gültig bis" wird daher nicht gespeichert, sondern abgeleitet — Lücken oder Überschneidungen zwischen Versionen können nicht entstehen.
+
+Der Personendatensatz entsteht automatisch beim ersten Speichern (Name, Startsaldo oder erste Version). Personen, die nur in den Zeiteinträgen vorkommen, erscheinen trotzdem in der Liste (Status "ohne Arbeitsmodell").
+
+**Rechte für den App-Benutzer "# OBSI Hofer Admin":** auf beiden Tabellen Lesen, Erstellen, Schreiben, Löschen, Anfügen; auf "Zeiterfassung Person" zusätzlich "Anfügen an". Lesen auf `bmvcc_timetrackingentry` ist bereits erteilt.
+
+### C) Technische Entscheidungen (Begründung)
+- **Eigene Dataverse-Tabellen statt Excel, SharePoint oder eigener Datenbank:** gleiche Linie wie das ganze Tool (PRD: keine eigene Datenbank); Dataverse protokolliert "erstellt/geändert von/am" automatisch.
+- **Zwei Tabellen (Person + Versionen)** statt alles in einer: Name, Ausblenden, Austritt und Startsaldo gibt es pro Person nur einmal, Arbeitsmodelle mehrfach.
+- **E-Mail als Schlüssel der Person, in Kleinbuchstaben:** die Zeiteinträge kennen nur die E-Mail; Gross-/Kleinschreibung darf keine zweite Person erzeugen.
+- **"Gültig bis" abgeleitet statt gespeichert:** eine neue Version beendet die vorige automatisch.
+- **7 Ja/Nein-Spalten für die Arbeitstage** statt einer Mehrfachauswahl: in Dataverse und beim Lesen einfacher und robuster; in der Oberfläche trotzdem eine Zeile mit Mo–So-Häkchen.
+- **Personenliste über eine zusammenfassende Abfrage** ("welche E-Mails kommen vor") statt alle Zeiteinträge zu laden: bleibt schnell, auch bei Zehntausenden Einträgen.
+- **Nachladen aller Seiten bei Dataverse-Abfragen** für die Zeiterfassung: Abfragen dürfen nicht bei 500 Datensätzen abschneiden (Lehre aus der Konsistenzprüfung K5).
+- **Soll-Berechnung als gemeinsame, reine Rechenregel** (ohne Datenzugriff, eigens getestet): PROJ-13 nutzt sie für jeden Tag, PROJ-15 das Pensum für den Ferienanspruch.
+- **Freigeber-Prüfung auf jeder Seite und jeder Aktion** (wie PROJ-8): Aktionen sind direkt aufrufbar.
+- **Bestehende Oberflächenbausteine** (Tabelle, Dialog, Checkbox, Eingabe, Bestätigungsdialog, Badge): keine neuen Komponenten nötig.
+
+### D) Abhängigkeiten (Pakete)
+Keine neuen Pakete.
+
+### E) Tests
+- Unit-Tests der Rechenregel: Soll pro Arbeitstag (40/45/30 % an 2–4 Tagen), Versionswechsel mitten im Monat, vor der ersten Version, nach dem Austritt, Pensum 0 %, Wochenend-Arbeitstage
+- Unit-Tests der Aktionen: Bearbeiter abgelehnt; Prüfungen (Pensum ausserhalb 0–100, kein Arbeitstag bei Pensum > 0, doppeltes "gültig ab", Startsaldo ohne Stichtag); E-Mail in Kleinbuchstaben; Personendatensatz entsteht beim ersten Speichern
+- Komponententests: Liste mit/ohne Arbeitsmodell, Filter und Schalter "ausgeblendete", Leer-Hinweis, Dialog mit laufend angezeigtem Soll, Fehler beim Speichern
+- Manuell lokal mit den Testdaten (5 Personen): Tabellen und Rechte in Dataverse, Personenliste, Versionen anlegen/ändern/löschen, Startsaldo
+
+### F) Vorgehen
+1. Nutzer legt die zwei Tabellen und die Rechte in Dataverse an (Liste oben)
+2. Schema lesen (nur lesend) und in den Implementation Notes festhalten
+3. Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`, kein Deploy bis zur Freigabe (Nutzer-Vorgabe 2026-10-26)
 
 ## QA Test Results
 _To be added by /qa_
