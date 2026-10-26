@@ -87,7 +87,7 @@ In der bisherigen Excel-Mappe wurde das Soll pro Tag von Hand eingetragen, der G
 
 ## Open Questions
 - [x] Wo werden Arbeitsmodell, Name, "nicht auswerten" und Startsaldo abgelegt? → zwei neue Dataverse-Tabellen "Zeiterfassung Person" und "Arbeitsmodell", siehe Tech Design (2026-10-26)
-- [ ] Nutzer: Tabellen und Rechte in Dataverse anlegen (Spalten siehe Tech Design B)
+- [x] Nutzer: Tabellen und Rechte in Dataverse anlegen → erledigt und verifiziert 2026-10-26 (Schema siehe Implementation Notes)
 - [ ] Wird bei einem E-Mail-Wechsel einer Person eine Zusammenführung benötigt? (vorerst nein)
 - [ ] Soll der Stichtag des Startsaldos für alle Personen gleich sein (Umstellungstag), oder pro Person frei? (Spec: pro Person frei)
 
@@ -114,6 +114,8 @@ In der bisherigen Excel-Mappe wurde das Soll pro Tag von Hand eingetragen, der G
 | Personenliste über zusammenfassende Abfrage der E-Mails; alle Seiten einer Abfrage nachladen | Bleibt schnell bei vielen Einträgen; kein Abschneiden bei 500 Datensätzen (Konsistenzprüfung K5) | 2026-10-26 |
 | Soll-Berechnung als reine, eigens getestete Rechenregel, von PROJ-13/15 wiederverwendet | Eine Stelle für die Regel 40 h × Pensum ÷ Arbeitstage | 2026-10-26 |
 | Eigener Menüpunkt "Zeiterfassung" mit Unterseiten, unabhängig vom Arbeitskontext Firma/Standort | Betrifft die eigenen Mitarbeitenden, nicht Kunden | 2026-10-26 |
+| Datumsfelder bleiben "Benutzer lokal"; das Tool schreibt und liest sie immer als Kalenderdatum in Schweizer Zeit (Europe/Zurich) | Bestehende Spalten lassen sich in Dataverse nicht auf "Zeitzonenunabhängig"/"Nur Datum" umstellen (vom Nutzer getestet); gleiche Umrechnung wie beim Aktivitätsdatum der Zeiteinträge. Grenze: wer die Felder direkt in Dataverse mit anderer Zeitzone bearbeitet, kann das Datum verschieben | 2026-10-26 |
+| Primärspalte der Person (`bmvcc_name`) enthält die E-Mail; lesbarer Name in eigener Spalte `bmvcc_anzeigename` | Schlüssel `bmvcc_mail` liegt auf der Primärspalte (vom Nutzer so angelegt) | 2026-10-26 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
@@ -209,6 +211,34 @@ Keine neuen Pakete.
 1. Nutzer legt die zwei Tabellen und die Rechte in Dataverse an (Liste oben)
 2. Schema lesen (nur lesend) und in den Implementation Notes festhalten
 3. Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`, kein Deploy bis zur Freigabe (Nutzer-Vorgabe 2026-10-26)
+
+## Implementation Notes
+
+### Dataverse-Schema (vom Nutzer angelegt, gelesen 2026-10-26, nur lesend)
+**Zeiterfassung Person** — Entity-Set `bmvcc_zeiterfassungpersons`, Id `bmvcc_zeiterfassungpersonid`
+| Spalte | Typ | Inhalt |
+| --- | --- | --- |
+| `bmvcc_name` | Text (850), Primärspalte | E-Mail in Kleinbuchstaben; alternativer Schlüssel `bmvcc_mail` (aktiv) |
+| `bmvcc_anzeigename` | Text (100) | Name |
+| `bmvcc_nichtauswerten` | Ja/Nein | nicht auswerten |
+| `bmvcc_austrittam` | Datum, Format "Nur Datum", Verhalten "Benutzer lokal" | Austritt (letzter Tag mit Soll) |
+| `bmvcc_gleitzeitstartsaldo` | Dezimal, 2 Nachkommastellen | Startsaldo in Stunden |
+| `bmvcc_startsaldostichtag` | Datum, "Nur Datum", "Benutzer lokal" | Stichtag |
+
+**Arbeitsmodell** — Entity-Set `bmvcc_arbeitsmodells`, Id `bmvcc_arbeitsmodellid`
+| Spalte | Typ | Inhalt |
+| --- | --- | --- |
+| `bmvcc_name` | Text, Primärspalte | vom Tool gefüllt |
+| `bmvcc_person` | Verweis → Zeiterfassung Person (Pflicht), Navigation `bmvcc_Person` | Person |
+| `bmvcc_gultigab` | Datum, "Nur Datum", "Benutzer lokal" | gültig ab |
+| `bmvcc_pensum` | Dezimal, 1 Nachkommastelle | Pensum in % |
+| `bmvcc_arbeitstagmontag` … `bmvcc_arbeitstagsonntag` | 7× Ja/Nein | Arbeitstage |
+
+Kein alternativer Schlüssel auf (Person + gültig ab) — das Tool prüft doppelte Daten selbst.
+
+**Rechte** des App-Benutzers "# OBSI Hofer Admin" (per `RetrieveUserPrivileges` geprüft): auf beiden Tabellen Lesen, Erstellen, Schreiben, Löschen, Anfügen, Anfügen an (Organisation). Lesen auf `bmvcc_timetrackingentry` erteilt.
+
+**Datumsfelder:** "Benutzer lokal" lässt sich bei bestehenden Spalten nicht umstellen. Das Tool schreibt ein Datum als Mitternacht Schweizer Zeit und liest es in Schweizer Zeit zurück (siehe Technical Decisions). Eine Testspalte `bmvcc_austritt` ("Zeitzonenunabhängig") wird nicht verwendet und kann gelöscht werden.
 
 ## QA Test Results
 _To be added by /qa_
