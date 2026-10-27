@@ -1,6 +1,6 @@
 # PROJ-15: Ferien erfassen und Feriensaldo
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-10-26
 **Last Updated:** 2026-10-27
 
@@ -95,7 +95,8 @@ Ferien werden wie Krankheit als **ganztägige Zeiteinträge** gespeichert (neuer
 
 ## Open Questions
 - [x] Wird der Jahresanspruch am 1. Januar ganz gutgeschrieben oder monatlich aufgebaut? → am Jahresbeginn ganz gutgeschrieben; im Jahr von Eintritt bzw. Stichtag anteilig ab diesem Tag (Nutzer, 2026-10-27)
-- [ ] Wie wird ein halber Ferientag in Dataverse gekennzeichnet (eigenes Feld oder Konvention)? — /architecture, ggf. vom Nutzer anzulegen
+- [x] Wie wird ein halber Ferientag gekennzeichnet? → eigene Ja/Nein-Spalte "Halber Tag" am Zeiteintrag (Tech Design)
+- [ ] Nutzer: Spalte "Halber Tag" am Zeiteintrag, Spalten "Ferienanspruch" und "Ferien-Startsaldo" an der Person, Recht "Löschen" auf `bmvcc_timetrackingentry` anlegen
 - [ ] Soll die Erfassungs-App künftig selbst Ferien/Frei erfassen können? (betrifft die App, nicht dieses Tool)
 
 ## Decision Log
@@ -118,13 +119,123 @@ Ferien werden wie Krankheit als **ganztägige Zeiteinträge** gespeichert (neuer
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
-| _wird in /architecture ergänzt_ | | |
+| Ferien und Frei als Zeiteinträge (Typ 3/4), ein Eintrag pro Ferientag; Zeiträume nur in der Anzeige zusammengefasst | Gleiche Tabelle und Abfrage wie die übrigen Einträge; einzeln löschbar; Muster auch für die Erfassungs-App | 2026-10-27 |
+| Halber Ferientag über eigene Ja/Nein-Spalte am Zeiteintrag | Eindeutig; eine Gehen-Zeit würde der Flow als Arbeitszeit werten | 2026-10-27 |
+| Ferienanspruch und Ferien-Startsaldo als Spalten an der Person, gemeinsamer Stichtag mit der Gleitzeit | Je ein Wert pro Person; eine Übernahme aus Excel | 2026-10-27 |
+| Ganztägige Ferien/Frei-Einträge mit Kommen = Tagesbeginn, ohne Gehen | Der Flow braucht ein Kommen (Befund PROJ-13) | 2026-10-27 |
+| Vorschau der Ferientage serverseitig mit denselben Regeln wie beim Speichern | Ergebnis hängt von Arbeitsmodell, Feiertagen und bestehenden Einträgen ab | 2026-10-27 |
+| Löschen nur von Ferien/Frei, Typ vor dem Löschen neu gelesen | Das Dataverse-Recht gilt für alle Einträge; das Tool beschränkt es | 2026-10-27 |
+| Anspruch anteilig nach Kalendertagen mit gültigem Arbeitsmodell × Pensum, gerundet auf halbe Tage | Eintritt, Austritt und Pensumswechsel ohne Sonderfälle | 2026-10-27 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Ausgangslage
+- PROJ-13 und PROJ-14 sind gebaut (Branch `zeiterfassung`, Approved). Vorhanden sind:
+  - Rechenregeln für Soll, Feiertage und Zeitnachweis; der Zeitnachweis nimmt bereits Ferientage entgegen (Soll 0, Grund "Ferien");
+  - der Dialog "Eintrag erfassen" und das Anlegen von Zeiteinträgen mit den Feldern der Erfassungs-App;
+  - die Personenseite mit Startsaldo und Stichtag.
+- Dataverse: Aktivitätstyp 3 = Ferien und 4 = Frei vom Nutzer angelegt (2026-10-27). Der App-Benutzer darf Zeiteinträge lesen, erstellen und ändern, aber **nicht löschen** (geprüft 2026-10-27).
+- Ganztägige Einträge brauchen ein "Kommen", sonst scheitert der Flow (Befund PROJ-13).
+
+### A) Bausteine
+```
+Zeiterfassung (Unterseiten-Leiste): Zeitnachweis · Personen · Ferien (neu)
+
+/zeiterfassung/ferien (nur Freigeber)
++-- Jahr wählen (Vor/Zurück, Standard: aktuelles Jahr)
++-- Jahresübersicht aller Personen (ohne "nicht auswerten")
+|   +-- Spalten: Person · Anspruch · Saldo Vorjahr · bezogen (bis heute) · geplant (ab morgen) · Saldo Ende Jahr
+|   +-- negativer Saldo rot markiert; Personen ohne Arbeitsmodell mit Hinweis
+|   +-- Klick auf eine Person → Ferien dieser Person im Jahr
++-- Ferien einer Person (gleiche Seite, Person in der Adresse)
+    +-- Zeiträume des Jahres: von–bis · Anzahl Tage (½ sichtbar) · bezogen/geplant · Löschen (mit Bestätigung)
+    +-- "Ferien erfassen" → Dialog (siehe unten)
+
+Dialog "Ferien erfassen" (auf der Ferien-Seite und im Zeitnachweis)
++-- von · bis (bei einem einzelnen Tag zusätzlich "halber Tag")
++-- Vorschau vor dem Speichern: "ergibt 8 Ferientage; übersprungen: 2 Feiertage, 1 bereits Ferien, 3 ohne Arbeitsmodell"
++-- Bemerkung (optional)
+
+Zeitnachweis (Erweiterung PROJ-13)
++-- Dialog "Eintrag erfassen": neue Arten "Ferien" und "Frei"; auch an künftigen Tagen (dort nur diese beiden)
++-- Tageszeile: "Ferien" / "½ Ferien" / "Frei"; Ferien- und Frei-Einträge mit "löschen"
++-- Hinweise: "Ferien an einem Tag ohne Soll", "Krankheit während der Ferien"
++-- Übersicht: neue Kennzahlen "Ferien bezogen (Monat)" und "Feriensaldo" (laufender Monat: Stand heute, plus geplant)
+
+Personenseite (Erweiterung PROJ-14)
++-- Ferienanspruch (Tage pro Jahr bei 100 %, Vorgabe 25) · Ferien-Startsaldo (Tage) am bestehenden Stichtag
+
+Server (Freigeber-Prüfung, Prüfung der Eingaben)
++-- Ferien vorab berechnen (Vorschau) · Ferien anlegen · Ferien/Frei löschen
++-- Ferienanspruch und Ferien-Startsaldo speichern (bestehende Personen-Aktion)
+
+Rechenregeln (rein, eigens getestet)
++-- Ferientage eines Zeitraums: Tage mit Soll laut Arbeitsmodell, ohne Feiertage, ohne bestehende Ferien
++-- Anspruch eines Jahres: Anspruch × Pensum, anteilig nach Tagen mit gültigem Arbeitsmodell (ab Beginn), gerundet auf halbe Tage
++-- Feriensaldo an einem Datum: Startsaldo + Ansprüche der Jahre − bezogene Ferientage (Krankheit überwiegt, Tage ohne Soll zählen nicht)
+```
+
+### B) Datenmodell (in Worten)
+**Ferien und Frei** sind Zeiteinträge in der bestehenden Tabelle (`bmvcc_timetrackingentry`):
+- Typ 3 = Ferien bzw. 4 = Frei, ein Eintrag pro Tag;
+- E-Mail und Aktivitätsdatum wie bei den übrigen Einträgen;
+- "Kommen" = Tagesbeginn (00:00 Schweizer Zeit), "Gehen" leer — wie die ganztägigen Einträge aus PROJ-13.
+
+**Neu vom Nutzer anzulegen:**
+1. **Zeiteintrag:** Ja/Nein-Spalte **"Halber Tag"** (Standard Nein). Kennzeichnet einen halben Ferientag. Eine eigene Spalte ist eindeutig, auch für die Erfassungs-App und Auswertungen in Dataverse.
+2. **Zeiterfassung Person:**
+   - **Ferienanspruch** (Dezimalzahl, 1 Nachkommastelle; Tage pro Jahr bei 100 %; leer = Vorgabe 25);
+   - **Ferien-Startsaldo** (Dezimalzahl, 1 Nachkommastelle; Tage, auch negativ).
+   - Der Stichtag ist der bestehende Startsaldo-Stichtag (gemeinsam für Gleitzeit und Ferien).
+3. **Recht "Löschen"** auf `bmvcc_timetrackingentry` für den App-Benutzer "# OBSI Hofer Admin". Das Tool löscht damit ausschliesslich Einträge vom Typ Ferien und Frei.
+
+**Berechnung (nichts gespeichert, wie PROJ-13):**
+- **Beginn:** Der Feriensaldo beginnt am selben Tag wie die Gleitzeit: Tag nach dem Stichtag, sonst erste Arbeitsmodell-Version. Startwert ist der Ferien-Startsaldo, sonst 0.
+- **Anspruch:** Am 1. Januar jedes Jahres wird der Jahresanspruch gutgeschrieben, im Jahr des Beginns ab dem Beginn. Er ist anteilig nach Kalendertagen mit gültigem Arbeitsmodell und dem jeweiligen Pensum und wird auf halbe Tage gerundet.
+- **Ferientag:**
+  - Ein Ferien-Eintrag an einem Tag mit Soll laut Arbeitsmodell zählt 1 Tag, mit "Halber Tag" 0.5.
+  - Kein Ferientag ist ein Tag ohne Soll, ein Feiertag oder ein Tag mit Krankheits-Eintrag; diese Fälle bekommen einen Hinweis.
+  - Ferien vor dem Beginn werden angezeigt, zählen aber nicht.
+- **Zeitnachweis:** Ein ganzer Ferientag hat Soll 0, ein halber Ferientag das halbe Soll.
+- **Bezogen / geplant:** Bezogen sind Ferientage bis und mit heute, geplant die Ferientage ab morgen. "Saldo Ende Jahr" zieht beide ab.
+
+### C) Technische Entscheidungen (Begründung)
+- **Ferien als Zeiteinträge (Typ 3) statt eigener Tabelle** (Product Decision): Ferien laden mit derselben Abfrage wie die übrigen Einträge, und der Flow läuft mit.
+- **Ein Eintrag pro Ferientag statt einer von–bis-Zeile:** passt zur Tabelle, die pro Tag denkt. Einzelne Tage lassen sich löschen, und die Erfassungs-App kann später dasselbe Muster nutzen. Zeiträume entstehen erst in der Anzeige: aufeinanderfolgende Ferientage werden zusammengefasst, freie Tage dazwischen unterbrechen nicht.
+- **Eigene Spalte "Halber Tag"** statt einer Uhrzeit-Konvention (z.B. Gehen = 12:00): eindeutig, und der Flow würde eine Gehen-Zeit als Arbeitszeit behandeln.
+- **Anspruch und Ferien-Startsaldo an der Person, gemeinsamer Stichtag:** eine Übernahme aus Excel für beides. Keine eigene Tabelle, weil es pro Person je einen Wert gibt.
+- **Vorschau vor dem Speichern (Server):** Welche Tage Ferientage werden, hängt von Arbeitsmodell, Feiertagen und bestehenden Einträgen ab. Der Server rechnet die Vorschau mit denselben Regeln wie beim Speichern.
+- **Anlegen nacheinander mit Teil-Meldung:** wie beim Erfassen in PROJ-13. Bei einem Fehler mitten im Zeitraum wird gemeldet, wie viele Tage gespeichert sind; ein zweiter Versuch überspringt sie, weil bestehende Ferien nicht doppelt angelegt werden.
+- **Löschen nur Ferien/Frei, serverseitig geprüft:** Das Löschrecht in Dataverse gilt für alle Einträge, das Tool beschränkt es. Vor dem Löschen wird der Typ jedes Eintrags neu gelesen.
+- **Saldo live berechnet:** eine Abfrage der Ferien- und Krankheits-Einträge der Person ab Beginn; für die Jahresübersicht eine Abfrage für alle Personen (geringe Menge, rund 25 Einträge pro Person und Jahr).
+- **Gemeinsame Rechenregeln:** Ferientag-Bestimmung, Anspruch und Saldo werden im Zeitnachweis, auf der Ferien-Seite und später im PDF (PROJ-16) gleich gerechnet.
+
+### D) Abhängigkeiten (Pakete)
+Keine neuen Pakete.
+
+### E) Tests
+- **Ferientage eines Zeitraums:** über Feiertage, Wochenenden, Teilzeit (2 Tage pro Woche), Modellwechsel, ohne Arbeitsmodell, bestehende Ferien, halber Tag.
+- **Anspruch:**
+  - 100 %, 40 %, Pensumswechsel, Eintritt und Austritt mitten im Jahr;
+  - Stichtagsjahr anteilig; Rundung auf halbe Tage; Schaltjahr.
+- **Saldo:** Startsaldo, Jahreswechsel mit Vortrag, negativer Saldo, Krankheit überwiegt, Ferien an Tag ohne Soll, Ferien vor dem Beginn, bezogen und geplant.
+- **Zeitnachweis:** halber Ferientag mit Arbeitszeit, Kennzahlen.
+- **Aktionen:**
+  - Bearbeiter abgelehnt; Vorschau gleich Speichern; Zeitraum ohne Ferientag; Teil-Speicherung;
+  - Löschen nur Ferien/Frei; Anspruch 0–50 Tage; Ferien-Startsaldo ohne Stichtag.
+- **Komponenten:** Jahresübersicht, Zeiträume, Dialog mit Vorschau, Löschen mit Bestätigung.
+- **Manuell lokal:** Ferien über Weihnachten erfassen und löschen, halber Tag, Saldo über den Jahreswechsel, Flow läuft.
+
+### F) Vorgehen
+1. Nutzer legt in Dataverse an:
+   - Spalte "Halber Tag" am Zeiteintrag;
+   - Spalten "Ferienanspruch" und "Ferien-Startsaldo" an der Person;
+   - Recht "Löschen" auf `bmvcc_timetrackingentry`.
+2. Schema lesen (nur lesend) und in den Implementation Notes festhalten.
+3. Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`, kein Deploy bis zur Freigabe.
 
 ## QA Test Results
 _To be added by /qa_
