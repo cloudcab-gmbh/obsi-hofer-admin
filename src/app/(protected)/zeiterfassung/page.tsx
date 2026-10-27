@@ -72,8 +72,9 @@ export default async function ZeitnachweisPage({
     fehler = "Der Zeitnachweis konnte nicht geladen werden. Bitte später erneut versuchen.";
   }
 
+  // Volle Höhe: die Tabelle des Zeitnachweises nimmt den Rest ein und scrollt selbst.
   return (
-    <main className="mx-auto max-w-6xl space-y-6 px-4 py-6">
+    <main className="mx-auto flex h-full max-w-6xl flex-col gap-6 px-4 py-6">
       <h1 className="text-xl font-semibold">{TITEL}</h1>
       <ZeitnachweisAuswahl personen={optionen} person={person?.email ?? null} monat={monat} />
       {fehler ? (

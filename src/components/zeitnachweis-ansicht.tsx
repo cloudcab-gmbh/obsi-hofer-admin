@@ -102,7 +102,7 @@ export function ZeitnachweisAnsicht({
   const gleitzeitTitel = z.laufenderMonat ? "Gleitzeit Stand heute" : "Gleitzeit Monatsende";
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="space-y-2">
         {z.ohneArbeitsmodell && (
           <Hinweis warnung>
@@ -169,16 +169,17 @@ export function ZeitnachweisAnsicht({
         />
       </div>
 
-      <Card>
+      {/* Mindesthöhe, damit die Tabelle auch auf kleinen Bildschirmen nutzbar bleibt (dann scrollt die Seite). */}
+      <Card className="flex min-h-[24rem] flex-1 flex-col">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">
             {personName} · {formatMonat(z.monat)}
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
+        <CardContent className="min-h-0 flex-1">
+          <div className="h-full">
+            <Table containerClassName="h-full">
+              <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_hsl(var(--border))]">
                 <TableRow>
                   <TableHead>Datum</TableHead>
                   <TableHead>Zeiten</TableHead>
@@ -286,7 +287,7 @@ export function ZeitnachweisAnsicht({
                   );
                 })}
               </TableBody>
-              <TableFooter>
+              <TableFooter className="sticky bottom-0 z-10 bg-muted">
                 <TableRow className="font-medium">
                   <TableCell colSpan={3}>Summe</TableCell>
                   <TableCell className="whitespace-nowrap text-right tabular-nums">{formatMinuten(z.summeIstMinuten)}</TableCell>
