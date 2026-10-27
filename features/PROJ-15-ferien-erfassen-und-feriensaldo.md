@@ -96,7 +96,7 @@ Ferien werden wie Krankheit als **ganztägige Zeiteinträge** gespeichert (neuer
 ## Open Questions
 - [x] Wird der Jahresanspruch am 1. Januar ganz gutgeschrieben oder monatlich aufgebaut? → am Jahresbeginn ganz gutgeschrieben; im Jahr von Eintritt bzw. Stichtag anteilig ab diesem Tag (Nutzer, 2026-10-27)
 - [x] Wie wird ein halber Ferientag gekennzeichnet? → eigene Ja/Nein-Spalte "Halber Tag" am Zeiteintrag (Tech Design)
-- [ ] Nutzer: Spalte "Halber Tag" am Zeiteintrag, Spalten "Ferienanspruch" und "Ferien-Startsaldo" an der Person, Recht "Löschen" auf `bmvcc_timetrackingentry` anlegen
+- [x] Nutzer: Spalte "Halber Tag" (`bmvcc_halbertag`), Spalten "Ferienanspruch" und "Ferien-Startsaldo", Recht "Löschen" → angelegt und verifiziert 2026-10-27
 - [ ] Soll die Erfassungs-App künftig selbst Ferien/Frei erfassen können? (betrifft die App, nicht dieses Tool)
 
 ## Decision Log
@@ -243,7 +243,7 @@ Keine neuen Pakete.
 - Aktivitätstyp (`bmvcc_activitytype`): 3 = Ferien, 4 = Frei (vom Nutzer ergänzt)
 - Zeiterfassung Person: `bmvcc_ferienanspruch` und `bmvcc_ferienstartsaldo` (Dezimal, 1 Nachkommastelle)
 - Recht "Löschen" auf `bmvcc_timetrackingentry` (Global) erteilt
-- Spalte "Halber Tag": zuerst mit dem Namen `bmvcc_timetrackingentry` (gleich wie die Tabelle) angelegt → Nutzer legt sie als **`bmvcc_halbertag`** neu an; das Tool verwendet diesen Namen
+- Spalte "Halber Tag" (Ja/Nein): zuerst mit dem Namen `bmvcc_timetrackingentry` (gleich wie die Tabelle) angelegt, vom Nutzer gelöscht und als **`bmvcc_halbertag`** neu angelegt — verifiziert 2026-10-27, Abfragen des Tools laufen lesend fehlerfrei
 
 ### Umsetzung Frontend + Backend (2026-10-27, Branch `zeiterfassung`, nur lokal)
 **Rechenregeln** `src/lib/zeiterfassung/ferien.ts` (rein, für Zeitnachweis, Ferien-Seite und PDF):
