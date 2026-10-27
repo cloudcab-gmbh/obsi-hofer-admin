@@ -69,6 +69,8 @@ export default async function ZeiterfassungPersonPage({ params }: { params: Prom
           austrittAm: austrittAm ?? "",
           startsaldo: person?.startsaldo != null ? person.startsaldo.toFixed(2) : "",
           stichtag: person?.stichtag ?? "",
+          ferienanspruch: person?.ferienanspruch != null ? String(person.ferienanspruch) : "",
+          ferienStartsaldo: person?.ferienStartsaldo != null ? String(person.ferienStartsaldo) : "",
         }}
         ersteVersionAb={ersteVersionAb}
         ersterEintrag={erster}

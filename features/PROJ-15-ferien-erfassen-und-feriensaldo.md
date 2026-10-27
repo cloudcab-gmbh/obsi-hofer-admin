@@ -1,6 +1,6 @@
 # PROJ-15: Ferien erfassen und Feriensaldo
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-10-26
 **Last Updated:** 2026-10-27
 
@@ -236,6 +236,52 @@ Keine neuen Pakete.
    - Recht "Löschen" auf `bmvcc_timetrackingentry`.
 2. Schema lesen (nur lesend) und in den Implementation Notes festhalten.
 3. Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`, kein Deploy bis zur Freigabe.
+
+## Implementation Notes
+
+### Dataverse-Schema (gelesen 2026-10-27, nur lesend)
+- Aktivitätstyp (`bmvcc_activitytype`): 3 = Ferien, 4 = Frei (vom Nutzer ergänzt)
+- Zeiterfassung Person: `bmvcc_ferienanspruch` und `bmvcc_ferienstartsaldo` (Dezimal, 1 Nachkommastelle)
+- Recht "Löschen" auf `bmvcc_timetrackingentry` (Global) erteilt
+- Spalte "Halber Tag": zuerst mit dem Namen `bmvcc_timetrackingentry` (gleich wie die Tabelle) angelegt → Nutzer legt sie als **`bmvcc_halbertag`** neu an; das Tool verwendet diesen Namen
+
+### Umsetzung Frontend + Backend (2026-10-27, Branch `zeiterfassung`, nur lokal)
+**Rechenregeln** `src/lib/zeiterfassung/ferien.ts` (rein, für Zeitnachweis, Ferien-Seite und PDF):
+- `ferientagWert`: 1 / 0.5 / 0 — Krankheit überwiegt, Feiertage und Tage ohne Soll zählen nicht
+- `ferienBeginn`: Tag nach dem Stichtag, sonst erste Arbeitsmodell-Version
+- `anspruchImJahr`: Anspruch (Vorgabe 25) × Pensum, anteilig nach Kalendertagen mit gültigem Arbeitsmodell, ab Beginn bzw. 1. Januar, auf halbe Tage gerundet
+- `feriensaldoAm`, `ferienJahr` (Saldo Vorjahr, Anspruch, bezogen bis heute, geplant ab morgen, Saldo Ende Jahr)
+- `planeFerien` (Vorschau = Speichern): Tage mit Soll, übersprungen Feiertage / ohne Soll / ohne Arbeitsmodell / bereits Ferien
+- `ferienZeitraeume`: aufeinanderfolgende Ferientage zusammengefasst, freie Tage und Feiertage dazwischen unterbrechen nicht
+
+**Zeitnachweis (PROJ-13)**
+- Tagesauswertung kennt Ferien (ganz/halb), Frei und die ganztägigen Einträge.
+- Ganzer Ferientag: Soll 0. Halber Ferientag: halbes Soll.
+- Neue Hinweise "Krankheit während der Ferien" und "Ferien an einem Tag ohne Soll".
+- Neue Kennzahlen "Ferien im Monat" (bezogen + geplant) und "Feriensaldo Monatsende", negativ rot.
+- Die Datumszelle ist auch an künftigen Tagen klickbar, dort nur Ferien/Frei. Ferien/Frei pro Tag mit "löschen".
+
+**Aktionen** (`src/app/(protected)/zeiterfassung/actions.ts`)
+- `planeFerienAction` und `erfasseFerienAction`:
+  - Zeitraum höchstens 1 Jahr; halber Tag nur für einen Tag.
+  - Ein Eintrag pro Ferientag, Kommen = Tagesbeginn.
+  - Bestehende Ferientage werden übersprungen, damit ein zweiter Versuch nichts doppelt anlegt.
+- `erfasseTagAction` erlaubt Typ "frei", auch in der Zukunft.
+- `loescheAbwesenheitenAction` liest den Typ jedes Eintrags neu und löscht nur Ferien/Frei.
+
+**Seiten / Komponenten**
+- `/zeiterfassung/ferien?jahr=…&person=…`:
+  - Jahresübersicht aller Personen (ohne "nicht auswerten") und Zeiträume der gewählten Person.
+  - Geladen mit einer Abfrage für Ferien und Krankheit aller Personen ab dem frühesten Beginn.
+- Neue Komponenten:
+  - `ferien-felder.tsx`: von–bis, halber Tag, Vorschau vom Server;
+  - `ferien-erfassen.tsx`: Dialog "Ferien erfassen";
+  - `abwesenheit-loeschen.tsx`: Löschen mit Bestätigung;
+  - `ferien-uebersicht.tsx`: Jahresübersicht und Zeiträume einer Person.
+- Unterseiten-Leiste "Ferien".
+- Personenseite mit Ferienanspruch und Ferien-Startsaldo. Der Stichtag ist gemeinsam; er ist Pflicht, sobald einer der beiden Startsaldi erfasst ist.
+
+**Tests:** 40 neue Tests; gesamt 615 grün, `tsc` und ESLint sauber. Ein Test fand dabei einen Fehler (Saldo Vorjahr leer, wenn der Saldo am 1. Januar beginnt) — behoben.
 
 ## QA Test Results
 _To be added by /qa_

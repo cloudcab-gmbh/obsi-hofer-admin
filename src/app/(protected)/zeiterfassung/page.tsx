@@ -61,6 +61,8 @@ export default async function ZeitnachweisPage({
         austrittAm: gespeichert?.austrittAm ?? null,
         startsaldoStunden: gespeichert?.startsaldo ?? null,
         stichtag: gespeichert?.stichtag ?? null,
+        ferienanspruch: gespeichert?.ferienanspruch ?? null,
+        ferienStartsaldo: gespeichert?.ferienStartsaldo ?? null,
       };
       const eintraege = await listZeiteintraege(gewaehlt.email, ladebeginn(monat, daten), tageDesMonats(monat).at(-1)!);
       zeitnachweis = berechneZeitnachweis({ ...daten, monat, heute, eintraege });

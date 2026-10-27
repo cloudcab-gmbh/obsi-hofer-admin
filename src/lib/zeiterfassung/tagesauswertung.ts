@@ -3,7 +3,8 @@ import { zuSchweizerDatum, zuSchweizerUhrzeit } from "./datum";
 // PROJ-13: Auswertung der Zeiteinträge eines Tages (rein, ohne Datenzugriff).
 // Jeder Eintrag ist ein Kommen/Gehen; die Pause ist die Lücke dazwischen.
 
-export type Eintragstyp = "arbeitszeit" | "komp-glz" | "krankheit" | "unbekannt";
+// PROJ-15: 3 = Ferien, 4 = Frei (nur Kennzeichnung).
+export type Eintragstyp = "arbeitszeit" | "komp-glz" | "krankheit" | "ferien" | "frei" | "unbekannt";
 
 export interface Zeiteintrag {
   /** Dataverse-ID, für das Nachtragen von "Gehen". */
@@ -20,6 +21,15 @@ export interface Zeiteintrag {
   mittagessen: boolean;
   abendessen: boolean;
   bemerkung: string | null;
+  /** PROJ-15: halber Ferientag. */
+  halberTag: boolean;
+}
+
+/** Ganztägiger Eintrag (Krankheit, Komp. GLZ, Ferien, Frei) — für Anzeige und Löschen. */
+export interface Abwesenheit {
+  eintragId: string;
+  typ: Exclude<Eintragstyp, "arbeitszeit" | "unbekannt">;
+  halberTag: boolean;
 }
 
 export interface Zeitpaar {
@@ -42,6 +52,11 @@ export interface Tagesauswertung {
   unplausibel: boolean;
   krankheit: boolean;
   kompGlz: boolean;
+  /** PROJ-15: Ferien-Eintrag am Tag — "ganz", "halb" oder keiner (zählt erst mit Soll, siehe ferien.ts). */
+  ferien: "ganz" | "halb" | null;
+  /** PROJ-15: als "Frei" gekennzeichnet (ohne Rechenwirkung). */
+  frei: boolean;
+  abwesenheiten: Abwesenheit[];
   mittagessen: boolean;
   abendessen: boolean;
   bemerkungen: string[];
@@ -102,6 +117,7 @@ export function werteTagAus(eintraege: readonly Zeiteintrag[]): Tagesauswertung 
   const { laenge, ueberschneidung } = vereinigungsLaenge(intervalle);
 
   const tagestotale = eintraege.map((e) => e.tagestotal).filter((t): t is number => t !== null);
+  const ferien = eintraege.filter((e) => e.typ === "ferien");
   return {
     paare,
     arbeitszeitMinuten: laenge,
@@ -111,6 +127,12 @@ export function werteTagAus(eintraege: readonly Zeiteintrag[]): Tagesauswertung 
     unplausibel,
     krankheit: eintraege.some((e) => e.typ === "krankheit"),
     kompGlz: eintraege.some((e) => e.typ === "komp-glz"),
+    // Ein ganzer Ferien-Eintrag überwiegt einen halben.
+    ferien: ferien.length === 0 ? null : ferien.some((e) => !e.halberTag) ? "ganz" : "halb",
+    frei: eintraege.some((e) => e.typ === "frei"),
+    abwesenheiten: eintraege.flatMap((e): Abwesenheit[] =>
+      e.typ === "arbeitszeit" || e.typ === "unbekannt" ? [] : [{ eintragId: e.id, typ: e.typ, halberTag: e.halberTag }]
+    ),
     // Product Decision: "ja", sobald ein Eintrag des Tages "ja" hat.
     mittagessen: eintraege.some((e) => e.mittagessen),
     abendessen: eintraege.some((e) => e.abendessen),

@@ -2,6 +2,7 @@ import { folgetag, tageDesMonats } from "./datum";
 import { feiertagAm } from "./feiertage";
 import { gueltigeVersion, sollAmDatum, type ArbeitsmodellVersion } from "./soll";
 import { werteTagAus, type Tagesauswertung, type Zeiteintrag } from "./tagesauswertung";
+import { ferienBeginn, feriensaldoAm, ferientagWert } from "./ferien";
 
 // PROJ-13: Zeitnachweis einer Person für einen Monat (rein, ohne Datenzugriff).
 // Gerechnet wird in ganzen Minuten vom Beginn der Gleitzeit bis Monatsende,
@@ -35,6 +36,12 @@ export interface Tageszeile {
   offenWarnung: boolean;
   /** Ferientag und Arbeitszeit am selben Tag. */
   ferienMitArbeit: boolean;
+  /** PROJ-15: gezählter Ferientag (0, 0.5 oder 1). */
+  ferientag: number;
+  /** Ferien-Eintrag an einem Tag ohne Soll bzw. an einem Feiertag (zählt nicht). */
+  ferienOhneSoll: boolean;
+  /** Krankheit während der Ferien: Krankheit überwiegt. */
+  krankheitInFerien: boolean;
 }
 
 export interface ZeitnachweisEingabe {
@@ -45,8 +52,9 @@ export interface ZeitnachweisEingabe {
   austrittAm: string | null;
   startsaldoStunden: number | null;
   stichtag: string | null;
-  /** Ferientage (PROJ-15); bis dahin leer. */
-  ferientage?: ReadonlySet<string>;
+  /** PROJ-15: Ferienanspruch (Tage/Jahr bei 100 %, null = Vorgabe) und Ferien-Startsaldo. */
+  ferienanspruch?: number | null;
+  ferienStartsaldo?: number | null;
 }
 
 export interface Zeitnachweis {
@@ -76,6 +84,11 @@ export interface Zeitnachweis {
   flowMonatstotal: number | null;
   arbeitszeitMonatMinuten: number;
   flowMonatsAbweichung: boolean;
+  /** PROJ-15: Ferientage im Monat bis heute bzw. ab morgen (ab Beginn des Feriensaldos). */
+  ferienBezogenMonat: number;
+  ferienGeplantMonat: number;
+  /** Feriensaldo am Monatsende inkl. geplanter Ferien des Monats;  vor dem Beginn. */
+  feriensaldoEnde: number | null;
 }
 
 function stundenZuMinuten(stunden: number): number {
@@ -102,7 +115,7 @@ function zeile(datum: string, eintraege: Zeiteintrag[], e: ZeitnachweisEingabe, 
   const zukunft = datum > e.heute;
   const vorBeginn = beginn === null || datum < beginn;
   const feiertag = feiertagAm(datum);
-  const ferien = e.ferientage?.has(datum) ?? false;
+  const ferientag = ferientagWert(e, datum, eintraege);
   const version = gueltigeVersion(e.versionen, datum);
   const nachAustritt = !!e.austrittAm && datum > e.austrittAm;
 
@@ -112,10 +125,11 @@ function zeile(datum: string, eintraege: Zeiteintrag[], e: ZeitnachweisEingabe, 
   if (e.versionen.length === 0) grund = { art: "kein-arbeitsmodell" };
   else if (!version || nachAustritt) grund = { art: "nicht-angestellt" };
   else if (feiertag) grund = { art: "feiertag", name: feiertag };
-  else if (ferien) grund = { art: "ferien" };
+  else if (ferientag === 1) grund = { art: "ferien" };
   else if (sollLautModell === 0) grund = { art: "frei" };
 
-  const sollMinuten = grund === null ? stundenZuMinuten(sollLautModell) : 0;
+  // Halber Ferientag: halbes Soll, die andere Hälfte wird gestempelt.
+  const sollMinuten = grund !== null ? 0 : stundenZuMinuten(ferientag === 0.5 ? sollLautModell / 2 : sollLautModell);
   // Krankheit: Soll gilt als erfüllt. Komp. GLZ: kein zusätzliches Ist, Soll bleibt.
   const istMinuten = auswertung.krankheit ? Math.max(sollMinuten, auswertung.arbeitszeitMinuten) : auswertung.arbeitszeitMinuten;
 
@@ -136,7 +150,10 @@ function zeile(datum: string, eintraege: Zeiteintrag[], e: ZeitnachweisEingabe, 
     abweichungMinuten: zukunft ? null : istMinuten - sollMinuten,
     flowAbweichung,
     offenWarnung: auswertung.offen && datum < e.heute,
-    ferienMitArbeit: ferien && auswertung.hatArbeitszeit,
+    ferienMitArbeit: ferientag === 1 && auswertung.hatArbeitszeit,
+    ferientag,
+    ferienOhneSoll: auswertung.ferien !== null && ferientag === 0 && !auswertung.krankheit,
+    krankheitInFerien: auswertung.ferien !== null && auswertung.krankheit,
   };
 }
 
@@ -180,6 +197,9 @@ export function berechneZeitnachweis(e: ZeitnachweisEingabe): Zeitnachweis {
   const flowMonatstotal = flowWerte.length > 0 ? Math.max(...flowWerte) : null;
   const arbeitszeitMonat = tage.filter((t) => !t.zukunft).reduce((s, t) => s + t.auswertung.arbeitszeitMinuten, 0);
 
+  const ferienPerson = { ...e, ferienanspruch: e.ferienanspruch ?? null, ferienStartsaldo: e.ferienStartsaldo ?? null };
+  const ferienAb = ferienBeginn(ferienPerson);
+  const zaehltFerien = (t: Tageszeile) => ferienAb !== null && t.datum >= ferienAb;
   const laufenderMonat = e.heute.startsWith(e.monat);
   const vorBeginn = beginn.tag === null || beginn.tag > tageImMonat.at(-1)!;
   return {
@@ -203,15 +223,19 @@ export function berechneZeitnachweis(e: ZeitnachweisEingabe): Zeitnachweis {
     flowMonatstotal,
     arbeitszeitMonatMinuten: arbeitszeitMonat,
     flowMonatsAbweichung: flowMonatstotal !== null && Math.abs(flowMonatstotal - arbeitszeitMonat) > 1,
+    ferienBezogenMonat: tage.filter((t) => zaehltFerien(t) && !t.zukunft).reduce((s, t) => s + t.ferientag, 0),
+    ferienGeplantMonat: tage.filter((t) => zaehltFerien(t) && t.zukunft).reduce((s, t) => s + t.ferientag, 0),
+    feriensaldoEnde: feriensaldoAm(ferienPerson, e.eintraege, tageImMonat.at(-1)!),
   };
 }
 
-/** Erster Tag, ab dem Einträge geladen werden müssen (Beginn der Gleitzeit oder Monatsbeginn). */
+/** Erster Tag, ab dem Einträge geladen werden müssen (Beginn von Gleitzeit bzw. Feriensaldo, sonst Monatsbeginn). */
 export function ladebeginn(
   monat: string,
   person: { startsaldoStunden: number | null; stichtag: string | null; versionen: readonly ArbeitsmodellVersion[] }
 ): string {
   const monatsbeginn = `${monat}-01`;
   const { tag } = bestimmeBeginn({ ...person, monat, heute: monatsbeginn, eintraege: [], austrittAm: null });
-  return tag !== null && tag < monatsbeginn ? tag : monatsbeginn;
+  const ferien = ferienBeginn({ ...person, austrittAm: null, ferienanspruch: null, ferienStartsaldo: null });
+  return [tag, ferien, monatsbeginn].filter((t): t is string => t !== null).sort()[0];
 }

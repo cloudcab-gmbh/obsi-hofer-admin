@@ -9,6 +9,8 @@ const getPersonByEmail = vi.fn();
 const listZeiterfassungEmails = vi.fn();
 const listZeiteintraege = vi.fn();
 const heuteSchweiz = vi.fn();
+const listArbeitsmodelle = vi.fn();
+const loescheZeiteintrag = vi.fn();
 
 vi.mock("@/lib/auth/freigeber", () => ({ aktuellerBenutzerIstFreigeber: () => istFreigeberMock() }));
 vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => revalidatePath(...args) }));
@@ -19,6 +21,8 @@ vi.mock("@/lib/dataverse/zeiterfassung", () => ({
   getPersonByEmail: (...args: unknown[]) => getPersonByEmail(...args),
   listZeiterfassungEmails: () => listZeiterfassungEmails(),
   listZeiteintraege: (...args: unknown[]) => listZeiteintraege(...args),
+  listArbeitsmodelle: (...args: unknown[]) => listArbeitsmodelle(...args),
+  loescheZeiteintrag: (...args: unknown[]) => loescheZeiteintrag(...args),
   normalisiereEmail: (e: string) => e.trim().toLowerCase(),
 }));
 vi.mock("@/lib/zeiterfassung/datum", async (importOriginal) => ({
@@ -26,7 +30,14 @@ vi.mock("@/lib/zeiterfassung/datum", async (importOriginal) => ({
   heuteSchweiz: () => heuteSchweiz(),
 }));
 
-import { erfasseTagAction, trageGehenNachAction, type TagErfassenEingabe } from "./actions";
+import {
+  erfasseFerienAction,
+  erfasseTagAction,
+  loescheAbwesenheitenAction,
+  planeFerienAction,
+  trageGehenNachAction,
+  type TagErfassenEingabe,
+} from "./actions";
 import { DataverseError } from "@/lib/dataverse/errors";
 
 const ID = "37b3cb61-90c0-f111-aaaf-70a8a5061d7a";
@@ -42,6 +53,9 @@ beforeEach(() => {
   listZeiterfassungEmails.mockResolvedValue([]);
   listZeiteintraege.mockResolvedValue([]);
   erstelleZeiteintrag.mockResolvedValue("neu");
+  listArbeitsmodelle.mockResolvedValue([
+    { id: "v1", personId: "p", gueltigAb: "2026-01-01", pensum: 100, arbeitstage: [true, true, true, true, true, false, false] },
+  ]);
 });
 
 describe("trageGehenNachAction", () => {
@@ -180,5 +194,79 @@ describe("erfasseTagAction", () => {
     const result = await erfasseTagAction(TAG);
 
     expect(result).toEqual({ success: false, message: "Nur 1 Eintrag/Einträge gespeichert, danach Fehler: Weg. Bitte den Tag prüfen." });
+  });
+});
+
+describe("Frei (PROJ-15)", () => {
+  it("allows Frei in the future", async () => {
+    expect(await erfasseTagAction({ ...TAG, typ: "frei", paare: [], datum: "2026-12-01" })).toEqual({ success: true, angelegt: 1 });
+    expect(erstelleZeiteintrag).toHaveBeenCalledWith("anna@x.ch", "2026-12-01", expect.objectContaining({ typ: "frei", gehen: null }));
+  });
+});
+
+const FERIEN = { email: "anna@x.ch", von: "2026-12-21", bis: "2027-01-03", halberTag: false, bemerkung: "" };
+
+describe("Ferien (PROJ-15)", () => {
+  it("previews and creates only days with Soll, skipping holidays and existing Ferien, also in the future", async () => {
+    listZeiteintraege.mockResolvedValue([{ datum: "2026-12-22", typ: "ferien" }]);
+
+    const vorschau = await planeFerienAction(FERIEN);
+    expect(vorschau).toMatchObject({ success: true, plan: { ferientage: 7, uebersprungen: { feiertag: 2, bereitsFerien: 1 } } });
+
+    expect(await erfasseFerienAction(FERIEN)).toEqual({ success: true, angelegt: 7 });
+    expect(erstelleZeiteintrag).toHaveBeenCalledTimes(7);
+    expect(erstelleZeiteintrag).toHaveBeenCalledWith("anna@x.ch", "2026-12-21", {
+      typ: "ferien",
+      kommen: "2026-12-20T23:00:00Z",
+      gehen: null,
+      mittagessen: false,
+      abendessen: false,
+      bemerkung: null,
+      halberTag: false,
+    });
+  });
+
+  it.each([
+    [{ bis: "2026-12-01" }, "„bis“ darf nicht vor „von“ liegen."],
+    [{ halberTag: true }, "Ein halber Ferientag ist nur für einen einzelnen Tag möglich."],
+    [{ bis: "2028-01-01" }, "Höchstens ein Jahr auf einmal erfassen."],
+  ])("rejects %o", async (aenderung, message) => {
+    expect(await erfasseFerienAction({ ...FERIEN, ...aenderung })).toEqual({ success: false, message });
+  });
+
+  it("rejects a period without any Ferientag", async () => {
+    const result = await erfasseFerienAction({ ...FERIEN, von: "2026-11-07", bis: "2026-11-08" });
+    expect(result.success).toBe(false);
+    expect(erstelleZeiteintrag).not.toHaveBeenCalled();
+  });
+
+  it("rejects Bearbeiter", async () => {
+    istFreigeberMock.mockResolvedValue(false);
+    expect((await erfasseFerienAction(FERIEN)).success).toBe(false);
+    expect((await planeFerienAction(FERIEN)).success).toBe(false);
+  });
+});
+
+describe("loescheAbwesenheitenAction (PROJ-15)", () => {
+  it("deletes Ferien and Frei, skipping already deleted entries", async () => {
+    getZeiteintragFuerKorrektur
+      .mockResolvedValueOnce({ typ: "ferien" })
+      .mockRejectedValueOnce(new DataverseError("not_found", "x"))
+      .mockResolvedValueOnce({ typ: "frei" });
+
+    expect(await loescheAbwesenheitenAction([ID, ID, ID])).toEqual({ success: true, geloescht: 2 });
+  });
+
+  it("never deletes other types", async () => {
+    getZeiteintragFuerKorrektur.mockResolvedValue({ typ: "arbeitszeit" });
+    expect((await loescheAbwesenheitenAction([ID])).success).toBe(false);
+    expect(loescheZeiteintrag).not.toHaveBeenCalled();
+  });
+
+  it("rejects Bearbeiter and invalid ids", async () => {
+    expect((await loescheAbwesenheitenAction(["x"])).success).toBe(false);
+    istFreigeberMock.mockResolvedValue(false);
+    expect((await loescheAbwesenheitenAction([ID])).success).toBe(false);
+    expect(loescheZeiteintrag).not.toHaveBeenCalled();
   });
 });

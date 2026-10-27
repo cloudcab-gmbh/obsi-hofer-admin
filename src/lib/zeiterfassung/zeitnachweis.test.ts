@@ -20,8 +20,13 @@ function arbeit(datum: string, von: number, bis: number, extra: Partial<Zeiteint
     mittagessen: false,
     abendessen: false,
     bemerkung: null,
+    halberTag: false,
     ...extra,
   };
+}
+
+function ferien(datum: string, halberTag = false): Zeiteintrag {
+  return { ...arbeit(datum, 0, 0), typ: "ferien", kommen: `${datum}T00:00:00Z`, gehen: null, halberTag };
 }
 
 function eingabe(extra: Partial<ZeitnachweisEingabe> = {}): ZeitnachweisEingabe {
@@ -196,9 +201,32 @@ describe("berechneZeitnachweis", () => {
     expect(berechneZeitnachweis(eingabe()).keineEintraege).toBe(true);
   });
 
-  it("marks Ferien days with work (PROJ-15 interface)", () => {
-    const z = berechneZeitnachweis(eingabe({ ferientage: new Set(["2026-11-02"]), eintraege: [arbeit("2026-11-02", 8, 10)] }));
-    expect(tag(z, "2026-11-02")).toMatchObject({ grund: { art: "ferien" }, sollMinuten: 0, ferienMitArbeit: true });
+  it("marks Ferien days with work", () => {
+    const z = berechneZeitnachweis(eingabe({ eintraege: [ferien("2026-11-02"), arbeit("2026-11-02", 8, 10)] }));
+    expect(tag(z, "2026-11-02")).toMatchObject({ grund: { art: "ferien" }, sollMinuten: 0, ferientag: 1, ferienMitArbeit: true });
+  });
+
+  it("halves the Soll on a half Ferientag", () => {
+    const z = berechneZeitnachweis(eingabe({ eintraege: [ferien("2026-11-02", true), arbeit("2026-11-02", 13, 17)] }));
+    expect(tag(z, "2026-11-02")).toMatchObject({ grund: null, sollMinuten: 240, istMinuten: 240, ferientag: 0.5 });
+  });
+
+  it("lets Krankheit win over Ferien and flags Ferien on days without Soll", () => {
+    const z = berechneZeitnachweis(
+      eingabe({ eintraege: [ferien("2026-11-02"), { ...ferien("2026-11-02"), typ: "krankheit" }, ferien("2026-11-07")] })
+    );
+    expect(tag(z, "2026-11-02")).toMatchObject({ ferientag: 0, krankheitInFerien: true, istMinuten: 480, abweichungMinuten: 0 });
+    expect(tag(z, "2026-11-07")).toMatchObject({ ferientag: 0, ferienOhneSoll: true }); // Samstag
+  });
+
+  it("reports Ferien of the month and the Feriensaldo", () => {
+    // Stichtag 31.10.2026, Startsaldo 3 Tage; Anspruch 25 bei 100 %, Nov/Dez anteilig = 61/365 × 25 ≈ 4.0
+    const z = berechneZeitnachweis(
+      eingabe({ heute: "2026-11-03", ferienStartsaldo: 3, eintraege: [ferien("2026-11-02"), ferien("2026-11-04"), ferien("2026-11-05", true)] })
+    );
+    expect(z.ferienBezogenMonat).toBe(1);
+    expect(z.ferienGeplantMonat).toBe(1.5);
+    expect(z.feriensaldoEnde).toBe(3 + 4 - 2.5);
   });
 });
 

@@ -7,9 +7,10 @@ import { cn } from "@/lib/utils";
 const SEITEN = [
   { href: "/zeiterfassung", label: "Zeitnachweis" },
   { href: "/zeiterfassung/personen", label: "Personen" },
+  { href: "/zeiterfassung/ferien", label: "Ferien" },
 ];
 
-/** Unterseiten der Zeiterfassung (PROJ-13/14; später Ferien, PROJ-15). */
+/** Unterseiten der Zeiterfassung (PROJ-13/14/15). */
 export function ZeiterfassungNav() {
   const pfad = usePathname();
   return (

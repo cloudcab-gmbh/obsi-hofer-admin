@@ -9,7 +9,9 @@ import {
   getPersonByEmail,
   getZeiteintragFuerKorrektur,
   listZeiteintraege,
+  listArbeitsmodelle,
   listZeiterfassungEmails,
+  loescheZeiteintrag,
   normalisiereEmail,
   setzeGehen,
 } from "@/lib/dataverse/zeiterfassung";
@@ -22,6 +24,7 @@ import {
   istGueltigeUhrzeit,
   zuSchweizerDatum,
 } from "@/lib/zeiterfassung/datum";
+import { planeFerien, type FerienPlan } from "@/lib/zeiterfassung/ferien";
 
 export type GehenNachtragenResult = { success: true } | { success: false; message: string };
 
@@ -86,7 +89,8 @@ const tagErfassenSchema = z
   .object({
     email: z.string().trim().min(3).max(320),
     datum: z.string().refine(istGueltigesDatum, "Ungültiges Datum."),
-    typ: z.enum(["arbeitszeit", "krankheit", "komp-glz"], "Ungültiger Typ."),
+    // PROJ-15: "frei" = Kennzeichnung ohne Rechenwirkung; Ferien laufen über erfasseFerienAction.
+    typ: z.enum(["arbeitszeit", "krankheit", "komp-glz", "frei"], "Ungültiger Typ."),
     paare: z
       .array(
         z.object({
@@ -118,7 +122,10 @@ export async function erfasseTagAction(eingabe: TagErfassenEingabe): Promise<Tag
   if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Ungültige Eingabe." };
   const d = parsed.data;
   const email = normalisiereEmail(d.email);
-  if (d.datum > heuteSchweiz()) return { success: false, message: "Einträge in der Zukunft sind nicht möglich." };
+  // "Frei" darf wie Ferien auch in der Zukunft liegen (PROJ-15).
+  if (d.datum > heuteSchweiz() && d.typ !== "frei") {
+    return { success: false, message: "Einträge in der Zukunft sind nicht möglich." };
+  }
 
   // Zeiten in Schweizer Zeit am gewählten Tag, Paare untereinander ohne Überschneidung.
   const intervalle = (d.typ === "arbeitszeit" ? d.paare : []).map((p) => ({
@@ -195,4 +202,143 @@ export async function erfasseTagAction(eingabe: TagErfassenEingabe): Promise<Tag
 
   revalidatePath("/zeiterfassung");
   return { success: true, angelegt };
+}
+
+// ---------------------------------------------------------------------------
+// PROJ-15: Ferien
+
+/** Längster Zeitraum, der in einem Schritt erfasst werden kann. */
+const MAX_FERIEN_TAGE = 366;
+
+const ferienSchema = z
+  .object({
+    email: z.string().trim().min(3).max(320),
+    von: z.string().refine(istGueltigesDatum, "Bitte ein gültiges Datum „von“ angeben."),
+    bis: z.string().refine(istGueltigesDatum, "Bitte ein gültiges Datum „bis“ angeben."),
+    halberTag: z.boolean(),
+    bemerkung: z.string().trim().max(500, "Die Bemerkung darf höchstens 500 Zeichen lang sein."),
+  })
+  .refine((d) => d.von <= d.bis, { message: "„bis“ darf nicht vor „von“ liegen." })
+  .refine((d) => !d.halberTag || d.von === d.bis, { message: "Ein halber Ferientag ist nur für einen einzelnen Tag möglich." })
+  .refine((d) => (Date.parse(d.bis) - Date.parse(d.von)) / 86_400_000 < MAX_FERIEN_TAGE, {
+    message: "Höchstens ein Jahr auf einmal erfassen.",
+  });
+
+export type FerienEingabe = z.input<typeof ferienSchema>;
+export type FerienVorschauResult = { success: true; plan: FerienPlan } | { success: false; message: string };
+export type FerienErfassenResult = { success: true; angelegt: number } | { success: false; message: string };
+
+/** Arbeitsmodell und bestehende Ferientage der Person — Grundlage für Vorschau und Speichern. */
+async function berechneFerienPlan(d: z.output<typeof ferienSchema>): Promise<FerienPlan | string> {
+  const email = normalisiereEmail(d.email);
+  const person = await getPersonByEmail(email);
+  if (!person && !(await listZeiterfassungEmails()).includes(email)) return "Diese Person kommt in der Zeiterfassung nicht vor.";
+  const versionen = person ? await listArbeitsmodelle(person.id) : [];
+  const bestehende = await listZeiteintraege(email, d.von, d.bis);
+  const ferientage = new Set(bestehende.filter((e) => e.typ === "ferien").map((e) => e.datum));
+  return planeFerien({ versionen, austrittAm: person?.austrittAm ?? null }, d.von, d.bis, ferientage, d.halberTag);
+}
+
+async function pruefeFerien(eingabe: FerienEingabe): Promise<z.output<typeof ferienSchema> | string> {
+  if (!(await aktuellerBenutzerIstFreigeber())) return "Nur Freigeber dürfen Ferien erfassen.";
+  const parsed = ferienSchema.safeParse(eingabe);
+  return parsed.success ? parsed.data : (parsed.error.issues[0]?.message ?? "Ungültige Eingabe.");
+}
+
+/** Vorschau: welche Tage Ferientage würden (gleiche Regeln wie beim Speichern). */
+export async function planeFerienAction(eingabe: FerienEingabe): Promise<FerienVorschauResult> {
+  const d = await pruefeFerien(eingabe);
+  if (typeof d === "string") return { success: false, message: d };
+  try {
+    const plan = await berechneFerienPlan(d);
+    return typeof plan === "string" ? { success: false, message: plan } : { success: true, plan };
+  } catch (error) {
+    return { success: false, message: error instanceof DataverseError ? error.message : "Die Ferien konnten nicht berechnet werden." };
+  }
+}
+
+/**
+ * Legt für jeden Tag mit Soll im Zeitraum einen Ferien-Eintrag an (Typ 3,
+ * Kommen = Tagesbeginn, weil der Flow ein Kommen braucht). Bestehende
+ * Ferientage werden übersprungen — ein zweiter Versuch nach einem Fehler
+ * legt nichts doppelt an.
+ */
+export async function erfasseFerienAction(eingabe: FerienEingabe): Promise<FerienErfassenResult> {
+  const d = await pruefeFerien(eingabe);
+  if (typeof d === "string") return { success: false, message: d };
+
+  let angelegt = 0;
+  try {
+    const plan = await berechneFerienPlan(d);
+    if (typeof plan === "string") return { success: false, message: plan };
+    if (plan.tage.length === 0) {
+      return { success: false, message: "Im gewählten Zeitraum gibt es keinen Tag mit Soll, der als Ferientag erfasst werden kann." };
+    }
+    for (const tag of plan.tage) {
+      await erstelleZeiteintrag(normalisiereEmail(d.email), tag, {
+        typ: "ferien",
+        kommen: alsSchweizerMitternacht(tag),
+        gehen: null,
+        mittagessen: false,
+        abendessen: false,
+        bemerkung: d.bemerkung || null,
+        halberTag: d.halberTag,
+      });
+      angelegt++;
+    }
+  } catch (error) {
+    const grund = error instanceof DataverseError ? error.message : "Unbekannter Fehler.";
+    revalidatePath("/zeiterfassung", "layout");
+    return {
+      success: false,
+      message:
+        angelegt > 0
+          ? `Nur ${angelegt} Ferientag(e) gespeichert, danach Fehler: ${grund} Ein erneuter Versuch ergänzt die fehlenden Tage.`
+          : `Die Ferien konnten nicht gespeichert werden. ${grund}`,
+    };
+  }
+
+  revalidatePath("/zeiterfassung", "layout");
+  return { success: true, angelegt };
+}
+
+export type LoeschenResult = { success: true; geloescht: number } | { success: false; message: string };
+
+/**
+ * PROJ-15: löscht Ferien- und Frei-Einträge. Der Typ jedes Eintrags wird vor
+ * dem Löschen neu gelesen — andere Typen (gestempelte Zeiten, Krankheit,
+ * Komp. GLZ) werden nie gelöscht.
+ */
+export async function loescheAbwesenheitenAction(eintragIds: string[]): Promise<LoeschenResult> {
+  if (!(await aktuellerBenutzerIstFreigeber())) {
+    return { success: false, message: "Nur Freigeber dürfen Einträge löschen." };
+  }
+  const ids = z.array(z.guid()).min(1).max(MAX_FERIEN_TAGE).safeParse(eintragIds);
+  if (!ids.success) return { success: false, message: "Ungültige Auswahl." };
+
+  let geloescht = 0;
+  try {
+    for (const id of ids.data) {
+      let typ;
+      try {
+        typ = (await getZeiteintragFuerKorrektur(id)).typ;
+      } catch (error) {
+        // Bereits gelöscht → Ziel erreicht.
+        if (error instanceof DataverseError && error.category === "not_found") continue;
+        throw error;
+      }
+      if (typ !== "ferien" && typ !== "frei") {
+        return { success: false, message: "Nur Ferien- und Frei-Einträge können gelöscht werden." };
+      }
+      await loescheZeiteintrag(id);
+      geloescht++;
+    }
+  } catch (error) {
+    const grund = error instanceof DataverseError ? error.message : "Unbekannter Fehler.";
+    revalidatePath("/zeiterfassung", "layout");
+    return { success: false, message: `Löschen abgebrochen nach ${geloescht} Eintrag/Einträgen: ${grund}` };
+  }
+
+  revalidatePath("/zeiterfassung", "layout");
+  return { success: true, geloescht };
 }

@@ -128,13 +128,43 @@ export function PersonStammdatenForm({
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Ohne Startsaldo beginnt die Gleitzeit mit der ersten Arbeitsmodell-Version bei 0.
+              Ohne Startsaldo beginnt die Gleitzeit mit der ersten Arbeitsmodell-Version bei 0. Der Stichtag gilt auch für
+              den Ferien-Startsaldo.
             </p>
             {hinweise.map((h) => (
               <p key={h} className="text-sm text-status-warning">
                 {h}
               </p>
             ))}
+          </fieldset>
+
+          <fieldset className="space-y-3">
+            <legend className="text-sm font-medium">Ferien</legend>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="ferienanspruch">Anspruch (Tage pro Jahr bei 100 %)</Label>
+                <Input
+                  id="ferienanspruch"
+                  inputMode="decimal"
+                  value={werte.ferienanspruch}
+                  placeholder="leer = 25"
+                  onChange={(e) => setze("ferienanspruch", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ferienstartsaldo">Ferien-Startsaldo (Tage am Stichtag)</Label>
+                <Input
+                  id="ferienstartsaldo"
+                  inputMode="decimal"
+                  value={werte.ferienStartsaldo}
+                  placeholder="z.B. 4.5"
+                  onChange={(e) => setze("ferienStartsaldo", e.target.value)}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Der Jahresanspruch wird am 1. Januar gutgeschrieben (× Pensum, anteilig bei Eintritt und Pensumswechsel).
+            </p>
           </fieldset>
 
           {fehler && (

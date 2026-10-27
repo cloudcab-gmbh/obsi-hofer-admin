@@ -14,6 +14,7 @@ function eintrag(kommen: string | null, gehen: string | null, extra: Partial<Zei
     mittagessen: false,
     abendessen: false,
     bemerkung: null,
+    halberTag: false,
     ...extra,
   };
 }

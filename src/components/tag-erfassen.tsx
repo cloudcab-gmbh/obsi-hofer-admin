@@ -17,16 +17,20 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { erfasseTagAction } from "@/app/(protected)/zeiterfassung/actions";
+import { erfasseFerienAction, erfasseTagAction } from "@/app/(protected)/zeiterfassung/actions";
+import { FerienFelder, type FerienWerte } from "@/components/ferien-felder";
 import { formatKalenderdatum, wochentagName } from "@/lib/zeiterfassung/datum";
 import { formatMinuten } from "@/lib/zeiterfassung/format";
 
-type Typ = "arbeitszeit" | "krankheit" | "komp-glz";
+type Typ = "arbeitszeit" | "krankheit" | "komp-glz" | "ferien" | "frei";
 
-const TYPEN: { wert: Typ; label: string }[] = [
+const TYPEN: { wert: Typ; label: string; abwesenheit?: boolean }[] = [
   { wert: "arbeitszeit", label: "Arbeitszeit" },
   { wert: "krankheit", label: "Krankheit (ganzer Tag)" },
   { wert: "komp-glz", label: "Komp. GLZ (ganzer Tag)" },
+  // PROJ-15: auch an künftigen Tagen möglich.
+  { wert: "ferien", label: "Ferien", abwesenheit: true },
+  { wert: "frei", label: "Frei (nur Kennzeichnung)", abwesenheit: true },
 ];
 
 const LEERES_PAAR = { kommen: "", gehen: "" };
@@ -36,22 +40,28 @@ function minuten(uhrzeit: string): number | null {
   return m ? +m[1] * 60 + +m[2] : null;
 }
 
-/** PROJ-13: Einträge für einen Tag erfassen (vergessenes Stempeln, Krankheit, Komp. GLZ). */
+/** PROJ-13/15: Einträge für einen Tag erfassen (vergessenes Stempeln, Krankheit, Komp. GLZ, Ferien, Frei). */
 export function TagErfassen({
   email,
   datum,
   personName,
+  nurAbwesenheit = false,
   children,
 }: {
   email: string;
   datum: string;
   personName: string;
+  /** Künftiger Tag: nur Ferien und Frei. */
+  nurAbwesenheit?: boolean;
   /** Beschriftung des Auslösers (das Datum der Zeile). */
   children: React.ReactNode;
 }) {
   const router = useRouter();
   const [offen, setOffen] = useState(false);
-  const [typ, setTyp] = useState<Typ>("arbeitszeit");
+  const startTyp: Typ = nurAbwesenheit ? "ferien" : "arbeitszeit";
+  const typen = TYPEN.filter((t) => !nurAbwesenheit || t.abwesenheit);
+  const [typ, setTyp] = useState<Typ>(startTyp);
+  const [ferien, setFerien] = useState<FerienWerte>({ von: datum, bis: datum, halberTag: false });
   const [paare, setPaare] = useState([LEERES_PAAR]);
   const [mittagessen, setMittagessen] = useState(false);
   const [abendessen, setAbendessen] = useState(false);
@@ -60,7 +70,8 @@ export function TagErfassen({
   const [isPending, startTransition] = useTransition();
 
   function zuruecksetzen() {
-    setTyp("arbeitszeit");
+    setTyp(startTyp);
+    setFerien({ von: datum, bis: datum, halberTag: false });
     setPaare([LEERES_PAAR]);
     setMittagessen(false);
     setAbendessen(false);
@@ -83,15 +94,18 @@ export function TagErfassen({
     setFehler(null);
     startTransition(async () => {
       try {
-        const result = await erfasseTagAction({
-          email,
-          datum,
-          typ,
-          paare: typ === "arbeitszeit" ? paare : [],
-          mittagessen,
-          abendessen,
-          bemerkung,
-        });
+        const result =
+          typ === "ferien"
+            ? await erfasseFerienAction({ email, ...ferien, bemerkung })
+            : await erfasseTagAction({
+                email,
+                datum,
+                typ,
+                paare: typ === "arbeitszeit" ? paare : [],
+                mittagessen: typ !== "frei" && mittagessen,
+                abendessen: typ !== "frei" && abendessen,
+                bemerkung,
+              });
         if (!result.success) {
           setFehler(result.message);
           router.refresh();
@@ -143,7 +157,7 @@ export function TagErfassen({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TYPEN.map((t) => (
+                {typen.map((t) => (
                   <SelectItem key={t.wert} value={t.wert}>
                     {t.label}
                   </SelectItem>
@@ -151,6 +165,10 @@ export function TagErfassen({
               </SelectContent>
             </Select>
           </div>
+
+          {typ === "ferien" && (
+            <FerienFelder email={email} werte={ferien} onChange={setFerien} vonFest idPrefix={`ferien-${datum}`} />
+          )}
 
           {typ === "arbeitszeit" && (
             <fieldset className="space-y-2">
@@ -205,6 +223,7 @@ export function TagErfassen({
             </fieldset>
           )}
 
+          {typ !== "ferien" && typ !== "frei" && (
           <div className="flex flex-wrap gap-x-6 gap-y-2">
             <div className="flex items-center gap-2">
               <Checkbox
@@ -227,6 +246,7 @@ export function TagErfassen({
               </Label>
             </div>
           </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor={`bemerkung-${datum}`}>Bemerkung</Label>

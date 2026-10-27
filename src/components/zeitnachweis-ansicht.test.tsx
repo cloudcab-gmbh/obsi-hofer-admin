@@ -2,7 +2,13 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
-vi.mock("@/app/(protected)/zeiterfassung/actions", () => ({ trageGehenNachAction: vi.fn(), erfasseTagAction: vi.fn() }));
+vi.mock("@/app/(protected)/zeiterfassung/actions", () => ({
+  trageGehenNachAction: vi.fn(),
+  erfasseTagAction: vi.fn(),
+  erfasseFerienAction: vi.fn(),
+  planeFerienAction: vi.fn(),
+  loescheAbwesenheitenAction: vi.fn(),
+}));
 import { ZeitnachweisAnsicht } from "./zeitnachweis-ansicht";
 import { berechneZeitnachweis, type ZeitnachweisEingabe } from "@/lib/zeiterfassung/zeitnachweis";
 import type { Zeiteintrag } from "@/lib/zeiterfassung/tagesauswertung";
@@ -19,6 +25,7 @@ function arbeit(datum: string, kommen: string, gehen: string | null, extra: Part
     mittagessen: false,
     abendessen: false,
     bemerkung: null,
+    halberTag: false,
     ...extra,
   };
 }
@@ -122,5 +129,28 @@ describe("ZeitnachweisAnsicht", () => {
   it("shows the Flow day total when it differs", () => {
     zeigen(eingabe({ eintraege: [arbeit("2026-11-02", "07:00", "11:00", { tagestotal: 200 })] }));
     expect(zeile("02.11.")).toHaveTextContent("Tagestotal laut App 3.33 h statt 4.00 h");
+  });
+
+  it("shows Ferien, half Ferien and Frei with a delete link, and the Ferien figures (PROJ-15)", () => {
+    const ganztags = (datum: string, typ: Zeiteintrag["typ"], halberTag = false) => ({
+      ...arbeit(datum, "00:00", null),
+      id: `${typ}-${datum}`,
+      typ,
+      halberTag,
+    });
+    zeigen(
+      eingabe({
+        heute: "2026-11-03",
+        ferienStartsaldo: 3,
+        eintraege: [ganztags("2026-11-02", "ferien"), ganztags("2026-11-04", "ferien", true), ganztags("2026-11-05", "frei")],
+      })
+    );
+
+    expect(zeile("02.11.")).toHaveTextContent("Ferien");
+    expect(zeile("04.11.")).toHaveTextContent("½ Ferien");
+    expect(zeile("05.11.")).toHaveTextContent("Frei");
+    expect(within(zeile("02.11.")).getByRole("button", { name: "löschen" })).toBeInTheDocument();
+    expect(screen.getByText("Ferien im Monat").parentElement).toHaveTextContent("1 Tag+ 0.5 Tage geplant");
+    expect(screen.getByText("Feriensaldo Monatsende").nextSibling).toHaveTextContent("5.5 Tage");
   });
 });

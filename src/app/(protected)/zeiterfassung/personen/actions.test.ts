@@ -40,7 +40,7 @@ const PERSON = {
   stichtag: null,
 };
 const MO_FR = [true, true, true, true, true, false, false];
-const STAMMDATEN = { name: "Anna", nichtAuswerten: false, austrittAm: "", startsaldo: "", stichtag: "" };
+const STAMMDATEN = { name: "Anna", nichtAuswerten: false, austrittAm: "", startsaldo: "", stichtag: "", ferienanspruch: "", ferienStartsaldo: "" };
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -78,6 +78,8 @@ describe("speicherePersonAction", () => {
       austrittAm: null,
       startsaldo: null,
       stichtag: null,
+      ferienanspruch: null,
+      ferienStartsaldo: null,
     });
     expect(revalidatePath).toHaveBeenCalledWith("/zeiterfassung/personen");
   });
@@ -125,6 +127,15 @@ describe("speicherePersonAction", () => {
       success: false,
       message: "Keine Berechtigung.",
     });
+  });
+  it("saves Ferienanspruch and Ferien-Startsaldo with the shared Stichtag", async () => {
+    await speicherePersonAction("anna@example.ch", { ...STAMMDATEN, ferienanspruch: "27,5", ferienStartsaldo: "-1.5", stichtag: "2026-10-31" });
+    expect(speicherePersonStammdaten).toHaveBeenCalledWith("anna@example.ch", expect.objectContaining({ ferienanspruch: 27.5, ferienStartsaldo: -1.5, startsaldo: null }));
+  });
+
+  it("validates Ferienanspruch and requires a Stichtag for the Ferien-Startsaldo", async () => {
+    expect((await speicherePersonAction("anna@example.ch", { ...STAMMDATEN, ferienanspruch: "60" })).success).toBe(false);
+    expect(await speicherePersonAction("anna@example.ch", { ...STAMMDATEN, ferienStartsaldo: "2" })).toEqual({ success: false, message: "Zum Startsaldo gehört ein Stichtag." });
   });
 });
 

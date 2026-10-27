@@ -78,6 +78,8 @@ describe("getPersonByEmail", () => {
       austrittAm: "2027-03-31",
       startsaldo: -3.25,
       stichtag: "2026-10-31",
+      ferienanspruch: null,
+      ferienStartsaldo: null,
     });
   });
 });
@@ -121,6 +123,8 @@ describe("writing", () => {
       austrittAm: "2027-03-31",
       startsaldo: 12.5,
       stichtag: null,
+      ferienanspruch: 27.5,
+      ferienStartsaldo: null,
     });
 
     expect(id).toBe(PERSON_ID);
@@ -135,6 +139,8 @@ describe("writing", () => {
         bmvcc_austrittam: "2027-03-30T22:00:00Z",
         bmvcc_gleitzeitstartsaldo: 12.5,
         bmvcc_startsaldostichtag: null,
+        bmvcc_ferienanspruch: 27.5,
+        bmvcc_ferienstartsaldo: null,
       },
       ["bmvcc_zeiterfassungpersonid"]
     );
@@ -203,6 +209,7 @@ describe("listZeiteintraege", () => {
       mittagessen: true,
       abendessen: false,
       bemerkung: null,
+      halberTag: false,
     });
     expect(eintraege.map((e) => e.typ)).toEqual(["arbeitszeit", "krankheit", "unbekannt"]);
   });

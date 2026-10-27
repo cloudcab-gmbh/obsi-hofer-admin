@@ -32,6 +32,8 @@ const PERSON_SPALTEN = [
   "bmvcc_austrittam",
   "bmvcc_gleitzeitstartsaldo",
   "bmvcc_startsaldostichtag",
+  "bmvcc_ferienanspruch",
+  "bmvcc_ferienstartsaldo",
 ];
 
 const ARBEITSMODELL_SPALTEN = [
@@ -51,6 +53,9 @@ export interface ZeiterfassungPerson {
   austrittAm: string | null;
   startsaldo: number | null;
   stichtag: string | null;
+  /** PROJ-15: Tage pro Jahr bei 100 % (null = Vorgabe 25) und Ferien-Startsaldo in Tagen. */
+  ferienanspruch: number | null;
+  ferienStartsaldo: number | null;
 }
 
 export interface PersonArbeitsmodell extends ArbeitsmodellVersion {
@@ -63,6 +68,8 @@ export interface PersonStammdaten {
   austrittAm: string | null;
   startsaldo: number | null;
   stichtag: string | null;
+  ferienanspruch: number | null;
+  ferienStartsaldo: number | null;
 }
 
 export interface ArbeitsmodellEingabe {
@@ -85,6 +92,8 @@ function zuPerson(r: Record<string, unknown>): ZeiterfassungPerson {
     austrittAm: zuSchweizerDatum(r.bmvcc_austrittam as string | null),
     startsaldo: typeof r.bmvcc_gleitzeitstartsaldo === "number" ? r.bmvcc_gleitzeitstartsaldo : null,
     stichtag: zuSchweizerDatum(r.bmvcc_startsaldostichtag as string | null),
+    ferienanspruch: typeof r.bmvcc_ferienanspruch === "number" ? r.bmvcc_ferienanspruch : null,
+    ferienStartsaldo: typeof r.bmvcc_ferienstartsaldo === "number" ? r.bmvcc_ferienstartsaldo : null,
   };
 }
 
@@ -138,6 +147,9 @@ export async function ersterZeiteintrag(email: string): Promise<string | null> {
   return zuSchweizerDatum(records[0]?.bmvcc_activitydate ?? null);
 }
 
+// PROJ-15: Ja/Nein "Halber Tag" am Zeiteintrag.
+const HALBER_TAG_SPALTE = "bmvcc_halbertag";
+
 const ZEITEINTRAG_SPALTEN = [
   "bmvcc_timetrackingentryid",
   "bmvcc_activitydate",
@@ -151,10 +163,12 @@ const ZEITEINTRAG_SPALTEN = [
   "bmvcc_mittagessen",
   "bmvcc_abendessen",
   "bmvcc_remarks",
+  HALBER_TAG_SPALTE,
 ];
 
 // Auswahl "Aktivitätstyp": 0 = Arbeitszeit, 1 = Komp. GLZ, 2 = Krankheit.
-const EINTRAGSTYPEN: Record<number, Eintragstyp> = { 0: "arbeitszeit", 1: "komp-glz", 2: "krankheit" };
+// PROJ-15: 3 = Ferien, 4 = Frei (vom Nutzer ergänzt 2026-10-27).
+const EINTRAGSTYPEN: Record<number, Eintragstyp> = { 0: "arbeitszeit", 1: "komp-glz", 2: "krankheit", 3: "ferien", 4: "frei" };
 
 function textOderNull(wert: unknown): string | null {
   return typeof wert === "string" && wert ? wert : null;
@@ -179,6 +193,7 @@ function zuZeiteintrag(r: Record<string, unknown>): Zeiteintrag | null {
     mittagessen: r.bmvcc_mittagessen === true,
     abendessen: r.bmvcc_abendessen === true,
     bemerkung: textOderNull(r.bmvcc_remarks),
+    halberTag: r[HALBER_TAG_SPALTE] === true,
   };
 }
 
@@ -220,6 +235,30 @@ export async function getZeiteintragFuerKorrektur(id: string): Promise<OffenerEi
  * Trägt "Gehen" nach. Die Erfassungs-App setzt beim Gehen "Gehen" und
  * "Checkout" gleichzeitig — hier ebenso, damit beide Felder übereinstimmen.
  */
+/** PROJ-15: löscht einen Zeiteintrag (die Aktion prüft vorher, dass er Ferien oder Frei ist). */
+export async function loescheZeiteintrag(id: string): Promise<void> {
+  await deleteRecord(ZEITEINTRAEGE_ENTITY, id);
+}
+
+/**
+ * PROJ-15: Ferien und Krankheit aller Personen von `von` bis `bis` — für die
+ * Jahresübersicht (Krankheit überwiegt Ferien).
+ */
+export async function listFerienUndKrankheit(von: string, bis: string): Promise<{ email: string; eintrag: Zeiteintrag }[]> {
+  const records = await listAllRecords(ZEITEINTRAEGE_ENTITY, {
+    select: ["bmvcc_useremail", ...ZEITEINTRAG_SPALTEN],
+    filter: [
+      "(bmvcc_activitytype eq 2 or bmvcc_activitytype eq 3)",
+      `bmvcc_activitydate ge ${alsSchweizerMitternacht(von)}`,
+      `bmvcc_activitydate lt ${alsSchweizerMitternacht(folgetag(bis))}`,
+    ].join(" and "),
+  });
+  return records.flatMap((r) => {
+    const eintrag = zuZeiteintrag(r);
+    return eintrag ? [{ email: normalisiereEmail(String(r.bmvcc_useremail ?? "")), eintrag }] : [];
+  });
+}
+
 export async function setzeGehen(id: string, gehen: string): Promise<void> {
   await updateRecord(ZEITEINTRAEGE_ENTITY, id, { bmvcc_gehen: gehen, bmvcc_checkouttime: gehen });
 }
@@ -232,9 +271,11 @@ export interface NeuerZeiteintrag {
   mittagessen: boolean;
   abendessen: boolean;
   bemerkung: string | null;
+  /** PROJ-15: halber Ferientag. */
+  halberTag?: boolean;
 }
 
-const TYP_WERTE: Record<NeuerZeiteintrag["typ"], number> = { arbeitszeit: 0, "komp-glz": 1, krankheit: 2 };
+const TYP_WERTE: Record<NeuerZeiteintrag["typ"], number> = { arbeitszeit: 0, "komp-glz": 1, krankheit: 2, ferien: 3, frei: 4 };
 
 /** "JJJJMMTTHHMM" in Schweizer Zeit — wie die Erfassungs-App die Primärspalte füllt. */
 function aktivitaetsCode(datum: string, kommen: string | null): string {
@@ -262,6 +303,7 @@ export async function erstelleZeiteintrag(email: string, datum: string, eintrag:
     bmvcc_abendessen: eintrag.abendessen,
     bmvcc_remarks: eintrag.bemerkung,
     bmvcc_timerecordid: crypto.randomUUID(),
+    [HALBER_TAG_SPALTE]: eintrag.halberTag ?? false,
   });
   return id;
 }
@@ -310,6 +352,8 @@ export async function speicherePersonStammdaten(email: string, daten: PersonStam
       bmvcc_austrittam: datumOderNull(daten.austrittAm),
       bmvcc_gleitzeitstartsaldo: daten.startsaldo,
       bmvcc_startsaldostichtag: datumOderNull(daten.stichtag),
+      bmvcc_ferienanspruch: daten.ferienanspruch,
+      bmvcc_ferienstartsaldo: daten.ferienStartsaldo,
     },
     ["bmvcc_zeiterfassungpersonid"]
   );

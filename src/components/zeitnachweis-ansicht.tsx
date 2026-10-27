@@ -9,6 +9,7 @@ import { formatGleitzeitTage, formatMinuten, formatMinutenMitVorzeichen } from "
 import { cn } from "@/lib/utils";
 import { GehenNachtragen } from "@/components/gehen-nachtragen";
 import { TagErfassen } from "@/components/tag-erfassen";
+import { AbwesenheitLoeschen } from "@/components/abwesenheit-loeschen";
 
 function Hinweis({ warnung = false, children }: { warnung?: boolean; children: React.ReactNode }) {
   const Icon = warnung ? AlertTriangle : Info;
@@ -25,11 +26,15 @@ function Hinweis({ warnung = false, children }: { warnung?: boolean; children: R
   );
 }
 
-function Kennzahl({ titel, wert, zusatz }: { titel: string; wert: string; zusatz?: string }) {
+function formatTage(tage: number): string {
+  return `${tage} ${tage === 1 ? "Tag" : "Tage"}`;
+}
+
+function Kennzahl({ titel, wert, zusatz, warnung = false }: { titel: string; wert: string; zusatz?: string; warnung?: boolean }) {
   return (
     <div className="rounded-md border bg-card px-3 py-2">
       <div className="text-xs text-muted-foreground">{titel}</div>
-      <div className="text-lg font-semibold tabular-nums">{wert}</div>
+      <div className={cn("text-lg font-semibold tabular-nums", warnung && "text-destructive")}>{wert}</div>
       {zusatz && <div className="text-xs text-muted-foreground tabular-nums">{zusatz}</div>}
     </div>
   );
@@ -38,6 +43,7 @@ function Kennzahl({ titel, wert, zusatz }: { titel: string; wert: string; zusatz
 function grundText(t: Tageszeile): string | null {
   if (t.auswertung.krankheit) return "Krankheit";
   if (t.auswertung.kompGlz) return "Komp. GLZ";
+  if (t.ferientag === 0.5) return "½ Ferien";
   switch (t.grund?.art) {
     case "feiertag":
       return `Feiertag: ${t.grund.name}`;
@@ -54,6 +60,11 @@ function grundText(t: Tageszeile): string | null {
   }
 }
 
+/** PROJ-15: Ferien- und Frei-Einträge eines Tages (im Tool löschbar). */
+function loeschbar(t: Tageszeile): string[] {
+  return t.auswertung.abwesenheiten.filter((a) => a.typ === "ferien" || a.typ === "frei").map((a) => a.eintragId);
+}
+
 function tageshinweise(t: Tageszeile, beginnArt: Zeitnachweis["beginnArt"]): { text: string; warnung: boolean }[] {
   const a = t.auswertung;
   const liste: { text: string; warnung: boolean }[] = [];
@@ -61,13 +72,15 @@ function tageshinweise(t: Tageszeile, beginnArt: Zeitnachweis["beginnArt"]): { t
   if (a.ueberschneidung) liste.push({ text: "Einträge überschneiden sich", warnung: true });
   if (a.unplausibel) liste.push({ text: "unplausibler Eintrag zählt nicht", warnung: true });
   if (t.ferienMitArbeit) liste.push({ text: "Ferien und Arbeitszeit am selben Tag", warnung: true });
+  if (t.krankheitInFerien) liste.push({ text: "Krankheit während der Ferien — kein Ferientag", warnung: false });
+  if (t.ferienOhneSoll) liste.push({ text: "Ferien an einem Tag ohne Soll — zählt nicht", warnung: true });
   if (t.flowAbweichung && a.flowTagestotal !== null) {
     liste.push({
       text: `Tagestotal laut App ${formatMinuten(a.flowTagestotal)} statt ${formatMinuten(a.arbeitszeitMinuten)}`,
       warnung: false,
     });
   }
-  if (t.vorBeginn && (a.hatArbeitszeit || a.krankheit || a.kompGlz)) {
+  if (t.vorBeginn && (a.hatArbeitszeit || a.krankheit || a.kompGlz || a.ferien)) {
     liste.push({ text: beginnArt === "startsaldo" ? "vor Startsaldo (Excel-Zeitraum)" : "vor Arbeitsmodell", warnung: false });
   }
   return liste;
@@ -129,7 +142,7 @@ export function ZeitnachweisAnsicht({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
         <Kennzahl
           titel={z.beginnGleitzeit && z.beginnGleitzeit.startsWith(z.monat) ? "Startsaldo" : "Saldo Vormonat"}
           wert={z.saldoVormonatMinuten === null ? "—" : formatMinutenMitVorzeichen(z.saldoVormonatMinuten)}
@@ -141,6 +154,18 @@ export function ZeitnachweisAnsicht({
           titel={gleitzeitTitel}
           wert={z.saldoEndeMinuten === null ? "—" : formatMinutenMitVorzeichen(z.saldoEndeMinuten)}
           zusatz={z.saldoEndeMinuten === null ? undefined : formatGleitzeitTage(z.saldoEndeMinuten)}
+        />
+        {/* PROJ-15 */}
+        <Kennzahl
+          titel="Ferien im Monat"
+          wert={formatTage(z.ferienBezogenMonat)}
+          zusatz={z.ferienGeplantMonat > 0 ? `+ ${formatTage(z.ferienGeplantMonat)} geplant` : "bezogen"}
+        />
+        <Kennzahl
+          titel="Feriensaldo Monatsende"
+          wert={z.feriensaldoEnde === null ? "—" : formatTage(z.feriensaldoEnde)}
+          zusatz={z.feriensaldoEnde !== null && z.feriensaldoEnde < 0 ? "negativ" : undefined}
+          warnung={z.feriensaldoEnde !== null && z.feriensaldoEnde < 0}
         />
       </div>
 
@@ -180,16 +205,12 @@ export function ZeitnachweisAnsicht({
                       )}
                     >
                       <TableCell className="whitespace-nowrap">
-                        {/* Nutzerwunsch 2026-10-27: Klick auf den Tag erfasst einen Eintrag (bis heute). */}
-                        {t.zukunft ? (
-                          <span className="tabular-nums">{formatKalenderdatum(t.datum).slice(0, 6)}</span>
-                        ) : (
-                          <TagErfassen email={personEmail} datum={t.datum} personName={personName}>
-                            <span className="tabular-nums underline decoration-dotted underline-offset-4">
-                              {formatKalenderdatum(t.datum).slice(0, 6)}
-                            </span>
-                          </TagErfassen>
-                        )}{" "}
+                        {/* Klick auf den Tag erfasst einen Eintrag; an künftigen Tagen nur Ferien und Frei (PROJ-15). */}
+                        <TagErfassen email={personEmail} datum={t.datum} personName={personName} nurAbwesenheit={t.zukunft}>
+                          <span className="tabular-nums underline decoration-dotted underline-offset-4">
+                            {formatKalenderdatum(t.datum).slice(0, 6)}
+                          </span>
+                        </TagErfassen>{" "}
                         <span className="text-muted-foreground">{wochentagName(t.datum).slice(0, 2)}</span>
                       </TableCell>
                       <TableCell className="whitespace-nowrap tabular-nums">
@@ -216,6 +237,20 @@ export function ZeitnachweisAnsicht({
                           <Badge variant={t.auswertung.krankheit || t.auswertung.kompGlz ? "secondary" : "outline"} className="font-normal">
                             {grund}
                           </Badge>
+                        )}
+                        {t.auswertung.frei && (
+                          <Badge variant="outline" className="ml-1 font-normal">
+                            Frei
+                          </Badge>
+                        )}
+                        {loeschbar(t).length > 0 && (
+                          <>
+                            {" "}
+                            <AbwesenheitLoeschen
+                              eintragIds={loeschbar(t)}
+                              beschreibung={`Ferien/Frei am ${formatKalenderdatum(t.datum)}`}
+                            />
+                          </>
                         )}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-right tabular-nums">

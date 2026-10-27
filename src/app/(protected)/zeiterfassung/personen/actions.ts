@@ -51,12 +51,21 @@ const stammdatenSchema = z
       "Der Startsaldo muss zwischen -9999.99 und 9999.99 Stunden liegen."
     ),
     stichtag: z.union([z.literal(""), datumSchema("Bitte einen gültigen Stichtag angeben.")]),
+    // PROJ-15: Tage pro Jahr bei 100 % (leer = Vorgabe 25) und Ferien-Startsaldo in Tagen.
+    ferienanspruch: optionaleZahl("Der Ferienanspruch muss eine Zahl sein (z.B. 25).").refine(
+      (n) => n === null || (n >= 0 && n <= 50),
+      "Der Ferienanspruch muss zwischen 0 und 50 Tagen liegen."
+    ),
+    ferienStartsaldo: optionaleZahl("Der Ferien-Startsaldo muss eine Zahl sein (z.B. 4.5).").refine(
+      (n) => n === null || Math.abs(n) < 1000,
+      "Der Ferien-Startsaldo muss zwischen -999.9 und 999.9 Tagen liegen."
+    ),
   })
-  .refine((d) => d.startsaldo === null || d.stichtag !== "", {
+  .refine((d) => (d.startsaldo === null && d.ferienStartsaldo === null) || d.stichtag !== "", {
     message: "Zum Startsaldo gehört ein Stichtag.",
   })
-  .refine((d) => d.startsaldo !== null || d.stichtag === "", {
-    message: "Zum Stichtag gehört ein Startsaldo (auch 0 ist möglich).",
+  .refine((d) => d.startsaldo !== null || d.ferienStartsaldo !== null || d.stichtag === "", {
+    message: "Zum Stichtag gehört ein Gleitzeit- oder Ferien-Startsaldo (auch 0 ist möglich).",
   });
 
 export interface StammdatenEingabe {
@@ -65,6 +74,8 @@ export interface StammdatenEingabe {
   austrittAm: string;
   startsaldo: string;
   stichtag: string;
+  ferienanspruch: string;
+  ferienStartsaldo: string;
 }
 
 const arbeitsmodellSchema = z
@@ -127,6 +138,9 @@ export async function speicherePersonAction(
       austrittAm: parsed.data.austrittAm || null,
       startsaldo: parsed.data.startsaldo === null ? null : Math.round(parsed.data.startsaldo * 100) / 100,
       stichtag: parsed.data.stichtag || null,
+      // Dataverse speichert eine Nachkommastelle.
+      ferienanspruch: parsed.data.ferienanspruch === null ? null : Math.round(parsed.data.ferienanspruch * 10) / 10,
+      ferienStartsaldo: parsed.data.ferienStartsaldo === null ? null : Math.round(parsed.data.ferienStartsaldo * 10) / 10,
     });
   } catch (error) {
     return { success: false, message: fehlermeldung(error, "Die Angaben konnten nicht gespeichert werden.") };
