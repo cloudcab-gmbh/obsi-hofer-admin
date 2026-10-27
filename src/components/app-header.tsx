@@ -20,6 +20,8 @@ export async function AppHeader() {
     { href: "/geraete", label: "Geräte" },
     { href: "/pruefberichte", label: "Prüfberichte" },
     ...(istFreigeber ? [{ href: "/sync-freigabe", label: "Freigabe" }] : []),
+    // PROJ-14: Pensen und Salden sind vertraulich — nur Freigeber.
+    ...(istFreigeber ? [{ href: "/zeiterfassung", label: "Zeiterfassung" }] : []),
   ];
 
   // Unterhalb von lg: nur Logo, Dark-Mode-Schalter und Menü-Button (MobileNav);

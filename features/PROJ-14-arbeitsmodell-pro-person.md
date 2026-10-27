@@ -1,8 +1,8 @@
 # PROJ-14: Arbeitsmodell pro Person
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-10-26
-**Last Updated:** 2026-10-26
+**Last Updated:** 2026-10-27
 
 ## Dependencies
 - Requires: PROJ-1 (Entra-ID-Login mit Rollen) — Pflege nur durch Freigeber
@@ -239,6 +239,33 @@ Kein alternativer Schlüssel auf (Person + gültig ab) — das Tool prüft doppe
 **Rechte** des App-Benutzers "# OBSI Hofer Admin" (per `RetrieveUserPrivileges` geprüft): auf beiden Tabellen Lesen, Erstellen, Schreiben, Löschen, Anfügen, Anfügen an (Organisation). Lesen auf `bmvcc_timetrackingentry` erteilt.
 
 **Datumsfelder:** "Benutzer lokal" lässt sich bei bestehenden Spalten nicht umstellen. Das Tool schreibt ein Datum als Mitternacht Schweizer Zeit und liest es in Schweizer Zeit zurück (siehe Technical Decisions). Eine Testspalte `bmvcc_austritt` ("Zeitzonenunabhängig") wird nicht verwendet und kann gelöscht werden.
+
+### Umsetzung Frontend + Backend (2026-10-27, Branch `zeiterfassung`, nur lokal)
+Wie bei PROJ-11 in einem Schritt gebaut (die Oberfläche braucht die Dataverse-Anbindung zum Testen).
+
+**Seiten**
+- Menüpunkt "Zeiterfassung" (nur Freigeber) → `/zeiterfassung` leitet vorerst auf `/zeiterfassung/personen` weiter (Zeitnachweis folgt mit PROJ-13)
+- `/zeiterfassung/personen`: Personenliste (`zeiterfassung-personen-liste.tsx`) mit Filter "nur ohne Arbeitsmodell", Schalter "ausgeblendete anzeigen", Hinweis "x Personen haben noch kein Arbeitsmodell" (ohne ausgeblendete), Leer-Hinweis. Pensum/Arbeitstage zeigen die heute gültige Version, sonst die nächste künftige ("ab …")
+- `/zeiterfassung/personen/[email]` (E-Mail URL-kodiert): Angaben zur Person (`person-stammdaten-form.tsx`: Name, nicht auswerten, Austritt, Startsaldo + Stichtag mit Hinweisen "Stichtag vor Eintritt" / "Zeiteinträge bis zum Stichtag") und Arbeitsmodell-Verlauf (`arbeitsmodell-verlauf.tsx`: neueste zuerst, abgeleitetes "gültig bis", Dialog mit laufend angezeigtem Soll, Bestätigung vor dem Löschen). Unbekannte E-Mails → 404
+- Freigeber-Prüfung auf beiden Seiten und in allen Aktionen; Meldung statt Inhalt für Bearbeiter
+
+**Server**
+- `src/app/(protected)/zeiterfassung/personen/actions.ts`: `speicherePersonAction`, `speichereArbeitsmodellAction` (neu oder Korrektur), `loescheArbeitsmodellAction`; Zod-Prüfung (Pensum 0–100 auf eine Nachkommastelle, Arbeitstag bei Pensum > 0, gültiges Datum, Startsaldo ±9999.99 mit Komma erlaubt, Startsaldo und Stichtag nur zusammen); doppeltes "gültig ab" wird abgelehnt; Versionen nur der eigenen Person änderbar/löschbar; Personen werden nur angelegt, wenn die E-Mail in den Zeiteinträgen vorkommt
+- `src/lib/dataverse/zeiterfassung.ts`: E-Mails per `$apply=groupby((bmvcc_useremail))`, Personen/Versionen mit Nachladen aller Seiten, Person per Upsert über den Schlüssel (`PATCH bmvcc_zeiterfassungpersons(bmvcc_name='…')`), Version per Bind über die Personen-ID
+- `src/lib/dataverse/records.ts`: neu `listAllRecords` (folgt `@odata.nextLink`, K5) und `upsertRecordByKey`
+
+**Gemeinsame Regeln (für PROJ-13/15)**
+- `src/lib/zeiterfassung/soll.ts`: `sollProArbeitstag`, `sollAmDatum`, `gueltigeVersion`, `gueltigBis`, `aktuelleVersion`, Formatierung
+- `src/lib/zeiterfassung/datum.ts`: Schweizer Kalenderdatum ↔ Dataverse-Zeitpunkt (Mitternacht Europe/Zurich), Wochentag, Vortag
+- `src/lib/zeiterfassung/personen-uebersicht.ts`: Zusammenführung E-Mails + Personen + Versionen
+
+**Gegen Dataverse geprüft (2026-10-27, Testperson angelegt und wieder gelöscht):** gruppierte E-Mail-Abfrage, Upsert über den Schlüssel (gleiche ID beim zweiten Aufruf), Datum wird unverändert gespeichert. Ein Bind über den alternativen Schlüssel (`bmvcc_Person@odata.bind` mit E-Mail) findet die Person **nicht** (404) — deshalb Bind über die ID.
+
+**Abweichungen / Hinweise**
+- Gruppierte Abfragen sind in Dataverse auf 50'000 Einträge begrenzt; bei rund 5'000 Einträgen pro Jahr reicht das für mehrere Jahre, danach muss die Personenliste anders ermittelt werden
+- Die E-Mail steht in der URL der Detailseite (internes Tool, Firmen-Adressen)
+
+**Tests:** 68 neue Unit- und Komponententests (Rechenregel, Datum inkl. Zeitumstellung, Datenschicht, Aktionen inkl. Bearbeiter-Sperre, Liste, Dialog); gesamt 496 grün, `tsc` und ESLint sauber.
 
 ## QA Test Results
 _To be added by /qa_

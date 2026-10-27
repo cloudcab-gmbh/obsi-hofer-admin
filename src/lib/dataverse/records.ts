@@ -75,6 +75,51 @@ export async function listRecords<T = Record<string, unknown>>(
   };
 }
 
+/**
+ * Wie `listRecords`, lädt aber alle Folgeseiten nach — für Abfragen, die
+ * nicht bei der Seitengrösse abschneiden dürfen (Konsistenzprüfung K5).
+ */
+export async function listAllRecords<T = Record<string, unknown>>(
+  entitySet: string,
+  options: Omit<ListOptions, "pageCursor" | "top"> = {}
+): Promise<T[]> {
+  const alle: T[] = [];
+  let pageCursor: string | null = null;
+  do {
+    const seite: ListResult<T> = await listRecords<T>(entitySet, { ...options, pageCursor });
+    alle.push(...seite.records);
+    pageCursor = seite.nextPageCursor;
+  } while (pageCursor);
+  return alle;
+}
+
+/**
+ * Anlegen oder Ändern über einen alternativen Schlüssel (Dataverse-Upsert):
+ * gibt es keinen Datensatz mit diesem Schlüsselwert, wird er angelegt.
+ * Liefert die Felder aus `select` des gespeicherten Datensatzes zurück.
+ */
+export async function upsertRecordByKey<T = Record<string, unknown>>(
+  entitySet: string,
+  keyAttribute: string,
+  keyValue: string,
+  data: Record<string, unknown>,
+  select: string[]
+): Promise<T> {
+  requireNonEmpty(entitySet, "entitySet");
+  requireNonEmpty(keyAttribute, "keyAttribute");
+  requireNonEmpty(keyValue, "keyValue");
+
+  // OData-String-Literal: einfache Anführungszeichen verdoppeln, dann für die URL kodieren.
+  const schluessel = encodeURIComponent(keyValue.replace(/'/g, "''"));
+  const params = new URLSearchParams({ $select: select.join(",") });
+  const res = await dataverseFetch(`${entityPath(entitySet)}(${keyAttribute}='${schluessel}')?${params}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+    headers: { Prefer: "return=representation" },
+  });
+  return (await res.json()) as T;
+}
+
 function buildListUrl(entitySet: string, options: ListOptions): string {
   const params = new URLSearchParams();
   if (options.select?.length) params.set("$select", options.select.join(","));

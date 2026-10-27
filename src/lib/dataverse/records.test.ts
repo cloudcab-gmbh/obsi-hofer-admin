@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createRecord, getRecord, listRecords, updateRecord } from "./records";
+import { createRecord, getRecord, listAllRecords, listRecords, updateRecord, upsertRecordByKey } from "./records";
 import { resetDataverseTokenCache } from "./client";
 
 function jsonResponse(body: unknown, init: { status?: number; headers?: Record<string, string> } = {}) {
@@ -202,5 +202,43 @@ describe("updateRecord", () => {
     await expect(updateRecord("bmvcc_equipmentrecords", VALID_ID, {})).rejects.toMatchObject({
       category: "permission_denied",
     });
+  });
+});
+
+describe("listAllRecords", () => {
+  it("follows @odata.nextLink until the last page", async () => {
+    const next = "https://obsi-hofer.crm4.dynamics.com/api/data/v9.2/bmvcc_arbeitsmodells?$skiptoken=abc";
+    const fetchMock = stubFetchSequence(
+      TOKEN_RESPONSE(),
+      jsonResponse({ value: [{ n: 1 }, { n: 2 }], "@odata.nextLink": next }),
+      jsonResponse({ value: [{ n: 3 }] })
+    );
+
+    const records = await listAllRecords("bmvcc_arbeitsmodells", { select: ["bmvcc_pensum"] });
+
+    expect(records).toEqual([{ n: 1 }, { n: 2 }, { n: 3 }]);
+    expect(fetchMock.mock.calls[2][0]).toBe(next);
+  });
+});
+
+describe("upsertRecordByKey", () => {
+  it("PATCHes via the alternate key with an escaped, encoded value and returns the representation", async () => {
+    const fetchMock = stubFetchSequence(TOKEN_RESPONSE(), jsonResponse({ bmvcc_zeiterfassungpersonid: VALID_ID }));
+
+    const result = await upsertRecordByKey(
+      "bmvcc_zeiterfassungpersons",
+      "bmvcc_name",
+      "o'neil@example.ch",
+      { bmvcc_name: "o'neil@example.ch" },
+      ["bmvcc_zeiterfassungpersonid"]
+    );
+
+    expect(result).toEqual({ bmvcc_zeiterfassungpersonid: VALID_ID });
+    const [url, init] = fetchMock.mock.calls[1];
+    expect(url).toBe(
+      "https://obsi-hofer.crm4.dynamics.com/api/data/v9.2/bmvcc_zeiterfassungpersons(bmvcc_name='o''neil%40example.ch')?%24select=bmvcc_zeiterfassungpersonid"
+    );
+    expect(init.method).toBe("PATCH");
+    expect(init.headers.Prefer).toBe("return=representation");
   });
 });

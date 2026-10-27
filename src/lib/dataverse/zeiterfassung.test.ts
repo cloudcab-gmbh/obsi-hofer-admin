@@ -1,0 +1,164 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const dataverseFetch = vi.fn();
+const listRecords = vi.fn();
+const listAllRecords = vi.fn();
+const createRecord = vi.fn();
+const updateRecord = vi.fn();
+const upsertRecordByKey = vi.fn();
+
+vi.mock("./client", () => ({ dataverseFetch: (...args: unknown[]) => dataverseFetch(...args) }));
+vi.mock("./records", () => ({
+  listRecords: (...args: unknown[]) => listRecords(...args),
+  listAllRecords: (...args: unknown[]) => listAllRecords(...args),
+  createRecord: (...args: unknown[]) => createRecord(...args),
+  updateRecord: (...args: unknown[]) => updateRecord(...args),
+  deleteRecord: vi.fn(),
+  upsertRecordByKey: (...args: unknown[]) => upsertRecordByKey(...args),
+}));
+
+import {
+  erstelleArbeitsmodell,
+  getPersonByEmail,
+  listArbeitsmodelle,
+  listZeiterfassungEmails,
+  speicherePersonStammdaten,
+} from "./zeiterfassung";
+
+const PERSON_ID = "37b3cb61-90c0-f111-aaaf-70a8a5061d7a";
+
+beforeEach(() => {
+  vi.resetAllMocks();
+});
+
+describe("listZeiterfassungEmails", () => {
+  it("groups by email, merges upper/lower case and follows further pages", async () => {
+    dataverseFetch
+      .mockResolvedValueOnce(
+        Response.json({
+          value: [{ bmvcc_useremail: "Anna@Example.ch" }, { bmvcc_useremail: null }],
+          "@odata.nextLink": "https://x/next",
+        })
+      )
+      .mockResolvedValueOnce(Response.json({ value: [{ bmvcc_useremail: "anna@example.ch " }, { bmvcc_useremail: "ben@example.ch" }] }));
+
+    expect(await listZeiterfassungEmails()).toEqual(["anna@example.ch", "ben@example.ch"]);
+    expect(dataverseFetch.mock.calls[0][0]).toContain("$apply=groupby((bmvcc_useremail))");
+    expect(dataverseFetch.mock.calls[1][0]).toBe("https://x/next");
+  });
+});
+
+describe("getPersonByEmail", () => {
+  it("looks the person up by lower-case email and converts dates to Swiss calendar dates", async () => {
+    listRecords.mockResolvedValue({
+      records: [
+        {
+          bmvcc_zeiterfassungpersonid: PERSON_ID,
+          bmvcc_name: "anna@example.ch",
+          bmvcc_anzeigename: "Anna",
+          bmvcc_nichtauswerten: false,
+          bmvcc_austrittam: "2027-03-30T22:00:00Z",
+          bmvcc_gleitzeitstartsaldo: -3.25,
+          bmvcc_startsaldostichtag: "2026-10-30T23:00:00Z",
+        },
+      ],
+      nextPageCursor: null,
+    });
+
+    const person = await getPersonByEmail("O'Anna@Example.ch");
+
+    expect(listRecords.mock.calls[0][1].filter).toBe("bmvcc_name eq 'o''anna@example.ch'");
+    expect(person).toEqual({
+      id: PERSON_ID,
+      email: "anna@example.ch",
+      name: "Anna",
+      nichtAuswerten: false,
+      austrittAm: "2027-03-31",
+      startsaldo: -3.25,
+      stichtag: "2026-10-31",
+    });
+  });
+});
+
+describe("listArbeitsmodelle", () => {
+  it("maps the seven weekday columns and skips incomplete records", async () => {
+    listAllRecords.mockResolvedValue([
+      {
+        bmvcc_arbeitsmodellid: "v1",
+        _bmvcc_person_value: PERSON_ID,
+        bmvcc_gultigab: "2026-10-31T23:00:00Z",
+        bmvcc_pensum: 40,
+        bmvcc_arbeitstagmontag: true,
+        bmvcc_arbeitstagdienstag: true,
+      },
+      { bmvcc_arbeitsmodellid: "v2", _bmvcc_person_value: PERSON_ID, bmvcc_gultigab: null },
+    ]);
+
+    const versionen = await listArbeitsmodelle(PERSON_ID);
+
+    expect(listAllRecords.mock.calls[0][1].filter).toBe(`_bmvcc_person_value eq ${PERSON_ID}`);
+    expect(versionen).toEqual([
+      {
+        id: "v1",
+        personId: PERSON_ID,
+        gueltigAb: "2026-11-01",
+        pensum: 40,
+        arbeitstage: [true, true, false, false, false, false, false],
+      },
+    ]);
+  });
+});
+
+describe("writing", () => {
+  it("upserts the person via the email key with dates as Swiss midnight", async () => {
+    upsertRecordByKey.mockResolvedValue({ bmvcc_zeiterfassungpersonid: PERSON_ID });
+
+    const id = await speicherePersonStammdaten("Anna@Example.ch", {
+      name: "Anna",
+      nichtAuswerten: true,
+      austrittAm: "2027-03-31",
+      startsaldo: 12.5,
+      stichtag: null,
+    });
+
+    expect(id).toBe(PERSON_ID);
+    expect(upsertRecordByKey).toHaveBeenCalledWith(
+      "bmvcc_zeiterfassungpersons",
+      "bmvcc_name",
+      "anna@example.ch",
+      {
+        bmvcc_name: "anna@example.ch",
+        bmvcc_anzeigename: "Anna",
+        bmvcc_nichtauswerten: true,
+        bmvcc_austrittam: "2027-03-30T22:00:00Z",
+        bmvcc_gleitzeitstartsaldo: 12.5,
+        bmvcc_startsaldostichtag: null,
+      },
+      ["bmvcc_zeiterfassungpersonid"]
+    );
+  });
+
+  it("creates a version bound to the person by id", async () => {
+    createRecord.mockResolvedValue({ id: "v1" });
+
+    await erstelleArbeitsmodell(PERSON_ID, "anna@example.ch", {
+      gueltigAb: "2026-11-01",
+      pensum: 40,
+      arbeitstage: [true, true, false, false, false, false, false],
+    });
+
+    expect(createRecord).toHaveBeenCalledWith("bmvcc_arbeitsmodells", {
+      bmvcc_name: "anna@example.ch ab 01.11.2026",
+      bmvcc_gultigab: "2026-10-31T23:00:00Z",
+      bmvcc_pensum: 40,
+      bmvcc_arbeitstagmontag: true,
+      bmvcc_arbeitstagdienstag: true,
+      bmvcc_arbeitstagmittwoch: false,
+      bmvcc_arbeitstagdonnerstag: false,
+      bmvcc_arbeitstagfreitag: false,
+      bmvcc_arbeitstagsamstag: false,
+      bmvcc_arbeitstagsonntag: false,
+      "bmvcc_Person@odata.bind": `/bmvcc_zeiterfassungpersons(${PERSON_ID})`,
+    });
+  });
+});

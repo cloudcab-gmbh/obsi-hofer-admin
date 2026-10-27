@@ -1,0 +1,231 @@
+import { dataverseFetch } from "./client";
+import { createRecord, deleteRecord, listAllRecords, listRecords, updateRecord, upsertRecordByKey } from "./records";
+import { alsSchweizerMitternacht, formatKalenderdatum, zuSchweizerDatum } from "@/lib/zeiterfassung/datum";
+import type { Arbeitstage, ArbeitsmodellVersion } from "@/lib/zeiterfassung/soll";
+
+// PROJ-14: Tabellen "Zeiterfassung Person" und "Arbeitsmodell" (vom Nutzer
+// angelegt, Schema 2026-10-26 gelesen, siehe Spec). Die Person wird über die
+// E-Mail in Kleinbuchstaben gefunden (Primärspalte bmvcc_name, alternativer
+// Schlüssel) und beim ersten Speichern per Upsert angelegt. Alle Datumsfelder
+// sind "Benutzer lokal" → Umrechnung in Schweizer Zeit (datum.ts).
+const ZEITEINTRAEGE_ENTITY = "bmvcc_timetrackingentries";
+const PERSONEN_ENTITY = "bmvcc_zeiterfassungpersons";
+const ARBEITSMODELLE_ENTITY = "bmvcc_arbeitsmodells";
+const NAME_MAX = 100;
+
+const ARBEITSTAG_SPALTEN = [
+  "bmvcc_arbeitstagmontag",
+  "bmvcc_arbeitstagdienstag",
+  "bmvcc_arbeitstagmittwoch",
+  "bmvcc_arbeitstagdonnerstag",
+  "bmvcc_arbeitstagfreitag",
+  "bmvcc_arbeitstagsamstag",
+  "bmvcc_arbeitstagsonntag",
+] as const;
+
+const PERSON_SPALTEN = [
+  "bmvcc_zeiterfassungpersonid",
+  "bmvcc_name",
+  "bmvcc_anzeigename",
+  "bmvcc_nichtauswerten",
+  "bmvcc_austrittam",
+  "bmvcc_gleitzeitstartsaldo",
+  "bmvcc_startsaldostichtag",
+];
+
+const ARBEITSMODELL_SPALTEN = [
+  "bmvcc_arbeitsmodellid",
+  "_bmvcc_person_value",
+  "bmvcc_gultigab",
+  "bmvcc_pensum",
+  ...ARBEITSTAG_SPALTEN,
+];
+
+export interface ZeiterfassungPerson {
+  id: string;
+  /** E-Mail in Kleinbuchstaben. */
+  email: string;
+  name: string | null;
+  nichtAuswerten: boolean;
+  austrittAm: string | null;
+  startsaldo: number | null;
+  stichtag: string | null;
+}
+
+export interface PersonArbeitsmodell extends ArbeitsmodellVersion {
+  personId: string;
+}
+
+export interface PersonStammdaten {
+  name: string | null;
+  nichtAuswerten: boolean;
+  austrittAm: string | null;
+  startsaldo: number | null;
+  stichtag: string | null;
+}
+
+export interface ArbeitsmodellEingabe {
+  gueltigAb: string;
+  pensum: number;
+  arbeitstage: Arbeitstage;
+}
+
+export function normalisiereEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function zuPerson(r: Record<string, unknown>): ZeiterfassungPerson {
+  const name = typeof r.bmvcc_anzeigename === "string" ? r.bmvcc_anzeigename.trim() : "";
+  return {
+    id: r.bmvcc_zeiterfassungpersonid as string,
+    email: normalisiereEmail(String(r.bmvcc_name ?? "")),
+    name: name || null,
+    nichtAuswerten: r.bmvcc_nichtauswerten === true,
+    austrittAm: zuSchweizerDatum(r.bmvcc_austrittam as string | null),
+    startsaldo: typeof r.bmvcc_gleitzeitstartsaldo === "number" ? r.bmvcc_gleitzeitstartsaldo : null,
+    stichtag: zuSchweizerDatum(r.bmvcc_startsaldostichtag as string | null),
+  };
+}
+
+function zuArbeitsmodell(r: Record<string, unknown>): PersonArbeitsmodell | null {
+  const personId = r._bmvcc_person_value;
+  const gueltigAb = zuSchweizerDatum(r.bmvcc_gultigab as string | null);
+  // Unvollständige Datensätze (z.B. direkt in Dataverse angelegt) ignorieren.
+  if (typeof personId !== "string" || !gueltigAb) return null;
+  return {
+    id: r.bmvcc_arbeitsmodellid as string,
+    personId,
+    gueltigAb,
+    pensum: typeof r.bmvcc_pensum === "number" ? r.bmvcc_pensum : 0,
+    arbeitstage: ARBEITSTAG_SPALTEN.map((s) => r[s] === true) as Arbeitstage,
+  };
+}
+
+function odataString(wert: string): string {
+  return `'${wert.replace(/'/g, "''")}'`;
+}
+
+/**
+ * Alle E-Mails, die in den Zeiteinträgen vorkommen — über eine
+ * zusammenfassende Abfrage statt alle Einträge zu laden. Gross-/Klein-
+ * schreibung wird zusammengeführt.
+ */
+export async function listZeiterfassungEmails(): Promise<string[]> {
+  const emails = new Set<string>();
+  let url: string | null = `/api/data/v9.2/${ZEITEINTRAEGE_ENTITY}?$apply=groupby((bmvcc_useremail))`;
+  while (url) {
+    const res = await dataverseFetch(url);
+    const body = (await res.json()) as { value: { bmvcc_useremail?: string | null }[]; "@odata.nextLink"?: string };
+    for (const r of body.value) {
+      const email = normalisiereEmail(r.bmvcc_useremail ?? "");
+      if (email) emails.add(email);
+    }
+    url = body["@odata.nextLink"] ?? null;
+  }
+  return [...emails].sort();
+}
+
+/** Datum (Schweizer Zeit) des ersten Zeiteintrags einer Person, für den Hinweis beim Startsaldo. */
+export async function ersterZeiteintrag(email: string): Promise<string | null> {
+  const { records } = await listRecords<{ bmvcc_activitydate?: string | null }>(ZEITEINTRAEGE_ENTITY, {
+    select: ["bmvcc_activitydate"],
+    // Dataverse vergleicht Text ohne Gross-/Kleinschreibung.
+    filter: `bmvcc_useremail eq ${odataString(normalisiereEmail(email))} and bmvcc_activitydate ne null`,
+    orderBy: "bmvcc_activitydate asc",
+    top: 1,
+  });
+  return zuSchweizerDatum(records[0]?.bmvcc_activitydate ?? null);
+}
+
+export async function listPersonen(): Promise<ZeiterfassungPerson[]> {
+  const records = await listAllRecords(PERSONEN_ENTITY, { select: PERSON_SPALTEN });
+  return records.map(zuPerson);
+}
+
+export async function getPersonByEmail(email: string): Promise<ZeiterfassungPerson | null> {
+  const { records } = await listRecords(PERSONEN_ENTITY, {
+    select: PERSON_SPALTEN,
+    filter: `bmvcc_name eq ${odataString(normalisiereEmail(email))}`,
+    top: 1,
+  });
+  return records[0] ? zuPerson(records[0]) : null;
+}
+
+/** Alle Arbeitsmodell-Versionen, optional nur einer Person. */
+export async function listArbeitsmodelle(personId?: string): Promise<PersonArbeitsmodell[]> {
+  const records = await listAllRecords(ARBEITSMODELLE_ENTITY, {
+    select: ARBEITSMODELL_SPALTEN,
+    filter: personId ? `_bmvcc_person_value eq ${personId}` : undefined,
+  });
+  return records.map(zuArbeitsmodell).filter((v): v is PersonArbeitsmodell => v !== null);
+}
+
+function datumOderNull(datum: string | null): string | null {
+  return datum ? alsSchweizerMitternacht(datum) : null;
+}
+
+/**
+ * Speichert Name, "nicht auswerten", Austritt und Startsaldo; legt die Person
+ * an, falls es sie noch nicht gibt (Upsert über die E-Mail).
+ */
+export async function speicherePersonStammdaten(email: string, daten: PersonStammdaten): Promise<string> {
+  const mail = normalisiereEmail(email);
+  const gespeichert = await upsertRecordByKey<{ bmvcc_zeiterfassungpersonid: string }>(
+    PERSONEN_ENTITY,
+    "bmvcc_name",
+    mail,
+    {
+      bmvcc_name: mail,
+      bmvcc_anzeigename: daten.name?.slice(0, NAME_MAX) || null,
+      bmvcc_nichtauswerten: daten.nichtAuswerten,
+      bmvcc_austrittam: datumOderNull(daten.austrittAm),
+      bmvcc_gleitzeitstartsaldo: daten.startsaldo,
+      bmvcc_startsaldostichtag: datumOderNull(daten.stichtag),
+    },
+    ["bmvcc_zeiterfassungpersonid"]
+  );
+  return gespeichert.bmvcc_zeiterfassungpersonid;
+}
+
+/** ID der Person; legt sie ohne weitere Angaben an, falls es sie noch nicht gibt. */
+export async function stellePersonSicher(email: string): Promise<string> {
+  const mail = normalisiereEmail(email);
+  const gespeichert = await upsertRecordByKey<{ bmvcc_zeiterfassungpersonid: string }>(
+    PERSONEN_ENTITY,
+    "bmvcc_name",
+    mail,
+    { bmvcc_name: mail },
+    ["bmvcc_zeiterfassungpersonid"]
+  );
+  return gespeichert.bmvcc_zeiterfassungpersonid;
+}
+
+function arbeitsmodellDaten(email: string, eingabe: ArbeitsmodellEingabe): Record<string, unknown> {
+  const name = `${normalisiereEmail(email)} ab ${formatKalenderdatum(eingabe.gueltigAb)}`;
+  return {
+    bmvcc_name: name.length > NAME_MAX ? `${name.slice(0, NAME_MAX - 1)}…` : name,
+    bmvcc_gultigab: alsSchweizerMitternacht(eingabe.gueltigAb),
+    bmvcc_pensum: eingabe.pensum,
+    ...Object.fromEntries(ARBEITSTAG_SPALTEN.map((s, i) => [s, eingabe.arbeitstage[i]])),
+  };
+}
+
+export async function erstelleArbeitsmodell(
+  personId: string,
+  email: string,
+  eingabe: ArbeitsmodellEingabe
+): Promise<string> {
+  const { id } = await createRecord(ARBEITSMODELLE_ENTITY, {
+    ...arbeitsmodellDaten(email, eingabe),
+    "bmvcc_Person@odata.bind": `/${PERSONEN_ENTITY}(${personId})`,
+  });
+  return id;
+}
+
+export async function aendereArbeitsmodell(id: string, email: string, eingabe: ArbeitsmodellEingabe): Promise<void> {
+  await updateRecord(ARBEITSMODELLE_ENTITY, id, arbeitsmodellDaten(email, eingabe));
+}
+
+export async function loescheArbeitsmodell(id: string): Promise<void> {
+  await deleteRecord(ARBEITSMODELLE_ENTITY, id);
+}
