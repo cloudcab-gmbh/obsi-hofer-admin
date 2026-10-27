@@ -1,6 +1,6 @@
 # PROJ-16: Zeitnachweis als PDF
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-10-26
 **Last Updated:** 2026-10-27
 
@@ -159,6 +159,25 @@ Keine neuen Pakete (pdfmake ist vorhanden).
 
 ### F) Vorgehen
 Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`, kein Deploy bis zur Freigabe.
+
+## Implementation Notes
+
+### Umsetzung Frontend + Backend (2026-10-27, Branch `zeiterfassung`, nur lokal)
+- **Gemeinsame PDF-Grundlage** `src/lib/pdf/grundlage.ts`:
+  - Roboto-Schriften (virtuelles Dateisystem), Logo als Data-URL, `renderePdf`;
+  - aus `pruefbericht-export/pdf-generator.ts` herausgelöst, unverändert (81 Prüfbericht-Tests grün).
+- **Gemeinsamer Ladeweg** `src/lib/zeiterfassung/zeitnachweis-laden.ts` (`ladeAuswertbarePersonen`, `ladeZeitnachweis`): Die Zeitnachweis-Seite und die PDF-Aktion laden und rechnen identisch.
+- **Art-Beschriftung** in `src/lib/zeiterfassung/anzeige.ts` (`grundText`, `artTexte`), von Bildschirm und PDF genutzt.
+- **Druckansicht** `src/lib/zeiterfassung/zeitnachweis-pdf.ts`:
+  - `bauePdfDokument`: A4 hoch, Kopf mit Logo, Person, Monat, "Stand" im laufenden Monat und Arbeitsmodell(en) im Monat;
+  - Tabelle mit wiederholter Kopfzeile, ungeteilten Zeilen und hinterlegten freien Tagen/Feiertagen;
+  - "Gehen fehlt" statt interner Hinweise; Summenblock und Vermerke;
+  - Fusszeile "Erstellt am … von …" und "Seite X von Y".
+  - `zeitnachweisDateiname` ersetzt unzulässige Zeichen.
+- **Aktion** `erzeugeZeitnachweisPdfAction`: Freigeber (Name für "Erstellt von"), Monat geprüft, Person muss auswertbar sein; Base64 zurück, nichts gespeichert; Fehlermeldung ohne Personendaten.
+- **Knopf** `zeitnachweis-pdf-knopf.tsx` neben der Auswahl (nur mit gewählter Person), Download wie beim Prüfbericht.
+
+**Tests:** 19 neue Tests (Druckansicht inkl. echtem PDF-Rendern, Dateiname, Versionen im Monat, Aktion); gesamt 680 grün, `tsc` und ESLint sauber. Layout im Browser noch zu prüfen (lokal kein PDF-Bildwerkzeug).
 
 ## QA Test Results
 _To be added by /qa_

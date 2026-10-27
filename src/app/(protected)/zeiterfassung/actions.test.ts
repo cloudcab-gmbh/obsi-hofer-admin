@@ -14,7 +14,14 @@ const loescheZeiteintrag = vi.fn();
 const setzeHalberTag = vi.fn();
 const stosseFlowAn = vi.fn();
 
-vi.mock("@/lib/auth/freigeber", () => ({ aktuellerBenutzerIstFreigeber: () => istFreigeberMock() }));
+vi.mock("@/lib/auth/freigeber", () => ({
+  aktuellerBenutzerIstFreigeber: () => istFreigeberMock(),
+  aktuellerFreigeberName: async () => ((await istFreigeberMock()) ? "Robert Bienz" : null),
+}));
+const ladeZeitnachweis = vi.fn();
+const renderePdf = vi.fn();
+vi.mock("@/lib/zeiterfassung/zeitnachweis-laden", () => ({ ladeZeitnachweis: (...args: unknown[]) => ladeZeitnachweis(...args) }));
+vi.mock("@/lib/pdf/grundlage", () => ({ ladeLogoDataUrl: () => null, renderePdf: (...args: unknown[]) => renderePdf(...args) }));
 vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => revalidatePath(...args) }));
 vi.mock("@/lib/dataverse/zeiterfassung", () => ({
   getZeiteintragFuerKorrektur: (...args: unknown[]) => getZeiteintragFuerKorrektur(...args),
@@ -40,6 +47,7 @@ vi.mock("@/lib/zeiterfassung/datum", async (importOriginal) => ({
 }));
 
 import {
+  erzeugeZeitnachweisPdfAction,
   erfasseFerienAction,
   erfasseTagAction,
   loescheAbwesenheitenAction,
@@ -48,6 +56,7 @@ import {
   type TagErfassenEingabe,
 } from "./actions";
 import { DataverseError } from "@/lib/dataverse/errors";
+import { berechneZeitnachweis } from "@/lib/zeiterfassung/zeitnachweis";
 
 const ID = "37b3cb61-90c0-f111-aaaf-70a8a5061d7a";
 // Kommen 12.08.2026 07:30 Schweizer Sommerzeit
@@ -358,5 +367,50 @@ describe("loescheAbwesenheitenAction (PROJ-15)", () => {
     istFreigeberMock.mockResolvedValue(false);
     expect((await loescheAbwesenheitenAction([ID])).success).toBe(false);
     expect(loescheZeiteintrag).not.toHaveBeenCalled();
+  });
+});
+
+describe("erzeugeZeitnachweisPdfAction (PROJ-16)", () => {
+  const geladen = {
+    person: { email: "anna@x.ch", anzeige: "Anna/Muster" },
+    zeitnachweis: berechneZeitnachweis({
+      monat: "2026-11",
+      heute: "2026-12-15",
+      eintraege: [],
+      versionen: [],
+      austrittAm: null,
+      startsaldoStunden: null,
+      stichtag: null,
+    }),
+    versionen: [],
+  };
+
+  it("returns the PDF as Base64 with a safe file name", async () => {
+    ladeZeitnachweis.mockResolvedValue(geladen);
+    renderePdf.mockResolvedValue(Buffer.from("%PDF-test"));
+
+    const result = await erzeugeZeitnachweisPdfAction("anna@x.ch", "2026-11");
+
+    expect(result).toEqual({ success: true, pdfBase64: Buffer.from("%PDF-test").toString("base64"), dateiname: "Zeitnachweis Anna_Muster 2026-11.pdf" });
+    expect(ladeZeitnachweis).toHaveBeenCalledWith("anna@x.ch", "2026-11", "2026-10-27");
+    const dokument = renderePdf.mock.calls[0][0];
+    expect(JSON.stringify(dokument.footer(1, 1))).toContain("Erstellt am 27.10.2026 von Robert Bienz");
+  });
+
+  it("rejects Bearbeiter, invalid months and unknown persons", async () => {
+    ladeZeitnachweis.mockResolvedValue(null);
+    expect((await erzeugeZeitnachweisPdfAction("anna@x.ch", "2026-13")).success).toBe(false);
+    expect(await erzeugeZeitnachweisPdfAction("fremd@x.ch", "2026-11")).toEqual({ success: false, message: "Diese Person kommt in der Zeiterfassung nicht vor." });
+    istFreigeberMock.mockResolvedValue(false);
+    expect((await erzeugeZeitnachweisPdfAction("anna@x.ch", "2026-11")).success).toBe(false);
+    expect(renderePdf).not.toHaveBeenCalled();
+  });
+
+  it("reports errors without personal data", async () => {
+    ladeZeitnachweis.mockRejectedValue(new Error("anna@x.ch kaputt"));
+    expect(await erzeugeZeitnachweisPdfAction("anna@x.ch", "2026-11")).toEqual({
+      success: false,
+      message: "Das PDF konnte nicht erzeugt werden. Bitte später erneut versuchen.",
+    });
   });
 });

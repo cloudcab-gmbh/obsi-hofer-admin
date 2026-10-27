@@ -2,7 +2,10 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { aktuellerBenutzerIstFreigeber } from "@/lib/auth/freigeber";
+import { aktuellerBenutzerIstFreigeber, aktuellerFreigeberName } from "@/lib/auth/freigeber";
+import { ladeLogoDataUrl, renderePdf } from "@/lib/pdf/grundlage";
+import { ladeZeitnachweis } from "@/lib/zeiterfassung/zeitnachweis-laden";
+import { bauePdfDokument, zeitnachweisDateiname } from "@/lib/zeiterfassung/zeitnachweis-pdf";
 import { DataverseError } from "@/lib/dataverse/errors";
 import { ladeFeiertagskalender } from "@/lib/dataverse/feiertage";
 import {
@@ -25,6 +28,7 @@ import {
   heuteSchweiz,
   tageDesMonats,
   istGueltigesDatum,
+  istGueltigerMonat,
   istGueltigeUhrzeit,
   zuSchweizerDatum,
 } from "@/lib/zeiterfassung/datum";
@@ -417,5 +421,42 @@ async function stosseFlowNachLoeschenAn(betroffen: { email: string; datum: strin
     } catch {
       // Totals bleiben veraltet; der Zeitnachweis zeigt dann den Abgleich-Hinweis.
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// PROJ-16: Zeitnachweis als PDF
+
+export type ZeitnachweisPdfResult = { success: true; pdfBase64: string; dateiname: string } | { success: false; message: string };
+
+/**
+ * Erzeugt das PDF des Zeitnachweises einer Person für einen Monat — mit
+ * demselben Lade- und Rechenweg wie die Seite. Nichts wird gespeichert; das
+ * PDF geht als Base64 an den Browser (wie der Prüfbericht-Export, PROJ-7).
+ */
+export async function erzeugeZeitnachweisPdfAction(email: string, monat: string): Promise<ZeitnachweisPdfResult> {
+  const freigeber = await aktuellerFreigeberName();
+  if (!freigeber) return { success: false, message: "Nur Freigeber dürfen Zeitnachweise erzeugen." };
+  if (typeof email !== "string" || email.length > 320 || typeof monat !== "string" || !istGueltigerMonat(monat)) {
+    return { success: false, message: "Ungültige Anfrage." };
+  }
+
+  try {
+    const heute = heuteSchweiz();
+    const geladen = await ladeZeitnachweis(email, monat, heute);
+    if (!geladen) return { success: false, message: "Diese Person kommt in der Zeiterfassung nicht vor." };
+    const dokument = bauePdfDokument({
+      zeitnachweis: geladen.zeitnachweis,
+      personName: geladen.person.anzeige,
+      versionen: geladen.versionen,
+      heute,
+      erstelltVon: freigeber,
+      logoDataUrl: ladeLogoDataUrl(),
+    });
+    const pdf = await renderePdf(dokument);
+    return { success: true, pdfBase64: pdf.toString("base64"), dateiname: zeitnachweisDateiname(geladen.person.anzeige, monat) };
+  } catch {
+    // Keine Personendaten in Meldung oder Log.
+    return { success: false, message: "Das PDF konnte nicht erzeugt werden. Bitte später erneut versuchen." };
   }
 }

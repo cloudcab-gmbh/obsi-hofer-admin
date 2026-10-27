@@ -7,6 +7,7 @@ import type { Tageszeile, Zeitnachweis } from "@/lib/zeiterfassung/zeitnachweis"
 import { formatKalenderdatum, formatMonat, wochentagName } from "@/lib/zeiterfassung/datum";
 import { formatGleitzeitTage, formatMinuten, formatMinutenMitVorzeichen } from "@/lib/zeiterfassung/format";
 import { cn } from "@/lib/utils";
+import { grundText } from "@/lib/zeiterfassung/anzeige";
 import { GehenNachtragen } from "@/components/gehen-nachtragen";
 import { TagErfassen } from "@/components/tag-erfassen";
 import { AbwesenheitLoeschen } from "@/components/abwesenheit-loeschen";
@@ -40,25 +41,6 @@ function Kennzahl({ titel, wert, zusatz, warnung = false }: { titel: string; wer
   );
 }
 
-function grundText(t: Tageszeile): string | null {
-  if (t.auswertung.krankheit) return "Krankheit";
-  if (t.auswertung.kompGlz) return "Komp. GLZ";
-  if (t.ferientag === 0.5) return "½ Ferien";
-  switch (t.grund?.art) {
-    case "feiertag":
-      return `Feiertag: ${t.grund.name}`;
-    case "ferien":
-      return "Ferien";
-    case "frei":
-      return "frei";
-    case "kein-arbeitsmodell":
-      return "kein Arbeitsmodell";
-    case "nicht-angestellt":
-      return "nicht angestellt";
-    default:
-      return null;
-  }
-}
 
 /** PROJ-15: Ferien- und Frei-Einträge eines Tages (im Tool löschbar). */
 function loeschbar(t: Tageszeile): string[] {

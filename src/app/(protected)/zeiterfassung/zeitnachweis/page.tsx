@@ -1,15 +1,8 @@
 import { aktuellerBenutzerIstFreigeber } from "@/lib/auth/freigeber";
-import { ladeFeiertagskalender } from "@/lib/dataverse/feiertage";
-import {
-  listArbeitsmodelle,
-  listPersonen,
-  listZeiteintraege,
-  listZeiterfassungEmails,
-  normalisiereEmail,
-} from "@/lib/dataverse/zeiterfassung";
-import { bauePersonenUebersicht } from "@/lib/zeiterfassung/personen-uebersicht";
-import { heuteSchweiz, istGueltigerMonat, tageDesMonats } from "@/lib/zeiterfassung/datum";
-import { berechneZeitnachweis, ladebeginn, type Zeitnachweis } from "@/lib/zeiterfassung/zeitnachweis";
+import { heuteSchweiz, istGueltigerMonat } from "@/lib/zeiterfassung/datum";
+import type { Zeitnachweis } from "@/lib/zeiterfassung/zeitnachweis";
+import { ladeAuswertbarePersonen, ladeZeitnachweis } from "@/lib/zeiterfassung/zeitnachweis-laden";
+import { ZeitnachweisPdfKnopf } from "@/components/zeitnachweis-pdf-knopf";
 import { getZeitnachweisAuswahl } from "@/lib/zeiterfassung/auswahl-session";
 import { ZeitnachweisAuswahl } from "@/components/zeitnachweis-auswahl";
 import { ZeitnachweisAnsicht } from "@/components/zeitnachweis-ansicht";
@@ -47,30 +40,14 @@ export default async function ZeitnachweisPage({
   let zeitnachweis: Zeitnachweis | null = null;
   let person: { email: string; anzeige: string } | null = null;
   try {
-    const [emails, personen] = await Promise.all([listZeiterfassungEmails(), listPersonen()]);
     // Alle Personen aus PROJ-14 ausser "nicht auswerten".
-    const uebersicht = bauePersonenUebersicht(emails, personen, [], heute).filter((p) => !p.nichtAuswerten);
-    optionen = uebersicht.map((p) => ({ id: p.email, name: p.anzeige }));
-
-    const email = angefragtePerson ? normalisiereEmail(angefragtePerson) : null;
-    const gewaehlt = uebersicht.find((p) => p.email === email);
-    if (gewaehlt) {
-      person = { email: gewaehlt.email, anzeige: gewaehlt.anzeige };
-      const gespeichert = personen.find((p) => p.email === gewaehlt.email) ?? null;
-      const versionen = gespeichert ? await listArbeitsmodelle(gespeichert.id) : [];
-      const daten = {
-        versionen,
-        austrittAm: gespeichert?.austrittAm ?? null,
-        startsaldoStunden: gespeichert?.startsaldo ?? null,
-        stichtag: gespeichert?.stichtag ?? null,
-        ferienanspruch: gespeichert?.ferienanspruch ?? null,
-        ferienStartsaldo: gespeichert?.ferienStartsaldo ?? null,
-      };
-      const von = ladebeginn(monat, daten);
-      const bis = tageDesMonats(monat).at(-1)!;
-      // PROJ-18: gepflegte Feiertage der betroffenen Jahre, einmal pro Aufruf.
-      const [eintraege, feiertage] = await Promise.all([listZeiteintraege(gewaehlt.email, von, bis), ladeFeiertagskalender(von, bis)]);
-      zeitnachweis = berechneZeitnachweis({ ...daten, monat, heute, eintraege, feiertage });
+    const auswertbar = await ladeAuswertbarePersonen(heute);
+    optionen = auswertbar.personen.map((p) => ({ id: p.email, name: p.anzeige }));
+    // PROJ-16: derselbe Lade- und Rechenweg wie für das PDF.
+    const geladen = angefragtePerson ? await ladeZeitnachweis(angefragtePerson, monat, heute, auswertbar) : null;
+    if (geladen) {
+      person = geladen.person;
+      zeitnachweis = geladen.zeitnachweis;
     }
   } catch {
     // Keine Zeitdaten in der Meldung oder im Log (Technical Requirements).
@@ -81,7 +58,13 @@ export default async function ZeitnachweisPage({
   return (
     <main className="mx-auto flex h-full max-w-6xl flex-col gap-6 px-4 py-6">
       <h1 className="text-xl font-semibold">{TITEL}</h1>
-      <ZeitnachweisAuswahl personen={optionen} person={person?.email ?? null} monat={monat} />
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <ZeitnachweisAuswahl personen={optionen} person={person?.email ?? null} monat={monat} />
+        </div>
+        {/* PROJ-16: nur mit gewählter Person. */}
+        {person && zeitnachweis && !fehler && <ZeitnachweisPdfKnopf email={person.email} monat={monat} />}
+      </div>
       {fehler ? (
         <Card>
           <CardContent role="alert" className="py-10 text-center text-sm text-destructive">

@@ -31,7 +31,7 @@ Anmeldung über das bestehende Microsoft-365-/Entra-ID-Konto (interner Firmen-Te
 | P1 | Zeitnachweis pro Monat (ersetzt die Excel-Auswertung der Zeiterfassung: Ist, Soll, Gleitzeit pro Person und Monat) | Approved |
 | P1 | Arbeitsmodell pro Person (Pensum, Arbeitstage, Gleitzeit-Startsaldo) | Approved |
 | P1 | Ferien erfassen und Feriensaldo | Approved |
-| P2 | Zeitnachweis als PDF | Architected |
+| P2 | Zeitnachweis als PDF | In Progress |
 | P1 | Zeiterfassung-Übersicht (Dashboard: Gleitzeit, Ist/Soll, Abwesenheiten, Ferien aller Mitarbeitenden, mit Grafiken) | Approved |
 | P1 | Feiertage im Tool pflegen (Vorschlag pro Jahr, betriebliche und halbe Feiertage) | Approved |
 
