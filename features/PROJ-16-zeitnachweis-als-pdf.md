@@ -1,6 +1,6 @@
 # PROJ-16: Zeitnachweis als PDF
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-10-26
 **Last Updated:** 2026-10-27
 
@@ -85,13 +85,80 @@ Der Zeitnachweis (PROJ-13) zeigt eine Person und einen Monat am Bildschirm. In d
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
-| _wird in /architecture ergänzt_ | | |
+| pdfmake wie beim Prüfbericht-Export (PROJ-7), gemeinsame Grundlage (Schriften, Logo, Fusszeile) herausgelöst | Erprobt, kein neues Paket; Prüfbericht bleibt unverändert (Tests) | 2026-10-27 |
+| Seite und PDF-Aktion nutzen denselben Lade- und Rechenschritt | Identische Zahlen, keine zweite Logik | 2026-10-27 |
+| Server-Aktion mit Base64-Rückgabe, Download im Browser | Gleiches Muster wie PROJ-7; Freigeber-Prüfung in der Aktion; keine Ablage | 2026-10-27 |
+| Druckansicht als reine Funktion, interne Hinweise dort weggelassen | Einzeln testbar ohne PDF-Rendern | 2026-10-27 |
+| "Erstellt von" = angezeigter Name des angemeldeten Freigebers | Wie "Ausgelöst von" im Sync-Verlauf (PROJ-6) | 2026-10-27 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Ausgangslage
+- Der Prüfbericht-Export (PROJ-7) erzeugt PDFs mit **pdfmake** auf dem Server:
+  - Roboto-Schriften und Logo als eingebettete Daten;
+  - Fusszeile "Seite X von Y";
+  - Rückgabe an den Browser als Base64; der Browser speichert die Datei.
+- Der Zeitnachweis (PROJ-13) berechnet bereits alles, was das PDF zeigt, als reine Rechnung. Er nutzt dazu Arbeitsmodell, Ferien und gepflegte Feiertage.
+
+### A) Bausteine
+```
+Zeitnachweis (bestehend)
++-- Knopf "PDF herunterladen" neben der Auswahl (nur wenn eine Person gewählt ist)
+    +-- während der Erzeugung gesperrt ("Erzeugt …"), Fehlermeldung bei Problemen
+    +-- Datei "Zeitnachweis {Name} {JJJJ-MM}.pdf" wird im Browser gespeichert
+
+Server-Aktion "Zeitnachweis-PDF erzeugen" (nur Freigeber)
++-- lädt Person, Arbeitsmodell, Einträge und Feiertage — dieselben Schritte wie die Seite
++-- berechnet den Zeitnachweis mit derselben Rechenregel wie der Bildschirm
++-- baut das PDF und gibt es zurück (nichts wird gespeichert)
+
+PDF-Aufbau (A4 hoch)
++-- Kopf: Logo · "Zeitnachweis" · Person · Monat · Arbeitsmodell(e) im Monat · ggf. "Stand {Datum}"
++-- Tabelle (Kopfzeile wiederholt sich auf jeder Seite):
+|   Datum · Zeiten · Art · Ist · Soll · Abw. · Gleitzeit · Essen · Bemerkung
+|   Wochenenden/Feiertage leicht hinterlegt; "Gehen fehlt" bei offenen Einträgen
++-- Summenblock: Saldo Vormonat/Startsaldo · Ist · Soll · Abweichung · Gleitzeit (h, Tage) ·
+|   Ferien im Monat (bezogen/geplant) · Feriensaldo; Vermerke (keine Einträge, kein Arbeitsmodell)
++-- Fusszeile jeder Seite: "Seite X von Y" · Erstellt am {Datum} von {Freigeber}
+```
+
+### B) Datenmodell (in Worten)
+**Nichts wird gespeichert, keine Dataverse-Änderung.**
+- Das PDF entsteht aus genau den Daten, die die Zeitnachweis-Seite lädt, und aus derselben Berechnung.
+- Neu ist nur die "Druckansicht": eine Umwandlung der berechneten Tageszeilen und Summen in eine Druckstruktur.
+- Interne Hinweise werden dabei weggelassen. Aus offenen Einträgen wird "Gehen fehlt".
+
+### C) Technische Entscheidungen (Begründung)
+- **pdfmake wie bei PROJ-7:** Die Bibliothek ist bereits im Tool, auf dem Server erprobt (Schriften, Logo, Seitenzahlen). Kein neues Paket.
+- **Gemeinsame PDF-Grundlage herauslösen:** Schriften, Logo und die Fusszeile "Seite X von Y" werden in einen kleinen gemeinsamen Baustein verschoben, den Prüfbericht und Zeitnachweis nutzen. Der Prüfbericht-Export bleibt dabei inhaltlich unverändert; seine Tests sichern das ab.
+- **Laden und Rechnen einmal definiert:** Seite und PDF-Aktion nutzen denselben Ladeschritt für Person, Arbeitsmodell, Einträge und Feiertage. Das ergibt identische Zahlen und keine zweite Logik.
+- **Server-Aktion mit Base64-Rückgabe** (wie PROJ-7): Die Freigeber-Prüfung läuft in der Aktion; die Datei entsteht nur im Browser des Freigebers. Keine Ablage, keine öffentliche Adresse.
+- **"Erstellt von":** der angezeigte Name des angemeldeten Freigebers (wie "Ausgelöst von" im Sync-Verlauf, PROJ-6).
+- **Dateiname:** wird aus Name bzw. E-Mail und Monat gebildet; Zeichen, die in Dateinamen nicht erlaubt sind, werden ersetzt.
+- **Druckansicht als reine Funktion** (ohne Datenzugriff): Inhalt und Weglassen der internen Hinweise sind einzeln testbar, ohne ein PDF zu rendern.
+
+### D) Abhängigkeiten (Pakete)
+Keine neuen Pakete (pdfmake ist vorhanden).
+
+### E) Tests
+- **Druckansicht:**
+  - Zeilen und Spalten, Art-Texte (Feiertag, ½ Feiertag, Ferien, ½ Ferien, Krankheit, Komp. GLZ, Frei);
+  - "Gehen fehlt", keine internen Hinweise, Summenblock;
+  - Arbeitsmodell-Wechsel im Kopf, Vermerke (keine Einträge, kein Arbeitsmodell), "Stand {Datum}".
+- **Dateiname:** Sonderzeichen werden ersetzt.
+- **Aktion:**
+  - Bearbeiter abgelehnt; Person nicht in der Zeiterfassung abgelehnt;
+  - die Zahlen sind dieselben wie in der Seitenberechnung;
+  - Fehler beim Laden ergibt eine Meldung ohne Personendaten.
+- **PDF:** wird erzeugt (beginnt mit "%PDF"), mehrseitig mit wiederholter Kopfzeile.
+- **Prüfbericht-PDF unverändert:** bestehende Tests nach dem Herauslösen grün.
+- **Manuell lokal:** PDF eines Monats mit Feiertag, Ferien und offenem Eintrag mit dem Bildschirm vergleichen.
+
+### F) Vorgehen
+Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`, kein Deploy bis zur Freigabe.
 
 ## QA Test Results
 _To be added by /qa_
