@@ -255,7 +255,9 @@ Wie PROJ-14 in einem Schritt gebaut (nur lesend, keine Dataverse-Änderungen).
 **Nachtrag 2026-10-27: "Gehen" nachtragen** (Nutzerwunsch: Hinweis klickbar)
 - Hinweis oben listet jeden offenen Eintrag ("Mi 12.08. 07:30") als Link, die Tageszeile zeigt "nachtragen" neben dem offenen Paar — beide öffnen den Dialog `gehen-nachtragen.tsx` (Uhrzeit, "am Folgetag")
 - Aktion `trageGehenNachAction` (`src/app/(protected)/zeiterfassung/actions.ts`): Freigeber-Prüfung, lädt den Eintrag neu und schreibt nur, wenn er vom Typ Arbeitszeit ist, ein Kommen und noch kein Gehen hat; Gehen muss nach Kommen liegen und höchstens 14 h später; schreibt `bmvcc_gehen` und `bmvcc_checkouttime`
-- **Offen:** Ob der Power-Automate-Flow bei dieser Änderung `aznetto4`/Tages-/Monatstotal neu berechnet, hängt von seinem Auslöser ab — sonst zeigt der Abgleich-Hinweis danach eine Abweichung. In Dataverse steht als "Geändert von" der App-Benutzer, nicht der Freigeber
+- Der Power-Automate-Flow läuft auch beim Nachtragen und berechnet `aznetto4`, Tages- und Monatstotal neu (vom Nutzer im Browser-Test bestätigt, 2026-10-27)
+- Nachtragen am laufenden Tag ebenfalls möglich (ohne Warnhinweis oben); Stundenwerte umbrechen nicht mehr
+- In Dataverse steht als "Geändert von" der App-Benutzer, nicht der Freigeber (Vermerk in der Bemerkung bei Bedarf nachrüstbar)
 
 **Tests:** 46 neue Tests (Feiertage, Tagesauswertung, Zeitnachweis inkl. Jahreswechsel, Datenschicht, Ansicht, Auswahl); gesamt 542 grün, `tsc` und ESLint sauber; mit dem Nachtrag 15 weitere (557 grün).
 
