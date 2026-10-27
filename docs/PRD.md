@@ -32,8 +32,8 @@ Anmeldung über das bestehende Microsoft-365-/Entra-ID-Konto (interner Firmen-Te
 | P1 | Arbeitsmodell pro Person (Pensum, Arbeitstage, Gleitzeit-Startsaldo) | Approved |
 | P1 | Ferien erfassen und Feriensaldo | Approved |
 | P2 | Zeitnachweis als PDF | Roadmap |
-| P1 | Zeiterfassung-Übersicht (Dashboard: Gleitzeit, Ist/Soll, Abwesenheiten, Ferien aller Mitarbeitenden, mit Grafiken) | In Progress |
-| P1 | Feiertage im Tool pflegen (Vorschlag pro Jahr, betriebliche und halbe Feiertage) | In Progress |
+| P1 | Zeiterfassung-Übersicht (Dashboard: Gleitzeit, Ist/Soll, Abwesenheiten, Ferien aller Mitarbeitenden, mit Grafiken) | In Review |
+| P1 | Feiertage im Tool pflegen (Vorschlag pro Jahr, betriebliche und halbe Feiertage) | Approved |
 
 ## Success Metrics
 - Keine direkte Dateneingabe mehr in Dataverse/Dynamics nötig für Geräte/Prüfberichte

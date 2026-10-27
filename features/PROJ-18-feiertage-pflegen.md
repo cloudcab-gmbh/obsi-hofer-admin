@@ -1,6 +1,6 @@
 # PROJ-18: Feiertage im Tool pflegen
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-10-27
 **Last Updated:** 2026-10-27
 
@@ -229,7 +229,60 @@ Keine neuen Pakete.
 **Tests:** 30 neue Tests (Kalender, halbe Feiertage in Zeitnachweis und Ferien, Datenschicht, Aktionen, Oberfläche, E2E); gesamt 661 grün, `tsc` und ESLint sauber.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-10-27
+**App URL:** http://localhost:3000 (Branch `zeiterfassung`, nur lokal)
+**Tester:** QA Engineer (AI) + Browser-Test durch den Nutzer ("passt")
+
+### Acceptance Criteria Status
+#### Zugriff und Anzeige
+- [x] Bearbeiter: Seite und alle vier Aktionen serverseitig abgelehnt (`actions.test.ts`); ohne Login → `/login` (E2E)
+- [x] Liste mit Datum, Wochentag, Name, ganz/halb und Status Vorschlag/gepflegt
+
+#### Vorschlag und Übernehmen
+- [x] Nicht übernommene Jahre rechnen mit dem Vorschlag (lesender Check: kein Jahr gepflegt → Vorschlag gilt)
+- [x] "Jahr übernehmen" legt Jahr + 9 Feiertage an; danach gilt die Liste überall
+
+#### Pflegen
+- [x] Hinzufügen, Ändern (Name, ganz/halb), Entfernen mit Bestätigung — wirkt sofort (ganze Zeiterfassung neu geladen)
+- [x] Datum ausserhalb des Jahres, leeres Datum/Name, doppeltes Datum abgelehnt (serverseitig)
+- [x] Zurücksetzen auf Vorschlag mit Bestätigung (Feiertage zuerst, dann Jahr)
+
+#### Wirkung
+- [x] Ganzer Feiertag: Soll 0
+- [x] Halber Feiertag: Soll halbiert, "½ Feiertag: …", Ferien zählen 0.5
+- [x] Neuer ganzer Feiertag auf bestehendem Ferientag: zählt nicht mehr (Hinweis)
+- [x] Ferien-Vorschau überspringt gepflegte Feiertage
+
+#### Fehler
+- [x] Meldung, Dialog bleibt mit Eingaben offen
+
+### Edge Cases Status
+- [x] Vergangenes Jahr übernehmen: Bestätigung mit Hinweis auf Neuberechnung
+- [x] Feiertag am Wochenende ohne Effekt
+- [x] Halber Feiertag + halber Ferientag → Rest-Soll 0; Krankheit an halbem Feiertag erfüllt das halbe Soll
+- [x] Leer gepflegtes Jahr: keine Feiertage, Hinweis
+- [x] Gleichzeitige Pflege: ein Feiertag pro Datum geprüft; der Kalender zählt ein Datum einmal; ein zweites gleichzeitiges "Übernehmen" scheitert am Schlüssel auf "Jahr"
+
+### Security Audit Results
+- [x] Freigeber-Prüfung auf Seite und Aktionen
+- [x] IDs (GUID) und Jahr geprüft; Ändern/Entfernen nur für Feiertage des angegebenen Jahres
+- [x] Keine Personendaten betroffen
+
+### Automatisierte Tests
+- [x] `npm test`: 661 Tests grün (30 neu für PROJ-18)
+- [x] `npm run test:e2e`: 40/40 grün (neu: `tests/PROJ-18-feiertage-pflegen.spec.ts`)
+
+### Bugs Found
+Keine.
+
+Hinweise: Die internen Tabellennamen tragen einen Tippfehler (`bmvcc_feriertag…`), bewusst belassen. Das Löschverhalten "Referenziell" genügt, weil das Tool beim Zurücksetzen selbst zuerst die Feiertage löscht.
+
+### Summary
+- **Acceptance Criteria:** alle erfüllt
+- **Bugs Found:** 0
+- **Security:** Pass
+- **Production Ready:** YES (fachlich) — Deploy erst nach Nutzer-Freigabe der Zeiterfassung
 
 ## Deployment
 _To be added by /deploy_

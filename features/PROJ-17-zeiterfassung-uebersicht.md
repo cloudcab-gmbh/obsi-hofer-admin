@@ -1,6 +1,6 @@
 # PROJ-17: Zeiterfassung-Übersicht (Dashboard)
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-10-27
 **Last Updated:** 2026-10-27
 
@@ -212,7 +212,63 @@ Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`,
 **Tests:** 11 neue Tests (Zusammenstellung inkl. Übereinstimmung mit Zeitnachweis/Ferienstand, Sortierung, Link, Warnungen, Grafiken, E2E); gesamt 631 Unit- und 38 E2E-Tests grün, `tsc` und ESLint sauber.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-10-27
+**App URL:** http://localhost:3000 (Branch `zeiterfassung`, nur lokal)
+**Tester:** QA Engineer (AI) + Browser-Test durch den Nutzer ("Dashboard ist ok")
+
+### Acceptance Criteria Status
+#### Zugriff und Navigation
+- [x] Bearbeiter: Hinweis statt Daten; ohne Login → `/login` (E2E)
+- [x] Menüpunkt öffnet die Übersicht, Reiter "Übersicht" vorne
+- [x] Monat wählbar (Standard aktueller Monat, in der Adresse)
+
+#### Tabelle
+- [x] Alle Spalten pro Person (ohne "nicht auswerten")
+- [x] Sortierung per Spaltenkopf, fehlende Werte am Ende
+- [x] Link zum Zeitnachweis des gewählten Monats
+- [x] Werte stimmen mit Zeitnachweis und Ferienstand überein (eigener Test; seit PROJ-18 mit demselben Feiertagskalender)
+
+#### Grafiken
+- [x] Gleitzeit-Balken mit Nulllinie, Plus/Minus farblich (Validator bestanden)
+- [ ] BUG-1: Ferien-Balken — der "Rest" ist der Saldo am Monatsende, später im Jahr geplante Ferien werden dadurch doppelt gezählt
+- [x] Tooltip mit Person und Wert
+
+#### Warnungen, Leer- und Fehlerzustände
+- [x] Hervorhebung und Zusammenfassung (kein Arbeitsmodell, offene Einträge, negativer Feriensaldo, Gleitzeit ±40 h)
+- [x] Leer-Hinweis; "—" und Hinweis "Ohne Gleitzeit …" in der Grafik; Fehlermeldung ohne Personendaten
+
+### Edge Cases Status
+- [x] Ohne Arbeitsmodell, ausgetreten, vor dem Beginn, künftiger Monat (Unit-Tests)
+- [x] Viele Personen: Grafikhöhe wächst, gekürzte Namen mit vollem Namen im Tooltip (Nutzer: bis 10 Personen ausreichend)
+- [x] Performance: 5 Personen × 3 Monate in 0.7 s (Probelauf)
+
+### Security Audit Results
+- [x] Nur Freigeber (Seite); alte Adresse `/zeiterfassung?person=…` leitet auf den Zeitnachweis, der selbst prüft — kein offener Redirect (Ziel fest)
+- [x] Nur lesend; keine Personendaten in Logs/Fehlermeldungen
+- [x] Neue Abhängigkeit Recharts: keine neuen Audit-Funde (4 bestehende Funde in anderen Paketen)
+
+### Automatisierte Tests
+- [x] `npm test`: 57 Dateien, 661 Tests grün
+- [x] `npm run test:e2e`: 40/40 grün
+
+### Bugs Found
+#### BUG-1: Ferien-Grafik zählt später geplante Ferien doppelt
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Person mit 25 Tagen Anspruch, 1 Tag im März bezogen, 1 Tag im Dezember geplant.
+  2. Übersicht Oktober öffnen.
+  3. Expected: Balken bezogen 1 + geplant 1 + Rest 23 = 25.
+  4. Actual: Rest = Saldo Ende Oktober = 24, Balken 26 (nachgerechnet).
+- **Ursache:** Der Rest-Teil nimmt den Feriensaldo am Monatsende; dieser zieht später geplante Ferien noch nicht ab.
+- **Vorschlag:** In der Grafik als Rest den Saldo am Jahresende (nach allen geplanten Ferien) verwenden; in der Tabelle bleibt "Feriensaldo am Monatsende".
+- **Priority:** Fix before deployment
+
+### Summary
+- **Acceptance Criteria:** alle bis auf die Ferien-Grafik erfüllt
+- **Bugs Found:** 1 total (0 critical, 0 high, 1 medium, 0 low)
+- **Security:** Pass
+- **Production Ready:** YES nach Regel (kein Critical/High) — Empfehlung: BUG-1 vor dem Deploy beheben
 
 ## Deployment
 _To be added by /deploy_
