@@ -187,7 +187,7 @@ export function ZeitnachweisAnsicht({
                                 {i > 0 && ", "}
                                 {p.kommen}–{p.gehen ?? "…"}
                                 {p.folgetag && " (+1)"}
-                                {p.gehen === null && t.offenWarnung && (
+                                {p.gehen === null && !t.zukunft && (
                                   <>
                                     {" "}
                                     <GehenNachtragen eintragId={p.eintragId} datum={t.datum} kommen={p.kommen} personName={personName}>
@@ -205,21 +205,21 @@ export function ZeitnachweisAnsicht({
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell className="whitespace-nowrap text-right tabular-nums">
                         {t.istMinuten === null ? "" : formatMinuten(t.istMinuten)}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell className="whitespace-nowrap text-right tabular-nums">
                         {t.sollMinuten === null ? "" : formatMinuten(t.sollMinuten)}
                       </TableCell>
                       <TableCell
                         className={cn(
-                          "text-right tabular-nums",
+                          "whitespace-nowrap text-right tabular-nums",
                           (t.abweichungMinuten ?? 0) < 0 && "text-destructive"
                         )}
                       >
                         {t.abweichungMinuten === null || t.vorBeginn ? "" : formatMinutenMitVorzeichen(t.abweichungMinuten)}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell className="whitespace-nowrap text-right tabular-nums">
                         {t.saldoMinuten === null ? "" : formatMinutenMitVorzeichen(t.saldoMinuten)}
                       </TableCell>
                       <TableCell className="whitespace-nowrap">{essen.join(", ")}</TableCell>
@@ -241,10 +241,10 @@ export function ZeitnachweisAnsicht({
               <TableFooter>
                 <TableRow className="font-medium">
                   <TableCell colSpan={3}>Summe</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatMinuten(z.summeIstMinuten)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatMinuten(z.summeSollMinuten)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatMinutenMitVorzeichen(z.abweichungMinuten)}</TableCell>
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell className="whitespace-nowrap text-right tabular-nums">{formatMinuten(z.summeIstMinuten)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-right tabular-nums">{formatMinuten(z.summeSollMinuten)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-right tabular-nums">{formatMinutenMitVorzeichen(z.abweichungMinuten)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-right tabular-nums">
                     {z.saldoEndeMinuten === null ? "" : formatMinutenMitVorzeichen(z.saldoEndeMinuten)}
                   </TableCell>
                   <TableCell colSpan={2} />

@@ -92,6 +92,13 @@ describe("ZeitnachweisAnsicht", () => {
     expect(within(zeile("02.11.")).getByRole("button", { name: "nachtragen" })).toBeInTheDocument();
   });
 
+  it("offers nachtragen for an open entry today, without a warning", () => {
+    zeigen(eingabe({ heute: "2026-11-02", eintraege: [arbeit("2026-11-02", "06:30", null)] }));
+
+    expect(within(zeile("02.11.")).getByRole("button", { name: "nachtragen" })).toBeInTheDocument();
+    expect(screen.queryByText(/fehlt ein „Gehen“/)).not.toBeInTheDocument();
+  });
+
   it("links to the person when there is no Arbeitsmodell", () => {
     zeigen(eingabe({ versionen: [], startsaldoStunden: null, stichtag: null }));
 
