@@ -29,7 +29,7 @@
 | PROJ-12 | Sync-Freigabe und -Verlauf pro Standort | Deployed | [Spec](../features/PROJ-12-sync-freigabe-und-verlauf-pro-standort.md) | 2026-10-08 |
 | PROJ-13 | Zeitnachweis pro Monat | Approved | [Spec](../features/PROJ-13-zeitnachweis-pro-monat.md) | 2026-10-26 |
 | PROJ-14 | Arbeitsmodell pro Person (Pensum, Arbeitstage, Gleitzeit-Startsaldo) | Approved | [Spec](../features/PROJ-14-arbeitsmodell-pro-person.md) | 2026-10-26 |
-| PROJ-15 | Ferien erfassen und Feriensaldo | Roadmap | — | 2026-10-26 |
+| PROJ-15 | Ferien erfassen und Feriensaldo | Planned | [Spec](../features/PROJ-15-ferien-erfassen-und-feriensaldo.md) | 2026-10-26 |
 | PROJ-16 | Zeitnachweis als PDF | Roadmap | — | 2026-10-26 |
 
 <!-- Add features above this line -->
@@ -51,7 +51,7 @@
 - PROJ-12: Requires PROJ-5, PROJ-6, PROJ-10, PROJ-11 — Cross-Repo: Standort-Filter im Sync-Endpoint des Kundenportal-Repos; Dataverse: Spalte "Standort" in der Tabelle der Sync-Läufe. Hinweis Kundenportal (2026-10-09): Wechselt ein Standort die Firma, wirkt ein Zugang zu ihm erst wieder, wenn die neue Firma synchronisiert ist **— Cross-Repo-Teil erledigt 2026-10-11 (dort PROJ-16 deployt); bei Firmenwechsel genügt ein Standort-Lauf bei der neuen Firma.**
 - PROJ-13: Requires PROJ-1, PROJ-2, PROJ-14 (Personenliste, Soll, Gleitzeit-Startsaldo); optional PROJ-15 (Ferientage) — Dataverse: Lesen auf `bmvcc_timetrackingentry` für den App-Benutzer (heute 403). Grundlage: [docs/zeiterfassung-ausgangslage.md](../docs/zeiterfassung-ausgangslage.md)
 - PROJ-14: Requires PROJ-1, PROJ-2 — Dataverse: Lesen auf `bmvcc_timetrackingentry` (erteilt), Ablage für Arbeitsmodell, Name und Startsaldo (existiert noch nicht, Form in /architecture)
-- PROJ-15: Requires PROJ-1, PROJ-2, PROJ-14 (Pensum für den Ferienanspruch) — Dataverse: Ablage für Ferientage (existiert noch nicht)
+- PROJ-15: Requires PROJ-1, PROJ-2, PROJ-13, PROJ-14 (Pensum für den Ferienanspruch) — Dataverse: Aktivitätstyp 3 = Ferien und 4 = Frei angelegt (2026-10-27); Felder für Ferienanspruch und Ferien-Startsaldo an der Person (Form in /architecture)
 - PROJ-16: Requires PROJ-13 (Berechnung), Muster: PDF-Export aus PROJ-7
 
 ## Empfohlene Baureihenfolge
