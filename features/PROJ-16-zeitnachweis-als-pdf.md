@@ -45,7 +45,7 @@ Der Zeitnachweis (PROJ-13) zeigt eine Person und einen Monat am Bildschirm. In d
 - [ ] Angenommen dieselbe Person und derselbe Monat sind gewählt, dann stimmen alle Zahlen im PDF mit dem Zeitnachweis am Bildschirm überein
 - [ ] Angenommen ein Tag hat einen offenen Eintrag (Gehen fehlt), dann zeigt das PDF das Paar als "Kommen–…" mit dem Vermerk "Gehen fehlt"; weitere interne Hinweise (Abgleich mit dem Flow, Überschneidungen, unplausible Einträge, "vor Arbeitsmodell") erscheinen nicht
 - [ ] Angenommen der Monat ist der laufende Monat, dann ist das PDF als "Stand {Datum}" gekennzeichnet und Tage nach heute bleiben ohne Werte
-- [ ] Angenommen das PDF hat mehrere Seiten, dann wiederholen sich die Spaltenköpfe und jede Seite hat die Fusszeile "Seite X von Y" mit Erstellungsdatum
+- [ ] Angenommen das PDF hat mehrere Seiten, dann wiederholen sich die Spaltenköpfe und jede Seite hat die Fusszeile "Seite X von Y" mit Erstellungsdatum und "Erstellt von {Name des Freigebers}"
 
 **Leer- und Fehlerzustände**
 - [ ] Angenommen die Person hat im Monat keine Einträge, dann wird das PDF trotzdem erzeugt (Tage mit Soll, Ist 0) mit dem Vermerk "Keine Zeiteinträge in diesem Monat"
@@ -68,7 +68,7 @@ Der Zeitnachweis (PROJ-13) zeigt eine Person und einen Monat am Bildschirm. In d
 - Erzeugen in wenigen Sekunden
 
 ## Open Questions
-- [ ] Soll das Erstellungsdatum oder "Erstellt von {Freigeber}" in der Fusszeile stehen? (Spec: Erstellungsdatum)
+- [x] Fusszeile: Erstellungsdatum **und** "Erstellt von {Freigeber}" (Nutzer, 2026-10-27)
 
 ## Decision Log
 
@@ -80,6 +80,7 @@ Der Zeitnachweis (PROJ-13) zeigt eine Person und einen Monat am Bildschirm. In d
 | Keine Unterschriftsfelder, kein Visum | Reines Informationsdokument (Nutzer-Entscheidung); Visum-Security noch offen | 2026-10-27 |
 | A4 hoch | Nutzer-Entscheidung; Zeiten und Bemerkungen dürfen umbrechen | 2026-10-27 |
 | Ein PDF pro Person und Monat | Sammel-PDFs nicht benötigt | 2026-10-27 |
+| Fusszeile mit Erstellungsdatum und "Erstellt von {Freigeber}" | Nachvollziehbar, wer den Nachweis erzeugt hat (Nutzer-Entscheidung) | 2026-10-27 |
 
 ### Technical Decisions
 | Decision | Rationale | Date |
