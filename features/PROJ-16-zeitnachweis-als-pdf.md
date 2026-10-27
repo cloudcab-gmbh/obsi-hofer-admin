@@ -1,6 +1,6 @@
 # PROJ-16: Zeitnachweis als PDF
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-10-26
 **Last Updated:** 2026-10-27
 
@@ -180,7 +180,69 @@ Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`,
 **Tests:** 19 neue Tests (Druckansicht inkl. echtem PDF-Rendern, Dateiname, Versionen im Monat, Aktion); gesamt 680 grün, `tsc` und ESLint sauber. Layout im Browser noch zu prüfen (lokal kein PDF-Bildwerkzeug).
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-10-27
+**App URL:** http://localhost:3000 (Branch `zeiterfassung`, nur lokal)
+**Tester:** QA Engineer (AI) + Browser-Test durch den Nutzer (Layout und Inhalt: "passt")
+
+### Acceptance Criteria Status
+#### Zugriff und Auslösen
+- [x] Bearbeiter: Aktion serverseitig abgelehnt (`actions.test.ts`); Seite selbst schon geschützt (E2E Zeitnachweis)
+- [x] "PDF herunterladen" liefert "Zeitnachweis {Name} {JJJJ-MM}.pdf" (Nutzer-Test, Dateiname-Test)
+- [x] Ohne gewählte Person kein Knopf
+
+#### Inhalt
+- [x] A4 hoch; Kopf mit Logo, Person, Monat, Arbeitsmodell(en) im Monat
+- [x] Eine Zeile pro Kalendertag mit allen Spalten; Art-Texte gemeinsam mit dem Bildschirm (`anzeige.ts`)
+- [x] Summenblock mit Saldo Vormonat/Startsaldo, Ist, Soll, Abweichung, Gleitzeit (h, Tage), Ferien, Feriensaldo
+- [x] Gleiche Zahlen wie am Bildschirm (gemeinsamer Lade- und Rechenweg; Nutzer-Vergleich)
+- [x] Offene Einträge "… (Gehen fehlt)"; keine internen Hinweise (Test)
+- [x] Laufender Monat "Stand {Datum}"; Tage nach heute ohne Werte
+- [x] Mehrere Seiten: Kopfzeile wiederholt, Fusszeile "Seite X von Y" mit "Erstellt am … von {Freigeber}"
+
+#### Leer- und Fehlerzustände
+- [x] Keine Einträge: PDF mit Vermerk
+- [x] Kein Arbeitsmodell / vor Beginn: "—" und Vermerk
+- [x] Fehler: Meldung ohne Personendaten (Test)
+
+### Edge Cases Status
+- [x] Viele Paare und lange Bemerkungen brechen um; Tageszeilen werden nicht über Seiten geteilt
+- [x] Sonderzeichen im Namen → gültiger Dateiname
+- [x] Arbeitsmodell-Wechsel und Austritt im Monat
+- [x] Halber Feiertag + halber Ferientag: beides in "Art"
+- [ ] BUG-1: Monat in der Zukunft — "Stand {Datum}" fehlt im Kopf
+- [x] Dark Mode ohne Einfluss (PDF immer hell)
+
+### Security Audit Results
+- [x] Freigeber-Prüfung in der Aktion; nur auswertbare Personen (unbekannte/"nicht auswerten" abgelehnt)
+- [x] Monat und E-Mail geprüft; keine Ablage, keine öffentliche Adresse; Fehlermeldungen ohne Personendaten
+- [x] pdfmake-Zugriff auf Dateien/URLs gesperrt (gemeinsame Grundlage) — Bemerkungen aus Einträgen können keine Bilder/URLs nachladen
+
+### Regression
+- [x] Prüfbericht-PDF nach dem Herauslösen von Schriften/Logo unverändert (81 Tests)
+- [x] Zeitnachweis-Seite auf den gemeinsamen Ladeweg umgestellt — alle Zeitnachweis-Tests grün
+
+### Automatisierte Tests
+- [x] `npm test`: 58 Dateien, 680 Tests grün
+- [x] `npm run test:e2e`: 40/40 grün (keine neue Route; Zugriffsschutz durch die Zeitnachweis-Suite abgedeckt)
+
+### Bugs Found
+#### BUG-1: Monat in der Zukunft ohne "Stand {Datum}"
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Zeitnachweis für einen künftigen Monat (z.B. Dezember) öffnen.
+  2. PDF herunterladen.
+  3. Expected: Kopf "Dezember 2026 · Stand {heute}" (Edge Case der Spec).
+  4. Actual: nur "Dezember 2026" (nachgeprüft).
+- **Priority:** Nice to have
+
+Hinweis (kein Bug, laut Spec gewollt): Unplausible Paare (über 14 h oder Gehen vor Kommen) erscheinen im PDF ohne Hinweis, zählen aber nicht ins Ist — die Summe der Zeiten kann deshalb vom Ist abweichen.
+
+### Summary
+- **Acceptance Criteria:** alle erfüllt
+- **Bugs Found:** 1 total (0 critical, 0 high, 0 medium, 1 low)
+- **Security:** Pass
+- **Production Ready:** YES (fachlich) — Deploy erst nach Nutzer-Freigabe der Zeiterfassung
 
 ## Deployment
 _To be added by /deploy_
