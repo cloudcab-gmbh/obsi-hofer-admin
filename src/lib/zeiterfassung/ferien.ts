@@ -132,12 +132,37 @@ export function ferienJahr(person: FerienPerson, eintraege: readonly Zeiteintrag
   };
 }
 
+/** Bestehende Ferien eines Tages (für Vorschau und Umstellen ganz ↔ halb). */
+export interface BestehendeFerien {
+  eintragIds: string[];
+  halberTag: boolean;
+}
+
 export interface FerienPlan {
   /** Tage, für die ein Ferien-Eintrag angelegt wird. */
   tage: string[];
-  /** Summe in Ferientagen (halber Tag = 0.5). */
+  /** QA BUG-1: bestehende Ferientage, die auf ganz bzw. halb umgestellt werden. */
+  umstellen: { datum: string; eintragIds: string[] }[];
+  /** Ferientage der angelegten und umgestellten Tage (halber Tag = 0.5). */
   ferientage: number;
   uebersprungen: { feiertag: number; ohneSoll: number; ohneArbeitsmodell: number; bereitsFerien: number };
+}
+
+/**
+ * Ferien-Einträge nach Tag (mehrere Einträge eines Tages zusammengefasst; ein
+ * ganzer überwiegt einen halben).
+ */
+export function bestehendeFerienNachTag(eintraege: readonly Zeiteintrag[]): Map<string, BestehendeFerien> {
+  const nachTag = new Map<string, BestehendeFerien>();
+  for (const e of eintraege) {
+    if (e.typ !== "ferien") continue;
+    const bisher = nachTag.get(e.datum);
+    nachTag.set(e.datum, {
+      eintragIds: [...(bisher?.eintragIds ?? []), e.id],
+      halberTag: (bisher?.halberTag ?? true) && e.halberTag,
+    });
+  }
+  return nachTag;
 }
 
 /** Welche Tage eines Zeitraums Ferientage werden (Vorschau = Speichern). */
@@ -145,19 +170,23 @@ export function planeFerien(
   modell: FerienModell,
   von: string,
   bis: string,
-  bestehendeFerientage: ReadonlySet<string>,
+  bestehendeFerien: ReadonlyMap<string, BestehendeFerien>,
   halberTag: boolean
 ): FerienPlan {
-  const plan: FerienPlan = { tage: [], ferientage: 0, uebersprungen: { feiertag: 0, ohneSoll: 0, ohneArbeitsmodell: 0, bereitsFerien: 0 } };
+  const plan: FerienPlan = { tage: [], umstellen: [], ferientage: 0, uebersprungen: { feiertag: 0, ohneSoll: 0, ohneArbeitsmodell: 0, bereitsFerien: 0 } };
   for (let tag = von; tag <= bis; tag = folgetag(tag)) {
     const ohneModell = !gueltigeVersion(modell.versionen, tag) || (!!modell.austrittAm && tag > modell.austrittAm);
     if (ohneModell) plan.uebersprungen.ohneArbeitsmodell++;
     else if (!hatSoll(modell, tag)) plan.uebersprungen.ohneSoll++;
     else if (feiertagAm(tag)) plan.uebersprungen.feiertag++;
-    else if (bestehendeFerientage.has(tag)) plan.uebersprungen.bereitsFerien++;
-    else plan.tage.push(tag);
+    else {
+      const bestehend = bestehendeFerien.get(tag);
+      if (!bestehend) plan.tage.push(tag);
+      else if (bestehend.halberTag === halberTag) plan.uebersprungen.bereitsFerien++;
+      else plan.umstellen.push({ datum: tag, eintragIds: bestehend.eintragIds });
+    }
   }
-  plan.ferientage = plan.tage.length * (halberTag ? 0.5 : 1);
+  plan.ferientage = (plan.tage.length + plan.umstellen.length) * (halberTag ? 0.5 : 1);
   return plan;
 }
 
@@ -199,4 +228,9 @@ export function ferienZeitraeume(modell: FerienModell, eintraege: readonly Zeite
     }
   }
   return zeitraeume;
+}
+
+/** QA BUG-2: Zeiträume, die ein Jahr berühren — ein Zeitraum über den Jahreswechsel bleibt ganz. */
+export function ferienZeitraeumeImJahr(modell: FerienModell, eintraege: readonly Zeiteintrag[], jahr: number): FerienZeitraum[] {
+  return ferienZeitraeume(modell, eintraege).filter((z) => z.bis >= `${jahr}-01-01` && z.von <= `${jahr}-12-31`);
 }

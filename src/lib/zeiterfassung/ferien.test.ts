@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   anspruchImJahr,
+  bestehendeFerienNachTag,
+  ferienZeitraeumeImJahr,
   ferienBeginn,
   ferienJahr,
   feriensaldoAm,
@@ -121,7 +123,7 @@ describe("ferienJahr", () => {
 describe("planeFerien", () => {
   it("creates only days with Soll and reports what was skipped", () => {
     // 21.12.2026 (Mo) – 03.01.2027 (So): Weihnachten, Stephanstag (Sa), Neujahr, Berchtoldstag (Sa)
-    const plan = planeFerien(person(), "2026-12-21", "2027-01-03", new Set(["2026-12-22"]), false);
+    const plan = planeFerien(person(), "2026-12-21", "2027-01-03", new Map([["2026-12-22", { eintragIds: ["x"], halberTag: false }]]), false);
     expect(plan.tage).toEqual(["2026-12-21", "2026-12-23", "2026-12-24", "2026-12-28", "2026-12-29", "2026-12-30", "2026-12-31"]);
     expect(plan.ferientage).toBe(7);
     expect(plan.uebersprungen).toEqual({ feiertag: 2, ohneSoll: 4, ohneArbeitsmodell: 0, bereitsFerien: 1 });
@@ -129,13 +131,20 @@ describe("planeFerien", () => {
 
   it("respects part-time working days and missing models", () => {
     const teilzeit = person({ versionen: [{ ...VOLLZEIT, gueltigAb: "2026-11-04", pensum: 40, arbeitstage: MO_DI }] });
-    const plan = planeFerien(teilzeit, "2026-11-02", "2026-11-10", new Set(), false);
+    const plan = planeFerien(teilzeit, "2026-11-02", "2026-11-10", new Map(), false);
     expect(plan.tage).toEqual(["2026-11-09", "2026-11-10"]);
     expect(plan.uebersprungen.ohneArbeitsmodell).toBe(2);
   });
 
   it("counts a half day as 0.5", () => {
-    expect(planeFerien(person(), "2026-11-02", "2026-11-02", new Set(), true).ferientage).toBe(0.5);
+    expect(planeFerien(person(), "2026-11-02", "2026-11-02", new Map(), true).ferientage).toBe(0.5);
+  });
+
+  it("converts an existing Ferientag between full and half (QA BUG-1)", () => {
+    const bestehend = new Map([["2026-11-02", { eintragIds: ["a", "b"], halberTag: false }]]);
+    const plan = planeFerien(person(), "2026-11-02", "2026-11-02", bestehend, true);
+    expect(plan).toMatchObject({ tage: [], umstellen: [{ datum: "2026-11-02", eintragIds: ["a", "b"] }], ferientage: 0.5 });
+    expect(planeFerien(person(), "2026-11-02", "2026-11-02", bestehend, false).uebersprungen.bereitsFerien).toBe(1);
   });
 });
 
@@ -154,5 +163,26 @@ describe("ferienZeitraeume", () => {
   it("splits at a working day without Ferien", () => {
     const z = ferienZeitraeume(person(), [eintrag("2026-11-02"), eintrag("2026-11-04")]);
     expect(z).toHaveLength(2);
+  });
+});
+
+describe("bestehendeFerienNachTag", () => {
+  it("groups Ferien per day; a full entry wins over a half one", () => {
+    const m = bestehendeFerienNachTag([eintrag("2026-11-02", "ferien", true), eintrag("2026-11-02"), eintrag("2026-11-03", "ferien", true), eintrag("2026-11-04", "krankheit")]);
+    expect(m.get("2026-11-02")).toEqual({ eintragIds: ["ferien-2026-11-02", "ferien-2026-11-02"], halberTag: false });
+    expect(m.get("2026-11-03")?.halberTag).toBe(true);
+    expect(m.has("2026-11-04")).toBe(false);
+  });
+});
+
+describe("ferienZeitraeumeImJahr (QA BUG-2)", () => {
+  it("keeps a period across the year end whole in both years", () => {
+    // 28.12.2026–05.01.2027; 1.1. (Neujahr), 2.1. (Berchtoldstag, Sa) und 3.1. (So) unterbrechen nicht.
+    const durchgehend = ["2026-12-28", "2026-12-29", "2026-12-30", "2026-12-31", "2027-01-04", "2027-01-05", "2027-03-01"].map((d) => eintrag(d));
+    expect(ferienZeitraeumeImJahr(person(), durchgehend, 2026).map((z) => [z.von, z.bis])).toEqual([["2026-12-28", "2027-01-05"]]);
+    expect(ferienZeitraeumeImJahr(person(), durchgehend, 2027).map((z) => [z.von, z.bis])).toEqual([
+      ["2026-12-28", "2027-01-05"],
+      ["2027-03-01", "2027-03-01"],
+    ]);
   });
 });

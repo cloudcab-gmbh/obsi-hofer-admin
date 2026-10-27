@@ -12,6 +12,7 @@ import {
   listArbeitsmodelle,
   listZeiterfassungEmails,
   loescheZeiteintrag,
+  setzeHalberTag,
   normalisiereEmail,
   setzeGehen,
 } from "@/lib/dataverse/zeiterfassung";
@@ -24,7 +25,7 @@ import {
   istGueltigeUhrzeit,
   zuSchweizerDatum,
 } from "@/lib/zeiterfassung/datum";
-import { planeFerien, type FerienPlan } from "@/lib/zeiterfassung/ferien";
+import { bestehendeFerienNachTag, planeFerien, type FerienPlan } from "@/lib/zeiterfassung/ferien";
 import { uebersprungenText } from "@/lib/zeiterfassung/format";
 
 export type GehenNachtragenResult = { success: true } | { success: false; message: string };
@@ -235,9 +236,8 @@ async function berechneFerienPlan(d: z.output<typeof ferienSchema>): Promise<Fer
   const person = await getPersonByEmail(email);
   if (!person && !(await listZeiterfassungEmails()).includes(email)) return "Diese Person kommt in der Zeiterfassung nicht vor.";
   const versionen = person ? await listArbeitsmodelle(person.id) : [];
-  const bestehende = await listZeiteintraege(email, d.von, d.bis);
-  const ferientage = new Set(bestehende.filter((e) => e.typ === "ferien").map((e) => e.datum));
-  return planeFerien({ versionen, austrittAm: person?.austrittAm ?? null }, d.von, d.bis, ferientage, d.halberTag);
+  const bestehende = bestehendeFerienNachTag(await listZeiteintraege(email, d.von, d.bis));
+  return planeFerien({ versionen, austrittAm: person?.austrittAm ?? null }, d.von, d.bis, bestehende, d.halberTag);
 }
 
 async function pruefeFerien(eingabe: FerienEingabe): Promise<z.output<typeof ferienSchema> | string> {
@@ -261,8 +261,9 @@ export async function planeFerienAction(eingabe: FerienEingabe): Promise<FerienV
 /**
  * Legt für jeden Tag mit Soll im Zeitraum einen Ferien-Eintrag an (Typ 3,
  * Kommen = Tagesbeginn, weil der Flow ein Kommen braucht). Bestehende
- * Ferientage werden übersprungen — ein zweiter Versuch nach einem Fehler
- * legt nichts doppelt an.
+ * Ferientage werden übersprungen bzw. auf ganz/halb umgestellt (QA BUG-1) —
+ * ein zweiter Versuch nach einem Fehler legt nichts doppelt an. Danach werden
+ * Doppelungen bereinigt (QA BUG-3).
  */
 export async function erfasseFerienAction(eingabe: FerienEingabe): Promise<FerienErfassenResult> {
   const d = await pruefeFerien(eingabe);
@@ -272,7 +273,7 @@ export async function erfasseFerienAction(eingabe: FerienEingabe): Promise<Ferie
   try {
     const plan = await berechneFerienPlan(d);
     if (typeof plan === "string") return { success: false, message: plan };
-    if (plan.tage.length === 0) {
+    if (plan.tage.length === 0 && plan.umstellen.length === 0) {
       // Grund nennen (Nutzer-Test 2026-10-27: Meldung ohne Grund war unklar).
       return {
         success: false,
@@ -291,6 +292,11 @@ export async function erfasseFerienAction(eingabe: FerienEingabe): Promise<Ferie
       });
       angelegt++;
     }
+    for (const { eintragIds } of plan.umstellen) {
+      for (const id of eintragIds) await setzeHalberTag(id, d.halberTag);
+      angelegt++;
+    }
+    await bereinigeDoppelteFerien(normalisiereEmail(d.email), d.von, d.bis);
   } catch (error) {
     const grund = error instanceof DataverseError ? error.message : "Unbekannter Fehler.";
     revalidatePath("/zeiterfassung", "layout");
@@ -305,6 +311,23 @@ export async function erfasseFerienAction(eingabe: FerienEingabe): Promise<Ferie
 
   revalidatePath("/zeiterfassung", "layout");
   return { success: true, angelegt };
+}
+
+/**
+ * QA BUG-3: Speichern zwei Freigeber gleichzeitig dieselben Ferien, entstehen
+ * zwei Einträge pro Tag. Behalten wird pro Tag der Eintrag mit der kleinsten ID —
+ * eine feste Regel, damit gleichzeitige Bereinigungen nicht beide löschen.
+ */
+async function bereinigeDoppelteFerien(email: string, von: string, bis: string): Promise<void> {
+  for (const { eintragIds } of bestehendeFerienNachTag(await listZeiteintraege(email, von, bis)).values()) {
+    for (const id of [...eintragIds].sort().slice(1)) {
+      try {
+        await loescheZeiteintrag(id);
+      } catch (error) {
+        if (!(error instanceof DataverseError && error.category === "not_found")) throw error;
+      }
+    }
+  }
 }
 
 export type LoeschenResult = { success: true; geloescht: number } | { success: false; message: string };

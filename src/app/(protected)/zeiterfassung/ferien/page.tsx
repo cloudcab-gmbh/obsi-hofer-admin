@@ -8,7 +8,7 @@ import {
 } from "@/lib/dataverse/zeiterfassung";
 import { bauePersonenUebersicht } from "@/lib/zeiterfassung/personen-uebersicht";
 import { heuteSchweiz } from "@/lib/zeiterfassung/datum";
-import { ferienBeginn, ferienJahr, ferienZeitraeume, type FerienPerson } from "@/lib/zeiterfassung/ferien";
+import { ferienBeginn, ferienJahr, ferienZeitraeumeImJahr, type FerienPerson } from "@/lib/zeiterfassung/ferien";
 import type { Zeiteintrag } from "@/lib/zeiterfassung/tagesauswertung";
 import { FerienDerPerson, FerienJahresuebersicht, type FerienZeile } from "@/components/ferien-uebersicht";
 import { NUR_FREIGEBER_HINWEIS, ZeiterfassungHinweis } from "@/components/zeiterfassung-hinweis";
@@ -54,11 +54,13 @@ export default async function FerienPage({
       })
     );
 
-    // Ferien und Krankheit aller Personen ab dem frühesten Beginn bis Ende des Jahres — eine Abfrage.
+    // Ferien und Krankheit aller Personen in einer Abfrage: ab dem frühesten Beginn (Saldo)
+    // und Vor-/Folgejahr, damit Zeiträume über den Jahreswechsel ganz erscheinen (QA BUG-2).
     const beginne = [...ferienPersonen.values()].map(ferienBeginn).filter((b): b is string => b !== null).sort();
-    const von = beginne[0] && beginne[0] < `${jahr}-01-01` ? beginne[0] : `${jahr}-01-01`;
+    const vorjahr = `${jahr - 1}-01-01`;
+    const von = beginne[0] && beginne[0] < vorjahr ? beginne[0] : vorjahr;
     const nachEmail = new Map<string, Zeiteintrag[]>();
-    for (const { email, eintrag } of await listFerienUndKrankheit(von, `${jahr}-12-31`)) {
+    for (const { email, eintrag } of await listFerienUndKrankheit(von, `${jahr + 1}-12-31`)) {
       nachEmail.set(email, [...(nachEmail.get(email) ?? []), eintrag]);
     }
 
@@ -79,7 +81,7 @@ export default async function FerienPage({
         email: gewaehlt.email,
         anzeige: gewaehlt.anzeige,
         person: ferienPersonen.get(gewaehlt.email)!,
-        eintraege: (nachEmail.get(gewaehlt.email) ?? []).filter((e) => e.datum.startsWith(String(jahr))),
+        eintraege: nachEmail.get(gewaehlt.email) ?? [],
       };
     }
   } catch {
@@ -96,7 +98,7 @@ export default async function FerienPage({
           personName={auswahl.anzeige}
           jahr={jahr}
           heute={heute}
-          zeitraeume={ferienZeitraeume(auswahl.person, auswahl.eintraege)}
+          zeitraeume={ferienZeitraeumeImJahr(auswahl.person, auswahl.eintraege, jahr)}
         />
       )}
     </main>

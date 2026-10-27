@@ -11,6 +11,7 @@ const listZeiteintraege = vi.fn();
 const heuteSchweiz = vi.fn();
 const listArbeitsmodelle = vi.fn();
 const loescheZeiteintrag = vi.fn();
+const setzeHalberTag = vi.fn();
 
 vi.mock("@/lib/auth/freigeber", () => ({ aktuellerBenutzerIstFreigeber: () => istFreigeberMock() }));
 vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => revalidatePath(...args) }));
@@ -23,6 +24,7 @@ vi.mock("@/lib/dataverse/zeiterfassung", () => ({
   listZeiteintraege: (...args: unknown[]) => listZeiteintraege(...args),
   listArbeitsmodelle: (...args: unknown[]) => listArbeitsmodelle(...args),
   loescheZeiteintrag: (...args: unknown[]) => loescheZeiteintrag(...args),
+  setzeHalberTag: (...args: unknown[]) => setzeHalberTag(...args),
   normalisiereEmail: (e: string) => e.trim().toLowerCase(),
 }));
 vi.mock("@/lib/zeiterfassung/datum", async (importOriginal) => ({
@@ -208,7 +210,7 @@ const FERIEN = { email: "anna@x.ch", von: "2026-12-21", bis: "2027-01-03", halbe
 
 describe("Ferien (PROJ-15)", () => {
   it("previews and creates only days with Soll, skipping holidays and existing Ferien, also in the future", async () => {
-    listZeiteintraege.mockResolvedValue([{ datum: "2026-12-22", typ: "ferien" }]);
+    listZeiteintraege.mockResolvedValue([{ id: "e-2026-12-22", datum: "2026-12-22", typ: "ferien", halberTag: false }]);
 
     const vorschau = await planeFerienAction(FERIEN);
     expect(vorschau).toMatchObject({ success: true, plan: { ferientage: 7, uebersprungen: { feiertag: 2, bereitsFerien: 1 } } });
@@ -238,8 +240,9 @@ describe("Ferien (PROJ-15)", () => {
     const result = await erfasseFerienAction({ ...FERIEN, von: "2026-11-07", bis: "2026-11-08" });
     expect(result).toEqual({ success: false, message: "Kein Ferientag zu erfassen — übersprungen: 2 ohne Soll (Wochenende/frei)." });
 
-    listZeiteintraege.mockResolvedValue([{ datum: "2026-11-02", typ: "ferien" }]);
-    expect(await erfasseFerienAction({ ...FERIEN, von: "2026-11-02", bis: "2026-11-02", halberTag: true })).toEqual({
+    listZeiteintraege.mockResolvedValue([{ id: "e-2026-11-02", datum: "2026-11-02", typ: "ferien", halberTag: false }]);
+    // Gleicher Typ (ganz auf ganz) → bereits Ferien; ganz → halb würde umgestellt (BUG-1).
+    expect(await erfasseFerienAction({ ...FERIEN, von: "2026-11-02", bis: "2026-11-02", halberTag: false })).toEqual({
       success: false,
       message: "Kein Ferientag zu erfassen — übersprungen: 1 bereits Ferien.",
     });
@@ -250,6 +253,33 @@ describe("Ferien (PROJ-15)", () => {
     istFreigeberMock.mockResolvedValue(false);
     expect((await erfasseFerienAction(FERIEN)).success).toBe(false);
     expect((await planeFerienAction(FERIEN)).success).toBe(false);
+  });
+});
+
+describe("Ferien QA-Fixes", () => {
+  it("converts an existing full Ferientag into a half one (BUG-1)", async () => {
+    listZeiteintraege.mockResolvedValue([{ id: "e1", datum: "2026-11-02", typ: "ferien", halberTag: false }]);
+
+    expect(await erfasseFerienAction({ ...FERIEN, von: "2026-11-02", bis: "2026-11-02", halberTag: true })).toEqual({
+      success: true,
+      angelegt: 1,
+    });
+    expect(setzeHalberTag).toHaveBeenCalledWith("e1", true);
+    expect(erstelleZeiteintrag).not.toHaveBeenCalled();
+  });
+
+  it("removes duplicate Ferien of a day after saving, keeping the smallest id (BUG-3)", async () => {
+    listZeiteintraege
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: "bbb", datum: "2026-11-02", typ: "ferien", halberTag: false },
+        { id: "aaa", datum: "2026-11-02", typ: "ferien", halberTag: false },
+      ]);
+
+    await erfasseFerienAction({ ...FERIEN, von: "2026-11-02", bis: "2026-11-02" });
+
+    expect(loescheZeiteintrag).toHaveBeenCalledTimes(1);
+    expect(loescheZeiteintrag).toHaveBeenCalledWith("bbb");
   });
 });
 

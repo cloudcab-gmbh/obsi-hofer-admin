@@ -36,7 +36,9 @@ export function uebersprungenText(plan: FerienPlan): string {
 /** Text der Vorschau, z.B. "ergibt 8 Ferientage; übersprungen: 2 Feiertage, 1 bereits Ferien". */
 export function vorschauText(plan: FerienPlan): string {
   const uebersprungen = uebersprungenText(plan);
-  return `ergibt ${formatFerientage(plan.ferientage)}${uebersprungen ? `; übersprungen: ${uebersprungen}` : ""}`;
+  const n = plan.umstellen.length;
+  const umgestellt = n === 0 ? "" : n === 1 ? "; 1 bestehender Ferientag wird umgestellt" : `; ${n} bestehende Ferientage werden umgestellt`;
+  return `ergibt ${formatFerientage(plan.ferientage)}${umgestellt}${uebersprungen ? `; übersprungen: ${uebersprungen}` : ""}`;
 }
 
 export function formatGleitzeitTage(minuten: number): string {

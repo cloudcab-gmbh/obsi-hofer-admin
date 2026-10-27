@@ -235,6 +235,11 @@ export async function getZeiteintragFuerKorrektur(id: string): Promise<OffenerEi
  * Trägt "Gehen" nach. Die Erfassungs-App setzt beim Gehen "Gehen" und
  * "Checkout" gleichzeitig — hier ebenso, damit beide Felder übereinstimmen.
  */
+/** QA BUG-1 (PROJ-15): Ferientag auf ganz bzw. halb umstellen. */
+export async function setzeHalberTag(id: string, halberTag: boolean): Promise<void> {
+  await updateRecord(ZEITEINTRAEGE_ENTITY, id, { [HALBER_TAG_SPALTE]: halberTag });
+}
+
 /** PROJ-15: löscht einen Zeiteintrag (die Aktion prüft vorher, dass er Ferien oder Frei ist). */
 export async function loescheZeiteintrag(id: string): Promise<void> {
   await deleteRecord(ZEITEINTRAEGE_ENTITY, id);

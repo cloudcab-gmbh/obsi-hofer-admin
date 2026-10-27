@@ -360,21 +360,24 @@ Testeinträge in Dataverse:
 - **Severity:** Low
 - **Steps to Reproduce:** 1. Tag als Ferien erfassen 2. Im Zeitnachweis denselben Tag als halben Ferientag erfassen 3. Expected: Umstellung auf ½ 4. Actual: "Kein Ferientag zu erfassen — übersprungen: 1 bereits Ferien" (vom Nutzer gefunden); Umweg: Tag löschen, neu als halben Tag erfassen
 - **Priority:** Nice to have
+- **Status:** ✅ Behoben (2026-10-27) — bestehende Ferientage werden beim Erfassen auf ganz bzw. halb umgestellt (Spalte "Halber Tag" geändert); die Vorschau zeigt "1 bestehender Ferientag wird umgestellt". Gleicher Typ wird weiterhin als "bereits Ferien" übersprungen
 
 #### BUG-2: Ferien über den Jahreswechsel werden auf der Ferien-Seite pro Jahr getrennt
 - **Severity:** Low
 - **Steps to Reproduce:** 1. Ferien 21.12.2026–08.01.2027 erfassen 2. Ferien-Seite 2026 öffnen 3. Expected: ein Zeitraum 4. Actual: Zeitraum endet am 31.12.; "löschen" entfernt nur den Teil von 2026, der Rest steht unter 2027
 - **Priority:** Nice to have
+- **Status:** ✅ Behoben (2026-10-27) — die Ferien-Seite lädt Vor- und Folgejahr mit und zeigt jeden Zeitraum, der das Jahr berührt, ganz (`ferienZeitraeumeImJahr`); "löschen" entfernt den ganzen Zeitraum. Die Zahlen der Jahresübersicht zählen weiterhin nur Tage des gewählten Jahres
 
 #### BUG-3: Gleichzeitiges Erfassen durch zwei Freigeber kann doppelte Ferien-Einträge erzeugen
 - **Severity:** Low
 - **Steps to Reproduce:** zwei Freigeber speichern gleichzeitig Ferien für denselben Tag
 - **Actual:** zwei Einträge; der Tag zählt trotzdem nur einmal und beide werden zusammen gelöscht — nur kosmetisch
 - **Priority:** Nice to have
+- **Status:** ✅ Behoben (2026-10-27) — nach dem Speichern werden Doppelungen im Zeitraum bereinigt; behalten wird pro Tag der Eintrag mit der kleinsten ID (feste Regel, damit zwei gleichzeitige Bereinigungen nicht beide löschen)
 
 ### Summary
 - **Acceptance Criteria:** alle erfüllt
-- **Bugs Found:** 3 total (0 critical, 0 high, 0 medium, 3 low)
+- **Bugs Found:** 3 total (0 critical, 0 high, 0 medium, 3 low) — alle behoben 2026-10-27 (620 Tests grün)
 - **Security:** Pass
 - **Production Ready:** YES (fachlich) — Deploy erst nach Nutzer-Freigabe der Zeiterfassung
 - **Recommendation:** Low-Bugs nach Wunsch; weiter mit PROJ-16 (Zeitnachweis als PDF)

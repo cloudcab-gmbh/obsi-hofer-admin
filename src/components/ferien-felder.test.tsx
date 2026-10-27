@@ -18,12 +18,13 @@ describe("vorschauText", () => {
     expect(
       vorschauText({
         tage: [],
+        umstellen: [],
         ferientage: 7,
         uebersprungen: { feiertag: 2, ohneSoll: 4, ohneArbeitsmodell: 0, bereitsFerien: 1 },
       })
     ).toBe("ergibt 7 Ferientage; übersprungen: 2 Feiertage, 4 ohne Soll (Wochenende/frei), 1 bereits Ferien");
     expect(
-      vorschauText({ tage: [], ferientage: 1, uebersprungen: { feiertag: 0, ohneSoll: 0, ohneArbeitsmodell: 0, bereitsFerien: 0 } })
+      vorschauText({ tage: [], umstellen: [], ferientage: 1, uebersprungen: { feiertag: 0, ohneSoll: 0, ohneArbeitsmodell: 0, bereitsFerien: 0 } })
     ).toBe("ergibt 1 Ferientag");
   });
 });
@@ -32,7 +33,7 @@ describe("FerienFelder", () => {
   it("asks the server for a preview of the entered period", async () => {
     planeFerienAction.mockResolvedValue({
       success: true,
-      plan: { tage: [], ferientage: 5, uebersprungen: { feiertag: 0, ohneSoll: 2, ohneArbeitsmodell: 0, bereitsFerien: 0 } },
+      plan: { tage: [], umstellen: [], ferientage: 5, uebersprungen: { feiertag: 0, ohneSoll: 2, ohneArbeitsmodell: 0, bereitsFerien: 0 } },
     });
     render(
       <FerienFelder
