@@ -6,15 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { planeFerienAction } from "@/app/(protected)/zeiterfassung/actions";
 import type { FerienPlan } from "@/lib/zeiterfassung/ferien";
+import { formatFerientage } from "@/lib/zeiterfassung/format";
 
 export interface FerienWerte {
   von: string;
   bis: string;
   halberTag: boolean;
-}
-
-export function formatFerientage(tage: number): string {
-  return tage === 1 ? "1 Ferientag" : `${tage} Ferientage`;
 }
 
 /** Text der Vorschau, z.B. "ergibt 8 Ferientage; übersprungen: 2 Feiertage, 1 bereits Ferien". */

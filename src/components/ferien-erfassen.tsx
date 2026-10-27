@@ -16,7 +16,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { erfasseFerienAction } from "@/app/(protected)/zeiterfassung/actions";
-import { FerienFelder, formatFerientage, type FerienWerte } from "@/components/ferien-felder";
+import { FerienFelder, type FerienWerte } from "@/components/ferien-felder";
+import { formatFerientage } from "@/lib/zeiterfassung/format";
 
 /** PROJ-15: Ferien einer Person für einen Zeitraum erfassen (Ferien-Seite). */
 export function FerienErfassen({ email, personName }: { email: string; personName: string }) {

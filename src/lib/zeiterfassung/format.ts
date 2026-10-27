@@ -13,6 +13,11 @@ export function formatMinutenMitVorzeichen(minuten: number): string {
   return minuten > 0 ? `+${text}` : text;
 }
 
+/** PROJ-15: z.B. "1 Ferientag", "7.5 Ferientage" (von Server- und Client-Komponenten genutzt). */
+export function formatFerientage(tage: number): string {
+  return tage === 1 ? "1 Ferientag" : `${tage} Ferientage`;
+}
+
 export function formatGleitzeitTage(minuten: number): string {
   const tage = minuten / 60 / STUNDEN_PRO_TAG;
   return `${tage > 0 ? "+" : ""}${tage.toFixed(2)} Tage`;

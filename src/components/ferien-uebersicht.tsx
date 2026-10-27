@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { FerienJahr, FerienZeitraum } from "@/lib/zeiterfassung/ferien";
 import { formatKalenderdatum } from "@/lib/zeiterfassung/datum";
-import { formatFerientage } from "@/components/ferien-felder";
+import { formatFerientage } from "@/lib/zeiterfassung/format";
 import { FerienErfassen } from "@/components/ferien-erfassen";
 import { AbwesenheitLoeschen } from "@/components/abwesenheit-loeschen";
 import { cn } from "@/lib/utils";
