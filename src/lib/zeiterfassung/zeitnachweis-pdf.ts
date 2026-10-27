@@ -127,7 +127,8 @@ export function bauePdfDokument(e: ZeitnachweisPdfEingabe): TDocumentDefinitions
           { text: "Zeitnachweis", bold: true, fontSize: 14 },
           { text: e.personName, bold: true, fontSize: 11, margin: [0, 4, 0, 0] },
           {
-            text: `${formatMonat(z.monat)}${z.laufenderMonat ? ` · Stand ${formatKalenderdatum(e.heute)}` : ""}`,
+            // QA BUG-1: auch künftige Monate sind ein Zwischenstand.
+            text: `${formatMonat(z.monat)}${z.laufenderMonat || z.monat > e.heute.slice(0, 7) ? ` · Stand ${formatKalenderdatum(e.heute)}` : ""}`,
             margin: [0, 2, 0, 0],
           },
           { text: `Arbeitsmodell: ${modellText}`, color: "#52514e", margin: [0, 2, 0, 0] },

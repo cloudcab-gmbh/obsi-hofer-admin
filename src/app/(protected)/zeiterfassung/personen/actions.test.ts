@@ -192,6 +192,21 @@ describe("speichereArbeitsmodellAction", () => {
     expect(result).toEqual({ success: false, message: "Für dieses Datum gibt es bereits eine Version." });
   });
 
+  it("removes its own version again when a concurrent save created one on the same date (QA BUG-2)", async () => {
+    erstelleArbeitsmodell.mockResolvedValue("zzzz-neu");
+    listArbeitsmodelle
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: "aaaa-anderer", personId: PERSON_ID, gueltigAb: "2026-11-01", pensum: 100, arbeitstage: MO_FR },
+        { id: "zzzz-neu", personId: PERSON_ID, gueltigAb: "2026-11-01", pensum: 40, arbeitstage: MO_FR },
+      ]);
+
+    const result = await speichereArbeitsmodellAction("anna@example.ch", null, { gueltigAb: "2026-11-01", pensum: "40", arbeitstage: MO_FR });
+
+    expect(result).toEqual({ success: false, message: "Für dieses Datum gibt es bereits eine Version." });
+    expect(loescheArbeitsmodell).toHaveBeenCalledWith("zzzz-neu");
+  });
+
   it("corrects an existing version of the same person, keeping its own date", async () => {
     listArbeitsmodelle.mockResolvedValue([{ id: VERSION_ID, personId: PERSON_ID, gueltigAb: "2026-11-01", pensum: 100, arbeitstage: MO_FR }]);
 

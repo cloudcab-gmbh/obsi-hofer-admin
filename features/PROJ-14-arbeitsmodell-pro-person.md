@@ -342,6 +342,7 @@ Wie bei PROJ-11 in einem Schritt gebaut (die Oberfläche braucht die Dataverse-A
   3. Expected: Hinweis, dass der Austritt vor einer Version liegt, bzw. sinnvolle Anzeige
   4. Actual: Verlauf zeigt "gültig ab 01.11.2026, gültig bis 31.05.2026"; kein Hinweis. Die Rechnung stimmt (nach dem Austritt kein Soll)
 - **Priority:** Nice to have
+- **Status:** ✅ Behoben (2026-10-27) — Liegt der Austritt vor einer Version, gilt sie als "nach Austritt – ohne Wirkung" (Badge statt "gültig bis"); "gültig bis" endet am früheren von Austritt und Vortag der nächsten Version; Hinweis im Formular
 
 #### BUG-2: Gleichzeitig angelegte Versionen mit demselben Datum
 - **Severity:** Low
@@ -351,6 +352,7 @@ Wie bei PROJ-11 in einem Schritt gebaut (die Oberfläche braucht die Dataverse-A
   3. Expected: zweite wird abgelehnt
   4. Actual: beide werden gespeichert (die Prüfung im Tool liest vor dem Schreiben; Dataverse hat keinen alternativen Schlüssel Person + gültig ab). Danach gilt zufällig eine der beiden
 - **Priority:** Nice to have — sehr unwahrscheinlich; vollständig lösbar mit einem alternativen Schlüssel (Person + gültig ab) in Dataverse
+- **Status:** ✅ Behoben (2026-10-27) — Nach dem Anlegen prüft die Aktion auf eine zweite Version am selben Datum; behalten wird die kleinste ID, die eigene wird gelöscht und mit "Für dieses Datum gibt es bereits eine Version" abgelehnt
 
 #### BUG-3: Künftiger Austritt in der Personenliste nicht sichtbar
 - **Severity:** Low
@@ -360,10 +362,11 @@ Wie bei PROJ-11 in einem Schritt gebaut (die Oberfläche braucht die Dataverse-A
   3. Expected: Hinweis auf den bevorstehenden Austritt
   4. Actual: Badge erscheint erst, wenn das Datum vorbei ist
 - **Priority:** Nice to have
+- **Status:** ✅ Behoben (2026-10-27) — Personenliste zeigt einen künftigen Austritt als Badge "Austritt {Datum}"
 
 ### Summary
 - **Acceptance Criteria:** alle erfüllt (Wirkung im Zeitnachweis wird mit PROJ-13 geprüft)
-- **Bugs Found:** 3 total (0 critical, 0 high, 0 medium, 3 low)
+- **Bugs Found:** 3 total (0 critical, 0 high, 0 medium, 3 low) — alle behoben 2026-10-27 (685 Tests grün)
 - **Security:** Pass
 - **Production Ready:** YES (fachlich) — Deploy aber erst nach Nutzer-Freigabe der Zeiterfassung (Vorgabe: erst alles lokal testen)
 - **Recommendation:** Low-Bugs nach Wunsch beheben; weiter mit PROJ-13

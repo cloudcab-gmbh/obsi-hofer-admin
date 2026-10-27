@@ -118,6 +118,11 @@ describe("ZeitnachweisAnsicht", () => {
     expect(screen.getByText("Keine Zeiteinträge in diesem Monat.")).toBeInTheDocument();
   });
 
+  it("explains that Gleitzeit continues from the Startsaldo without an Arbeitsmodell (QA BUG-1)", () => {
+    zeigen(eingabe({ versionen: [] }));
+    expect(screen.getByText(/die Gleitzeit läuft ab dem Startsaldo nur mit der Ist-Zeit weiter/)).toBeInTheDocument();
+  });
+
   it("explains months before the Startsaldo (Excel period)", () => {
     zeigen(eingabe({ monat: "2026-09" }));
     expect(screen.getByText(/liegt vor dem Stichtag des Startsaldos/)).toBeInTheDocument();

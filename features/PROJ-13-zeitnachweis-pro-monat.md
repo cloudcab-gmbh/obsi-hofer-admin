@@ -358,6 +358,7 @@ Wie PROJ-14 in einem Schritt gebaut (nur lesend, keine Dataverse-Änderungen).
   3. Expected: Hinweis und Kacheln widersprechen sich nicht
   4. Actual: Hinweis "ohne Arbeitsmodell gibt es kein Soll und keine Gleitzeit", die Kachel zeigt aber eine Gleitzeit (Startsaldo + Ist, z.B. +9.00 h)
 - **Priority:** Nice to have — Text anpassen oder ohne Arbeitsmodell keine Gleitzeit rechnen
+- **Status:** ✅ Behoben (2026-10-27) — Hinweis lautet mit Startsaldo "ohne Arbeitsmodell gibt es kein Soll; die Gleitzeit läuft ab dem Startsaldo nur mit der Ist-Zeit weiter"
 
 #### BUG-2: Einträge mit unbekanntem Aktivitätstyp werden still ignoriert
 - **Severity:** Low
@@ -367,10 +368,11 @@ Wie PROJ-14 in einem Schritt gebaut (nur lesend, keine Dataverse-Änderungen).
   3. Expected: Hinweis "unbekannter Eintragstyp"
   4. Actual: kein Hinweis
 - **Priority:** Nice to have (heute nur Typ 0–2 vorhanden)
+- **Status:** ✅ Behoben (2026-10-27) — Tagesauswertung erkennt Einträge unbekannten Typs; die Zeile zeigt "Eintrag mit unbekanntem Typ — zählt nicht" (nicht im PDF)
 
 ### Summary
 - **Acceptance Criteria:** alle erfüllt (Krankheit/Komp. GLZ nur per Unit-Test, da keine Testdaten)
-- **Bugs Found:** 2 total (0 critical, 0 high, 0 medium, 2 low)
+- **Bugs Found:** 2 total (0 critical, 0 high, 0 medium, 2 low) — beide behoben 2026-10-27
 - **Security:** Pass
 - **Production Ready:** YES (fachlich) — Deploy erst nach Nutzer-Freigabe der Zeiterfassung
 - **Recommendation:** Low-Bugs nach Wunsch beheben; weiter mit PROJ-15 (Ferien) bzw. PROJ-16 (PDF)

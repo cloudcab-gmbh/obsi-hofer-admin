@@ -53,6 +53,11 @@ describe("ZeiterfassungPersonenListe", () => {
     expect(screen.getByText("1 Person hat noch kein Arbeitsmodell.")).toBeInTheDocument();
   });
 
+  it("shows a future Austritt before it happens (QA BUG-3)", () => {
+    render(<ZeiterfassungPersonenListe personen={[person("x@x.ch", { austrittAm: "2027-03-31" })]} />);
+    expect(screen.getByText("Austritt 31.03.2027")).toBeInTheDocument();
+  });
+
   it("filters to persons without a model", () => {
     render(<ZeiterfassungPersonenListe personen={[MIT_MODELL, OHNE_MODELL]} />);
 

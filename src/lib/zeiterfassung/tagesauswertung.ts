@@ -57,6 +57,8 @@ export interface Tagesauswertung {
   /** PROJ-15: als "Frei" gekennzeichnet (ohne Rechenwirkung). */
   frei: boolean;
   abwesenheiten: Abwesenheit[];
+  /** QA BUG-2: Eintrag mit unbekanntem Aktivitätstyp (zählt nicht). */
+  unbekannt: boolean;
   mittagessen: boolean;
   abendessen: boolean;
   bemerkungen: string[];
@@ -130,6 +132,7 @@ export function werteTagAus(eintraege: readonly Zeiteintrag[]): Tagesauswertung 
     // Ein ganzer Ferien-Eintrag überwiegt einen halben.
     ferien: ferien.length === 0 ? null : ferien.some((e) => !e.halberTag) ? "ganz" : "halb",
     frei: eintraege.some((e) => e.typ === "frei"),
+    unbekannt: eintraege.some((e) => e.typ === "unbekannt"),
     abwesenheiten: eintraege.flatMap((e): Abwesenheit[] =>
       e.typ === "arbeitszeit" || e.typ === "unbekannt" ? [] : [{ eintragId: e.id, typ: e.typ, halberTag: e.halberTag }]
     ),

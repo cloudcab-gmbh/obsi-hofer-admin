@@ -125,6 +125,10 @@ export function ZeiterfassungPersonenListe({ personen }: { personen: PersonUeber
                             {p.ausgetreten && (
                               <Badge variant="secondary">ausgetreten {formatKalenderdatum(p.austrittAm)}</Badge>
                             )}
+                            {/* QA BUG-3: künftiger Austritt schon vorher sichtbar. */}
+                            {!p.ausgetreten && p.austrittAm && (
+                              <Badge variant="outline">Austritt {formatKalenderdatum(p.austrittAm)}</Badge>
+                            )}
                             {p.nichtAuswerten && <Badge variant="outline">nicht auswerten</Badge>}
                           </div>
                         </TableCell>

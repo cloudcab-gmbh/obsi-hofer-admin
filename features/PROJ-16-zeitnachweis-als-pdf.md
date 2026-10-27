@@ -210,7 +210,7 @@ Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`,
 - [x] Sonderzeichen im Namen → gültiger Dateiname
 - [x] Arbeitsmodell-Wechsel und Austritt im Monat
 - [x] Halber Feiertag + halber Ferientag: beides in "Art"
-- [ ] BUG-1: Monat in der Zukunft — "Stand {Datum}" fehlt im Kopf
+- [x] Monat in der Zukunft: "Stand {Datum}" (BUG-1 behoben)
 - [x] Dark Mode ohne Einfluss (PDF immer hell)
 
 ### Security Audit Results
@@ -235,12 +235,13 @@ Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`,
   3. Expected: Kopf "Dezember 2026 · Stand {heute}" (Edge Case der Spec).
   4. Actual: nur "Dezember 2026" (nachgeprüft).
 - **Priority:** Nice to have
+- **Status:** ✅ Behoben (2026-10-27) — Kopf zeigt "Stand {Datum}" auch für künftige Monate
 
 Hinweis (kein Bug, laut Spec gewollt): Unplausible Paare (über 14 h oder Gehen vor Kommen) erscheinen im PDF ohne Hinweis, zählen aber nicht ins Ist — die Summe der Zeiten kann deshalb vom Ist abweichen.
 
 ### Summary
 - **Acceptance Criteria:** alle erfüllt
-- **Bugs Found:** 1 total (0 critical, 0 high, 0 medium, 1 low)
+- **Bugs Found:** 1 total (0 critical, 0 high, 0 medium, 1 low) — behoben 2026-10-27
 - **Security:** Pass
 - **Production Ready:** YES (fachlich) — Deploy erst nach Nutzer-Freigabe der Zeiterfassung
 

@@ -82,6 +82,10 @@ describe("werteTagAus", () => {
     expect(tag.flowTagestotal).toBe(300);
   });
 
+  it("flags entries of an unknown type (QA BUG-2)", () => {
+    expect(werteTagAus([eintrag("07:00", "08:00", { typ: "unbekannt" })])).toMatchObject({ unbekannt: true, arbeitszeitMinuten: 0 });
+  });
+
   it("recognises Krankheit and Komp. GLZ without counting them as working time", () => {
     const tag = werteTagAus([
       eintrag("07:00", "11:00", { typ: "komp-glz" }),

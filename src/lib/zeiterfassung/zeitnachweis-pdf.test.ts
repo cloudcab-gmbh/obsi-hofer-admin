@@ -122,6 +122,9 @@ describe("bauePdfDokument", () => {
   it("marks the current month as 'Stand' and adds notes for missing data", () => {
     const laufend = dokument({ zeitnachweis: nachweis({ heute: "2026-11-10" }), heute: "2026-11-10" });
     expect(texte(laufend.content)).toContain("November 2026 · Stand 10.11.2026");
+    // QA BUG-1: auch ein künftiger Monat ist ein Zwischenstand
+    const kuenftig = dokument({ zeitnachweis: nachweis({ heute: "2026-10-27" }), heute: "2026-10-27" });
+    expect(texte(kuenftig.content)).toContain("November 2026 · Stand 27.10.2026");
 
     const leer = dokument({ zeitnachweis: nachweis({ eintraege: [], versionen: [], startsaldoStunden: null, stichtag: null }), versionen: [] });
     const alle = texte(leer.content);

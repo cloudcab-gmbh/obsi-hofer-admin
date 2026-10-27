@@ -63,18 +63,28 @@ export function gueltigeVersion<T extends { gueltigAb: string }>(versionen: read
 }
 
 /**
- * Abgeleitetes "gültig bis" einer Version: Vortag der nächsten Version, für
- * die letzte Version der Austritt (bzw. `null` = offen).
+ * Abgeleitetes "gültig bis" einer Version: Vortag der nächsten Version bzw.
+ * der Austritt, je nachdem was früher ist (`null` = offen). Beginnt die
+ * Version erst nach dem Austritt, hat sie keine Wirkung (`null`, siehe
+ * `nachAustritt`; PROJ-14 QA BUG-1).
  */
 export function gueltigBis(
   versionen: readonly { gueltigAb: string }[],
   version: { gueltigAb: string },
   austrittAm: string | null
 ): string | null {
+  if (nachAustritt(version, austrittAm)) return null;
   const naechste = [...versionen]
     .filter((v) => v.gueltigAb > version.gueltigAb)
     .sort((a, b) => a.gueltigAb.localeCompare(b.gueltigAb))[0];
-  return naechste ? vortag(naechste.gueltigAb) : austrittAm;
+  const bisNaechste = naechste ? vortag(naechste.gueltigAb) : null;
+  if (austrittAm && (bisNaechste === null || austrittAm < bisNaechste)) return austrittAm;
+  return bisNaechste;
+}
+
+/** Version beginnt erst nach dem Austritt und hat damit keine Wirkung. */
+export function nachAustritt(version: { gueltigAb: string }, austrittAm: string | null): boolean {
+  return !!austrittAm && version.gueltigAb > austrittAm;
 }
 
 /** Soll einer Person an einem Datum (ohne Feiertage/Ferien — die setzt PROJ-13/15 zusätzlich auf 0). */

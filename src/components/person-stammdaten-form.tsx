@@ -13,12 +13,15 @@ export function PersonStammdatenForm({
   email,
   initial,
   ersteVersionAb,
+  neuesteVersionAb = null,
   ersterEintrag,
 }: {
   email: string;
   initial: StammdatenEingabe;
   /** "gültig ab" der ersten Arbeitsmodell-Version (Eintritt), für den Hinweis zum Stichtag. */
   ersteVersionAb: string | null;
+  /** "gültig ab" der neuesten Version, für den Hinweis zum Austritt (QA BUG-1). */
+  neuesteVersionAb?: string | null;
   /** Datum des ersten Zeiteintrags, für den Hinweis zum Stichtag. */
   ersterEintrag: string | null;
 }) {
@@ -52,6 +55,11 @@ export function PersonStammdatenForm({
   const hinweise: string[] = [];
   if (werte.stichtag && ersteVersionAb && werte.stichtag < ersteVersionAb) {
     hinweise.push(`Der Stichtag liegt vor dem Eintritt (erste Version ab ${formatKalenderdatum(ersteVersionAb)}).`);
+  }
+  if (werte.austrittAm && neuesteVersionAb && werte.austrittAm < neuesteVersionAb) {
+    hinweise.push(
+      `Der Austritt liegt vor der Arbeitsmodell-Version ab ${formatKalenderdatum(neuesteVersionAb)} — diese Version hat dann keine Wirkung.`
+    );
   }
   if (werte.stichtag && ersterEintrag && werte.stichtag >= ersterEintrag) {
     hinweise.push(

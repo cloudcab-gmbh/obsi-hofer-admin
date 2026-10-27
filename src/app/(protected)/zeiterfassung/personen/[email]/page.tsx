@@ -11,7 +11,7 @@ import {
   type PersonArbeitsmodell,
   type ZeiterfassungPerson,
 } from "@/lib/dataverse/zeiterfassung";
-import { gueltigBis, sortiereVersionen } from "@/lib/zeiterfassung/soll";
+import { gueltigBis, nachAustritt, sortiereVersionen } from "@/lib/zeiterfassung/soll";
 import { PersonStammdatenForm } from "@/components/person-stammdaten-form";
 import { ArbeitsmodellVerlauf } from "@/components/arbeitsmodell-verlauf";
 import { NUR_FREIGEBER_HINWEIS, ZeiterfassungHinweis } from "@/components/zeiterfassung-hinweis";
@@ -48,7 +48,11 @@ export default async function ZeiterfassungPersonPage({ params }: { params: Prom
   if (unbekannt) notFound();
 
   const austrittAm = person?.austrittAm ?? null;
-  const verlauf = sortiereVersionen(versionen).map((v) => ({ ...v, gueltigBis: gueltigBis(versionen, v, austrittAm) }));
+  const verlauf = sortiereVersionen(versionen).map((v) => ({
+    ...v,
+    gueltigBis: gueltigBis(versionen, v, austrittAm),
+    ohneWirkung: nachAustritt(v, austrittAm),
+  }));
   const ersteVersionAb = verlauf.at(-1)?.gueltigAb ?? null;
 
   return (
@@ -73,6 +77,7 @@ export default async function ZeiterfassungPersonPage({ params }: { params: Prom
           ferienStartsaldo: person?.ferienStartsaldo != null ? String(person.ferienStartsaldo) : "",
         }}
         ersteVersionAb={ersteVersionAb}
+        neuesteVersionAb={verlauf[0]?.gueltigAb ?? null}
         ersterEintrag={erster}
       />
       <ArbeitsmodellVerlauf email={email} versionen={verlauf} />

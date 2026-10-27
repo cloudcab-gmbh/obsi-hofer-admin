@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -46,6 +47,8 @@ import {
 export interface VerlaufVersion extends ArbeitsmodellVersion {
   /** Abgeleitet: Vortag der nächsten Version bzw. Austritt, `null` = offen. */
   gueltigBis: string | null;
+  /** Beginnt erst nach dem Austritt (QA BUG-1). */
+  ohneWirkung?: boolean;
 }
 
 const LEERES_MODELL: ArbeitsmodellFormEingabe = {
@@ -175,7 +178,17 @@ export function ArbeitsmodellVerlauf({ email, versionen }: { email: string; vers
                 {versionen.map((v) => (
                   <TableRow key={v.id}>
                     <TableCell>{formatKalenderdatum(v.gueltigAb)}</TableCell>
-                    <TableCell>{v.gueltigBis ? formatKalenderdatum(v.gueltigBis) : "offen"}</TableCell>
+                    <TableCell>
+                      {v.ohneWirkung ? (
+                        <Badge variant="outline" className="font-normal text-status-warning">
+                          nach Austritt – ohne Wirkung
+                        </Badge>
+                      ) : v.gueltigBis ? (
+                        formatKalenderdatum(v.gueltigBis)
+                      ) : (
+                        "offen"
+                      )}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">{formatPensum(v.pensum)}</TableCell>
                     <TableCell>{formatArbeitstage(v.arbeitstage)}</TableCell>
                     <TableCell className="text-right tabular-nums">

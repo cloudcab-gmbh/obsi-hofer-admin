@@ -56,6 +56,7 @@ function tageshinweise(t: Tageszeile, beginnArt: Zeitnachweis["beginnArt"]): { t
   if (a.unplausibel) liste.push({ text: "unplausibler Eintrag zählt nicht", warnung: true });
   if (t.ferienMitArbeit) liste.push({ text: "Ferien und Arbeitszeit am selben Tag", warnung: true });
   if (t.krankheitInFerien) liste.push({ text: "Krankheit während der Ferien — kein Ferientag", warnung: false });
+  if (a.unbekannt) liste.push({ text: "Eintrag mit unbekanntem Typ — zählt nicht", warnung: true });
   if (t.ferienOhneSoll) liste.push({ text: "Ferien an einem Tag ohne Soll — zählt nicht", warnung: true });
   if (t.flowAbweichung && a.flowTagestotal !== null) {
     liste.push({
@@ -89,7 +90,11 @@ export function ZeitnachweisAnsicht({
       <div className="space-y-2">
         {z.ohneArbeitsmodell && (
           <Hinweis warnung>
-            Für {personName} ist kein Arbeitsmodell erfasst — ohne Arbeitsmodell gibt es kein Soll und keine Gleitzeit.{" "}
+            Für {personName} ist kein Arbeitsmodell erfasst —{" "}
+            {/* QA BUG-1: mit Startsaldo läuft die Gleitzeit trotzdem (Ist ohne Soll). */}
+            {z.saldoEndeMinuten === null
+              ? "ohne Arbeitsmodell gibt es kein Soll und keine Gleitzeit."
+              : "ohne Arbeitsmodell gibt es kein Soll; die Gleitzeit läuft ab dem Startsaldo nur mit der Ist-Zeit weiter."}{" "}
             <Link href={personHref} className="font-medium text-primary underline-offset-2 hover:underline">
               Arbeitsmodell erfassen
             </Link>

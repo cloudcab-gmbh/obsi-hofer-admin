@@ -185,7 +185,18 @@ export async function speichereArbeitsmodellAction(
         return { success: false, message: "Diese Person kommt in der Zeiterfassung nicht vor." };
       }
       const personId = person?.id ?? (await stellePersonSicher(mail.data));
-      await erstelleArbeitsmodell(personId, mail.data, daten);
+      const neueId = await erstelleArbeitsmodell(personId, mail.data, daten);
+      // QA BUG-2: zwei Freigeber gleichzeitig → zwei Versionen am selben Datum.
+      // Behalten wird die mit der kleinsten ID (feste Regel, damit gleichzeitige
+      // Bereinigungen nicht beide löschen); die andere Eingabe wird abgelehnt.
+      const amSelbenTag = (await listArbeitsmodelle(personId)).filter((v) => v.gueltigAb === daten.gueltigAb);
+      if (amSelbenTag.length > 1) {
+        const behalten = [...amSelbenTag].sort((a, b) => a.id.localeCompare(b.id))[0];
+        if (behalten.id !== neueId) {
+          await loescheArbeitsmodell(neueId);
+          return { success: false, message: "Für dieses Datum gibt es bereits eine Version." };
+        }
+      }
     }
   } catch (error) {
     return { success: false, message: fehlermeldung(error, "Das Arbeitsmodell konnte nicht gespeichert werden.") };

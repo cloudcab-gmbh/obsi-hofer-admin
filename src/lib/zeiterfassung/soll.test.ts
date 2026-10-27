@@ -3,6 +3,7 @@ import {
   aktuelleVersion,
   formatSollBeschreibung,
   gueltigBis,
+  nachAustritt,
   gueltigeVersion,
   sollAmDatum,
   sollProArbeitstag,
@@ -56,6 +57,13 @@ describe("versions", () => {
     expect(gueltigeVersion(versionen, "2025-12-31")).toBeNull();
     expect(gueltigeVersion(versionen, "2026-10-31")?.pensum).toBe(100);
     expect(gueltigeVersion(versionen, "2026-11-01")?.pensum).toBe(40);
+  });
+
+  it("ends at the Austritt when it comes before the next version and marks versions after it (QA BUG-1)", () => {
+    expect(gueltigBis(versionen, versionen[0], "2026-06-30")).toBe("2026-06-30");
+    expect(gueltigBis(versionen, versionen[1], "2026-06-30")).toBeNull();
+    expect(nachAustritt(versionen[1], "2026-06-30")).toBe(true);
+    expect(nachAustritt(versionen[0], "2026-06-30")).toBe(false);
   });
 
   it("derives 'gültig bis' from the next version or the Austritt", () => {
