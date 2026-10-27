@@ -1,8 +1,8 @@
 # PROJ-13: Zeitnachweis pro Monat
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-10-26
-**Last Updated:** 2026-10-26
+**Last Updated:** 2026-10-27
 
 ## Dependencies
 - Requires: PROJ-1 (Entra-ID-Login mit Rollen) — Zugriff nur für Freigeber
@@ -94,7 +94,7 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 - [x] Muss der Zeitnachweis Pausen abziehen? → Nein: Pausen sind Lücken zwischen den Einträgen; die Pausenfelder sind praktisch leer (5× bzw. 3× von 143)
 - [x] Welches Feldpaar ist Kommen/Gehen? → Die Erfassungs-App setzt beim Kommen `Kommen` und `astart`, beim Gehen `Gehen` und `checkout` jeweils gleichzeitig auf die aktuelle Zeit (Code vom Nutzer, 2026-10-26). Massgeblich: `bmvcc_kommen`/`bmvcc_gehen`, bei leeren Werten (ältere Einträge) `bmvcc_activitystarttime`/`bmvcc_checkouttime`. Abweichungen zwischen beiden Paaren (10 von 139) stammen vermutlich aus älteren Einträgen oder Korrekturen
 - [x] Wohin schreibt der Flow das Tagestotal? → in `bmvcc_aznetto4` (Nutzer, 2026-10-26) — erklärt, warum `aznetto4` selten der Dauer eines einzelnen Eintrags entspricht
-- [ ] Einheit von `bmvcc_aznetto4` (Stunden dezimal?) und ob es auf jedem Eintrag des Tages oder nur auf dem letzten steht; die App rechnet intern mit `WorkMinutes(Start; Ende)` — rundet diese Funktion (z.B. auf ganze Minuten)? (/architecture)
+- [x] Einheit von `bmvcc_aznetto4`? → Datenprüfung 2026-10-27: ganze **Minuten**, und zwar die Dauer **des einzelnen Eintrags**, kein Tagestotal (129 von 129 Einträgen mit Kommen/Gehen stimmen auf ±1 Minute). Der Abgleich-Hinweis vergleicht deshalb pro Eintrag; das Ist wird auf ganze Minuten gerechnet
 - [x] Mittagessen: welches Feld? → Die App schreibt `mittagessen` (Ja/Nein, `bmvcc_essen`) und `Mittagessen` (Yes/No, `bmvcc_mittagessen`) immer gleich; massgeblich `bmvcc_mittagessen`, Abendessen `bmvcc_abendessen`. Pro Tag "ja", sobald ein Eintrag des Tages "ja" hat (Nutzer, 2026-10-26)
 - [x] Läuft die neue Erfassung schon produktiv? → Nein: Die 143 Einträge in Dataverse (April bis 02.09.2026, 5 Personen) sind alles Testdaten (Nutzer, 2026-10-26). Lokal wird mit diesen Testdaten getestet; Monate ab September sind dabei leer
 - [x] Kann beim Stempeln ein anderer Tag gewählt werden? → Nein, immer heute (Nutzer, 2026-10-26); Aktivitätsdatum und Uhrzeit von Kommen gehören also zum selben Tag
@@ -120,17 +120,108 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 | Mittag-/Abendessen pro Tag = ja, sobald ein Eintrag des Tages ja hat | Die App fragt bei jedem Kommen/Gehen erneut; ein Tag mit Mittagessen soll nicht durch einen späteren Eintrag "nein" verlieren (Nutzer-Vorgabe) | 2026-10-26 |
 | Ist = Summe (Gehen − Kommen) der Einträge, selbst berechnet; das Flow-Tagestotal nur als Abgleich-Hinweis | Nachvollziehbar Zeile für Zeile und unabhängig von Fehlern im Flow; in den bisherigen Daten passen Flow-Total und Einzeleinträge selten zusammen (Nutzer-Entscheidung) | 2026-10-26 |
 | PDF als eigenes Feature (PROJ-16), obwohl Bildschirm + PDF gewünscht | Einzeln testbar und baut auf der fertigen Berechnung auf; gleiches Vorgehen wie Geräteliste (PROJ-3) und Prüfbericht-PDF (PROJ-7) | 2026-10-26 |
+| Gleitzeit beginnt mit Startsaldo am Tag nach dem Stichtag, ohne Startsaldo mit 0 am "gültig ab" der ersten Version; Einträge davor werden angezeigt, zählen aber nicht | Testphasen und Einträge vor dem Eintritt sollen die Gleitzeit nicht aufblähen; löst den Widerspruch zum Edge Case "Zeiteinträge vor dem ersten gültig ab" in PROJ-14 (Nutzer-Entscheidung) | 2026-10-27 |
 
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
-| _wird in /architecture ergänzt_ | | |
+| Zeitnachweis wird bei jedem Aufruf live berechnet, nichts gespeichert | Korrekturen (Einträge, Arbeitsmodell, Startsaldo) wirken sofort und rückwirkend; ca. 1'000 Einträge pro Person und Jahr sind schnell geladen. Jährlicher Zwischenstand nachrüstbar | 2026-10-27 |
+| Nur Einträge der gewählten Person ab Beginn der Gleitzeit bis Monatsende laden, alle Seiten | Saldo Vormonat ohne vorheriges Öffnen der Vormonate; kein Abschneiden (K5) | 2026-10-27 |
+| Rechenregeln (Feiertage, Tagesauswertung, Zeitnachweis) rein und getrennt von Datenzugriff/Oberfläche | Wiederverwendung im PDF (PROJ-16), jede Regel einzeln testbar | 2026-10-27 |
+| Feiertage Aargau berechnet (Ostern per Standard-Formel) | Keine Pflege pro Jahr | 2026-10-27 |
+| Dauer je Eintrag auf ganze Minuten | Die App rechnet in Minuten; Sekunden erzeugen nur Rundungsdifferenzen | 2026-10-27 |
+| `aznetto4` = Dauer eines Eintrags in Minuten; Abgleich pro Eintrag (Hinweis ab > 1 Minute Abweichung) | Datenprüfung: kein Tagestotal gespeichert | 2026-10-27 |
+| Person und Monat in der Adresse, letzte Auswahl zusätzlich gemerkt | Neuladen, Zurück-Taste und Lesezeichen ohne Zusatzlogik | 2026-10-27 |
+| Zeitnachweis ist die Startseite von "Zeiterfassung", "Personen" eine Unterseite | Häufigste Tätigkeit | 2026-10-27 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Ausgangslage
+- PROJ-14 ist gebaut (Branch `zeiterfassung`, Approved): Personen, Arbeitsmodell-Versionen, Austritt und Startsaldo liegen in Dataverse; die Rechenregel "Soll einer Person an einem Datum", die Datumsumrechnung in Schweizer Zeit und das Nachladen aller Seiten einer Abfrage gibt es bereits.
+- Datenprüfung der Testdaten (2026-10-27, 146 Einträge, nur Zählungen):
+  - Das Aktivitätsdatum ist als Mitternacht Schweizer Zeit gespeichert ("Benutzer lokal") — gleiche Umrechnung wie in PROJ-14.
+  - Kommen/Gehen enthalten Sekunden; 15 Einträge ohne Gehen; 1 Eintrag, dessen Gehen auf einen anderen Tag fällt.
+  - **`bmvcc_aznetto4` ist kein Tagestotal**, sondern die Dauer des einzelnen Eintrags in Minuten (129 von 129 Einträgen mit Kommen und Gehen stimmen auf ±1 Minute). Ein Tagestotal ist nirgends gespeichert.
+  - Bisher nur Typ "Arbeitszeit" in den Daten; Krankheit und Komp. GLZ sind nur aus dem Schema bekannt.
+
+### A) Bausteine
+```
+Menüpunkt "Zeiterfassung" (bestehend, nur Freigeber)
++-- Unterseiten-Leiste: "Zeitnachweis" · "Personen" (· später "Ferien")
+
+/zeiterfassung = Zeitnachweis (nur Freigeber; bisher Weiterleitung auf Personen)
++-- Auswahl
+|   +-- Person (durchsuchbare Auswahl wie bei Firma/Standort; Name bzw. E-Mail; ohne "nicht auswerten")
+|   +-- Monat (Vor-/Zurück-Schaltflächen + Monatsauswahl; Standard: aktueller Monat)
+|   +-- Auswahl steht in der Adresse (Neuladen, Zurück, Link teilen) und wird zusätzlich gemerkt
++-- Hinweise oben (je nach Lage)
+|   +-- "kein Arbeitsmodell" für (Teile des) Monats → Link zur Person (PROJ-14)
+|   +-- Monat vollständig vor dem Startsaldo-Stichtag → "Excel-Zeitraum, keine Auswertung im Tool"
+|   +-- "Keine Zeiteinträge in diesem Monat"
+|   +-- offene Einträge (Gehen fehlt) an vergangenen Tagen
++-- Monatsübersicht (Karten): Saldo Vormonat · Ist · Soll · Abweichung · Gleitzeit Monatsende in Stunden und Tagen
+|   (laufender Monat: "Stand heute")
++-- Tagestabelle (eine Zeile pro Kalendertag)
+|   +-- Datum + Wochentag · Zeiten (Kommen–Gehen-Paare) · Art/Grund · Ist · Soll · Abweichung · Gleitzeit
+|   +-- Mittag · Abend · Bemerkung · Hinweise (offen, Überschneidung, unplausibel, Abweichung zur App)
+|   +-- Wochenenden/Feiertage dezent hinterlegt; Tage nach heute ausgegraut
++-- Fehlermeldung statt Tabelle, wenn Dataverse nicht antwortet
+
+Server (nur lesend, mit Freigeber-Prüfung)
++-- Person, Versionen und Startsaldo laden (aus PROJ-14)
++-- Zeiteinträge der Person laden: vom Beginn der Gleitzeit bis Monatsende, nur benötigte Felder, alle Seiten
+
+Rechenregeln (rein, ohne Datenzugriff, eigens getestet)
++-- Feiertage Aargau pro Jahr (feste Daten + Ostern-abhängige: Karfreitag, Ostermontag, Auffahrt, Pfingstmontag)
++-- Tagesauswertung: Einträge → Paare, Ist, Hinweise, Essen, Bemerkungen
++-- Zeitnachweis: Tag für Tag Soll (Regel aus PROJ-14 + Feiertag/Ferien/Typ), Abweichung, fortlaufende Gleitzeit
+```
+
+### B) Datenmodell (in Worten)
+**Keine neuen Tabellen, nichts wird gespeichert.** Der Zeitnachweis wird bei jedem Aufruf aus den vorhandenen Daten berechnet.
+
+Gelesen werden pro Zeiteintrag: Aktivitätsdatum, Typ (Arbeitszeit / Komp. GLZ / Krankheit), Kommen und Gehen (Ersatz: Arbeitsbeginn/Checkout bei älteren Einträgen), Dauer laut App (`aznetto4`, Minuten), Mittagessen, Abendessen, Bemerkung — gefiltert auf die E-Mail der Person und den Zeitraum.
+
+Ein Tag ergibt sich so:
+- **Ist** = Summe der Dauer aller vollständigen Arbeitszeit-Einträge, je auf ganze Minuten; Überschneidungen zählen einmal. Unvollständige (ohne Gehen) und unplausible (Gehen vor Kommen, mehr als 14 h) zählen nicht und erzeugen einen Hinweis.
+- **Soll** = Soll aus dem Arbeitsmodell (PROJ-14), aber 0 an Feiertagen, Ferientagen (PROJ-15, bis dahin keine), vor dem Eintritt und nach dem Austritt.
+- **Krankheit**: Ist = Soll (Gleitzeit unverändert). **Komp. GLZ**: zählt kein Ist, Soll bleibt → Gleitzeit sinkt.
+- **Abweichung** = Ist − Soll; **Gleitzeit** = Gleitzeit des Vortags + Abweichung.
+- **Beginn der Gleitzeit**: mit Startsaldo am Tag nach dem Stichtag mit diesem Saldo; ohne Startsaldo am "gültig ab" der ersten Arbeitsmodell-Version mit 0. Einträge davor werden angezeigt (Hinweis "vor Arbeitsmodell" bzw. "Excel-Zeitraum"), zählen aber nicht zur Gleitzeit.
+- **Laufender Monat**: Tage nach heute zählen weder Soll noch Ist.
+- **Abgleich mit der App**: weicht die App-Dauer (`aznetto4`) eines Eintrags um mehr als eine Minute von der selbst berechneten Dauer ab, erscheint ein dezenter Hinweis mit beiden Werten.
+
+Die Zeile "Saldo Vormonat" ist die Gleitzeit am letzten Tag des Vormonats — berechnet in derselben Rechnung, die vom Beginn der Gleitzeit bis zum Monatsende läuft. Kein Monat muss vorher geöffnet worden sein.
+
+### C) Technische Entscheidungen (Begründung)
+- **Live berechnen statt Monatsabschlüsse speichern:** Korrekturen an Einträgen, Arbeitsmodell oder Startsaldo wirken sofort und rückwirkend (so verlangen es PROJ-14 und die Edge Cases); keine zweite Datenhaltung, die veralten kann. Menge: rund 1'000 Einträge pro Person und Jahr — auch mehrere Jahre laden in wenigen Sekunden. Falls es später zu langsam wird, kann ein jährlicher Zwischenstand (wie der Startsaldo) nachgerüstet werden.
+- **Nur die Einträge der gewählten Person laden** (gefiltert in Dataverse), nur die benötigten Felder, alle Seiten.
+- **Rechenregeln getrennt von Datenzugriff und Oberfläche:** dieselbe Rechnung braucht der PDF-Export (PROJ-16); jede Regel (Feiertage, Überschneidung, Krankheit, Komp. GLZ, Monatswechsel) ist einzeln testbar.
+- **Feiertage berechnet statt gepflegt:** feste Liste aus der Excel-Mappe, Ostern per Standard-Formel; keine Pflege pro Jahr.
+- **Dauer auf ganze Minuten:** die App rechnet ebenfalls in Minuten; Sekunden würden nur Rundungsdifferenzen erzeugen.
+- **`aznetto4` nur als Abgleich pro Eintrag:** es ist die Dauer eines Eintrags, kein Tagestotal (Datenprüfung); massgeblich bleibt die eigene Rechnung (Product Decision).
+- **Auswahl in der Adresse (Person, Monat):** Neuladen, Zurück-Taste und Lesezeichen funktionieren ohne Zusatzlogik; zusätzlich wird die letzte Auswahl gemerkt, damit der Menüpunkt dort weitermacht.
+- **Zeitnachweis wird Startseite der Zeiterfassung**, "Personen" eine Unterseite — er ist die häufigste Tätigkeit.
+- **Freigeber-Prüfung auf Seite und Aktion**, Zeitdaten weder in Logs noch in Fehlermeldungen.
+- **Bestehende Bausteine:** durchsuchbare Auswahl, Tabelle, Karte, Badge, Schaltflächen — keine neuen Komponenten oder Pakete.
+
+### D) Abhängigkeiten (Pakete)
+Keine neuen Pakete.
+
+### E) Tests
+- Feiertage: mehrere Jahre (bewegliche Feiertage), Feiertag am Wochenende
+- Tagesauswertung: mehrere Paare, Überschneidung, ohne Gehen (heute/vergangen), über Mitternacht, unplausibel, Ersatzfelder, Essen-Regel, Abgleich `aznetto4`
+- Zeitnachweis: Krankheit/Komp. GLZ mit und ohne Soll, Komp. GLZ + Arbeitszeit, Versionswechsel mitten im Monat, Eintritt/Austritt, Startsaldo-Beginn, Beginn ohne Startsaldo, Monat vor dem Stichtag, laufender Monat, Saldo über mehrere Monate/Jahreswechsel
+- Aktionen/Seite: Bearbeiter abgelehnt, Fehler beim Laden
+- Komponenten: Auswahl, Hinweise, Tabelle, Summen
+- Manuell lokal mit den Testdaten (April–September 2026)
+
+### F) Vorgehen
+1. Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`, kein Deploy bis zur Freigabe (Nutzer-Vorgabe 2026-10-26)
+2. Keine Dataverse-Änderungen nötig (Lesen auf den Zeiteinträgen ist erteilt)
 
 ## QA Test Results
 _To be added by /qa_

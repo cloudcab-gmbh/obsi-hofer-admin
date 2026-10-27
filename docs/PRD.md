@@ -28,7 +28,7 @@ Anmeldung über das bestehende Microsoft-365-/Entra-ID-Konto (interner Firmen-Te
 | P1 | Standort als Arbeitskontext (Auswahl Firma → Standort; Geräte, Prüfberichte und PDF beziehen sich auf den Standort) | Deployed |
 | P1 | Kundenportal-Zugang pro Standort | Deployed |
 | P1 | Sync-Freigabe und -Verlauf pro Standort | Deployed |
-| P1 | Zeitnachweis pro Monat (ersetzt die Excel-Auswertung der Zeiterfassung: Ist, Soll, Gleitzeit pro Person und Monat) | Planned |
+| P1 | Zeitnachweis pro Monat (ersetzt die Excel-Auswertung der Zeiterfassung: Ist, Soll, Gleitzeit pro Person und Monat) | Architected |
 | P1 | Arbeitsmodell pro Person (Pensum, Arbeitstage, Gleitzeit-Startsaldo) | Approved |
 | P1 | Ferien erfassen und Feriensaldo | Roadmap |
 | P2 | Zeitnachweis als PDF | Roadmap |
