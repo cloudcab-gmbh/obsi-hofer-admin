@@ -1,6 +1,6 @@
 # PROJ-13: Zeitnachweis pro Monat
 
-## Status: In Review
+## Status: Approved
 **Created:** 2026-10-26
 **Last Updated:** 2026-10-27
 
@@ -366,6 +366,8 @@ Wie PROJ-14 in einem Schritt gebaut (nur lesend, keine Dataverse-Änderungen).
 - **Security:** Pass
 - **Production Ready:** YES (fachlich) — Deploy erst nach Nutzer-Freigabe der Zeiterfassung
 - **Recommendation:** Low-Bugs nach Wunsch beheben; weiter mit PROJ-15 (Ferien) bzw. PROJ-16 (PDF)
+
+**Nachtest 2026-10-27 (Erweiterungen nach der QA):** "Gehen nachtragen" und "Einträge für einen Tag erfassen" vom Nutzer im Browser geprüft — Arbeitszeit und ganztägige Einträge werden mit korrektem Typ angelegt, der Flow läuft nach der Korrektur (Kommen = Tagesbeginn) durch. 575 Unit-Tests grün. Status wieder Approved
 
 ## Deployment
 _To be added by /deploy_
