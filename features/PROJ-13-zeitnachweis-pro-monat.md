@@ -1,6 +1,6 @@
 # PROJ-13: Zeitnachweis pro Monat
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-10-26
 **Last Updated:** 2026-10-27
 
@@ -262,7 +262,99 @@ Wie PROJ-14 in einem Schritt gebaut (nur lesend, keine Dataverse-Änderungen).
 **Tests:** 46 neue Tests (Feiertage, Tagesauswertung, Zeitnachweis inkl. Jahreswechsel, Datenschicht, Ansicht, Auswahl); gesamt 542 grün, `tsc` und ESLint sauber; mit dem Nachtrag 15 weitere (557 grün).
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-10-27
+**App URL:** http://localhost:3000 (Branch `zeiterfassung`, nur lokal)
+**Tester:** QA Engineer (AI) + Browser-Test durch den Nutzer (Testanleitung, Nachtragen inkl. Flow-Neuberechnung)
+
+### Acceptance Criteria Status
+
+#### Zugriff und Auswahl
+- [x] Bearbeiter: Seite zeigt nur den Freigeber-Hinweis, Unterseiten-Leiste ausgeblendet; Aktion "Gehen nachtragen" und das Merken der Auswahl lehnen serverseitig ab (`actions.test.ts`); ohne Login → `/login` (E2E)
+- [x] Personenauswahl ohne "nicht auswerten", mit Name bzw. E-Mail; aktueller Monat vorausgewählt
+- [x] Person und Monat bleiben bei Neuladen (Adresse) und beim Zurückkehren über das Menü (Cookie) gewählt — Nutzer-Test + Komponententest
+
+#### Tageszeilen
+- [x] Jeder Kalendertag mit Datum und Wochentag
+- [x] Kommen/Gehen-Paare in zeitlicher Reihenfolge, Ist = Summe (`tagesauswertung.test.ts`, Nutzer-Test)
+- [x] Ohne Gehen: zählt nicht, "offen – Gehen fehlt", Warnung nur an vergangenen Tagen
+- [x] Gehen nachtragen (Erweiterung 2026-10-27): aus Hinweis und Zeile, auch am laufenden Tag; Prüfungen serverseitig; Flow rechnet die Totals neu (Nutzer-Test)
+- [x] Abgleich Tagestotal des Flows (`bmvcc_tagestotal`) mit Hinweis, Monatstotal in der Übersicht — Nutzer sah den Hinweis im Browser
+- [x] Soll aus dem am Datum gültigen Arbeitsmodell
+- [x] Feiertage Aargau, Ferien (Schnittstelle, bis PROJ-15 leer), freie Tage → Soll 0 mit Grund
+- [x] Krankheit = Soll erfüllt, Komp. GLZ = Gleitzeitbezug (nur Unit-Tests: in den Testdaten gibt es nur Arbeitszeit)
+- [x] Abweichung und fortlaufender Saldo pro Zeile
+- [x] Mittag-/Abendessen-Regel pro Tag
+- [x] Bemerkungen in der Zeile
+
+#### Monatssummen und Saldo
+- [x] Saldo Vormonat (bzw. "Startsaldo" im Startmonat), Ist, Soll, Abweichung, Gleitzeit in Stunden und Tagen
+- [x] Start am Tag nach dem Stichtag; Folgemonate übernehmen den Endsaldo (über Jahreswechsel getestet)
+- [x] Monat vor dem Stichtag → Hinweis Excel-Zeitraum
+- [x] Laufender Monat: Tage nach heute zählen nicht, "Stand heute"
+
+#### Zuordnung und Hinweise
+- [x] Kein Arbeitsmodell: Soll 0, Ist zählt, Hinweis mit Link zur Person (siehe BUG-1 zur Formulierung)
+- [x] Keine Einträge → Hinweis, Tabelle trotzdem
+- [x] Ladefehler → verständliche Meldung ohne Zeitdaten
+
+### Edge Cases Status
+- [x] Mehrere Einträge pro Tag, Pausen als Lücken
+- [x] Überlappende Einträge zählen einmal, Hinweis
+- [x] Über Mitternacht: zählt zum Tag des Kommens, "(+1)"
+- [x] Eintrag an Tagen ohne Soll: Gleitzeit steigt
+- [x] Krankheit an Tag ohne Soll: keine Auswirkung
+- [x] Komp. GLZ + Arbeitszeit: volles Soll bleibt
+- [x] Modellwechsel mitten im Monat; Ein-/Austritt "nicht angestellt"
+- [x] Unplausible Einträge zählen nicht, Warnhinweis, Paar durchgestrichen
+- [x] Zeitzone: Aktivitätsdatum in Schweizer Zeit; Nachtragen an Tagen der Zeitumstellung korrekt (`datum.test.ts`)
+- [x] Feiertag am Wochenende ohne zusätzlichen Effekt
+- [x] Ferien + Arbeitszeit: Hinweis (Schnittstelle getestet)
+- [x] Lange Historie: Saldo wird ab Beginn durchgerechnet, unabhängig von geöffneten Monaten; Probelauf mit allen Testpersonen fehlerfrei
+
+### Security Audit Results
+- [x] Authentifizierung: `/zeiterfassung` inkl. Parameter hinter dem Login (E2E)
+- [x] Autorisierung: Freigeber-Prüfung auf Seite, Nachtragen-Aktion und Cookie-Aktion
+- [x] Nachtragen schreibt nur bei offenen Arbeitszeit-Einträgen, liest den Eintrag vor dem Schreiben neu, überschreibt nie ein bestehendes Gehen; ID per Zod-GUID geprüft
+- [x] Injection: Person aus der Adresse wird nur verwendet, wenn sie in der Personenliste vorkommt; E-Mail in OData-Filtern escaped; Monat per Muster geprüft; Cookie-Inhalt defensiv gelesen
+- [x] XSS: Bemerkungen und Namen per React escaped
+- [x] Keine Zeit- oder Personendaten in Logs oder Fehlermeldungen; Testdaten im Repo erfunden
+- [ ] Hinweis: E-Mail steht in der Adresse und im (httpOnly-)Cookie — wie in PROJ-14 bewusst akzeptiert
+- [ ] Hinweis: "Geändert von" in Dataverse ist beim Nachtragen der App-Benutzer, nicht der Freigeber (Vermerk nachrüstbar)
+
+### Responsive / Browser
+- Nutzer-Test im Desktop-Browser. Tabelle scrollt horizontal, Auswahl stapelt sich unter `sm`, Werte umbrechen nicht. Firefox/Safari: Monatsfeld als Textfeld (JJJJ-MM), Vor/Zurück funktioniert — nicht manuell geprüft
+
+### Automatisierte Tests
+- [x] `npm test`: 47 Dateien, 558 Tests grün
+- [x] `npm run test:e2e`: 32/32 grün (neu: `tests/PROJ-13-zeitnachweis-pro-monat.spec.ts`)
+
+### Bugs Found
+
+#### BUG-1: Hinweis "keine Gleitzeit" stimmt nicht, wenn ein Startsaldo, aber kein Arbeitsmodell erfasst ist
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Person mit Startsaldo und Stichtag, ohne Arbeitsmodell-Version
+  2. Zeitnachweis eines Monats nach dem Stichtag mit Einträgen öffnen
+  3. Expected: Hinweis und Kacheln widersprechen sich nicht
+  4. Actual: Hinweis "ohne Arbeitsmodell gibt es kein Soll und keine Gleitzeit", die Kachel zeigt aber eine Gleitzeit (Startsaldo + Ist, z.B. +9.00 h)
+- **Priority:** Nice to have — Text anpassen oder ohne Arbeitsmodell keine Gleitzeit rechnen
+
+#### BUG-2: Einträge mit unbekanntem Aktivitätstyp werden still ignoriert
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. In der Auswahlliste "Aktivitätstyp" kommt ein neuer Wert dazu (z.B. Ferien)
+  2. Ein Eintrag mit diesem Typ erscheint im Zeitnachweis nicht und zählt nicht
+  3. Expected: Hinweis "unbekannter Eintragstyp"
+  4. Actual: kein Hinweis
+- **Priority:** Nice to have (heute nur Typ 0–2 vorhanden)
+
+### Summary
+- **Acceptance Criteria:** alle erfüllt (Krankheit/Komp. GLZ nur per Unit-Test, da keine Testdaten)
+- **Bugs Found:** 2 total (0 critical, 0 high, 0 medium, 2 low)
+- **Security:** Pass
+- **Production Ready:** YES (fachlich) — Deploy erst nach Nutzer-Freigabe der Zeiterfassung
+- **Recommendation:** Low-Bugs nach Wunsch beheben; weiter mit PROJ-15 (Ferien) bzw. PROJ-16 (PDF)
 
 ## Deployment
 _To be added by /deploy_
