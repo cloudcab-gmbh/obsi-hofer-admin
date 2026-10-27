@@ -1,6 +1,6 @@
 # PROJ-17: Zeiterfassung-Übersicht (Dashboard)
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-10-27
 **Last Updated:** 2026-10-27
 
@@ -92,13 +92,99 @@ Der Zeitnachweis (PROJ-13) zeigt eine Person und einen Monat, die Ferien-Seite (
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
-| _wird in /architecture ergänzt_ | | |
+| Übersicht ruft die bestehenden Rechenregeln (Zeitnachweis, Ferienstand) pro Person auf, rechnet nichts neu | Zahlen stimmen mit Zeitnachweis und Ferien-Seite überein | 2026-10-27 |
+| Zeiteinträge pro Person parallel mit der bestehenden Abfrage, ab dem früheren von Beginn und 1. Januar | Erprobt, für rund 10 Personen schnell; gemeinsame Abfrage nachrüstbar | 2026-10-27 |
+| Grafiken mit shadcn "chart" (Recharts), horizontale Balken | Standard-Baustein der UI-Bibliothek, Design-System-Farben und Dark Mode, Tooltips; Namen lesbar | 2026-10-27 |
+| Krankheits-/Komp.-GLZ-Tage = Anzahl Kalendertage mit Eintrag; Jahr bis Monatsende | Mehrere Einträge am selben Tag zählen einmal; Monat und Jahr konsistent | 2026-10-27 |
+| Gleitzeit-Schwelle ±40 h an einer Stelle definiert | Später leicht anpassbar (Open Question) | 2026-10-27 |
+| Übersicht unter /zeiterfassung, Zeitnachweis zieht nach /zeiterfassung/zeitnachweis; alte Adressen mit Person/Monat leiten weiter | Menüpunkt öffnet die Gesamtsicht; Lesezeichen bleiben gültig | 2026-10-27 |
+| Sortieren im Browser | Eine Zeile pro Person, kein Nachladen nötig | 2026-10-27 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Ausgangslage
+- Alle Rechenregeln gibt es bereits als reine, getestete Bausteine:
+  - Zeitnachweis eines Monats (PROJ-13): Gleitzeit, Ist/Soll, offene Einträge, Ferien des Monats;
+  - Ferienstand eines Jahres (PROJ-15).
+  Die Übersicht rechnet **nichts neu**, sie ruft diese Bausteine pro Person auf. So stimmen die Zahlen garantiert mit Zeitnachweis und Ferien-Seite überein.
+- Es ist noch keine Grafik-Bibliothek installiert.
+
+### A) Bausteine
+```
+Zeiterfassung (Unterseiten-Leiste): Übersicht (neu, Startseite) · Zeitnachweis · Personen · Ferien
+
+/zeiterfassung = Übersicht (nur Freigeber)
++-- Monat wählen (Vor/Zurück + Monatsfeld, wie Zeitnachweis; in der Adresse)
++-- Warnungen (Zusammenfassung oben): "1 Person ohne Arbeitsmodell", "2 mit offenen Einträgen",
+|   "1 mit negativem Feriensaldo", "1 mit Gleitzeit über ±40 h"
++-- Grafik "Gleitzeit" (horizontale Balken pro Person, Nulllinie, Plus/Minus farblich und mit Vorzeichen)
++-- Grafik "Ferien {Jahr}" (horizontale, gestapelte Balken: bezogen · geplant · Rest; negativer Rest erkennbar)
+|   Beide Grafiken: Wert beim Zeigen, Personen ohne Wert mit Hinweis ausgelassen
++-- Tabelle (sortierbar per Klick auf den Spaltenkopf)
+    +-- Person (Link → Zeitnachweis dieser Person und dieses Monats) · Badge "ausgetreten"
+    +-- Gleitzeit (h, Tage) · Veränderung im Monat · Ist · Soll · Abweichung
+    +-- Krankheit Monat/Jahr · Komp. GLZ Monat/Jahr (Tage)
+    +-- Feriensaldo · Ferien bezogen · geplant (Jahr)
+    +-- hervorgehobene Werte bei Warnungen
++-- Leer-Hinweis / Fehlermeldung
+
+Zeitnachweis zieht um: /zeiterfassung/zeitnachweis (Adresse mit Person und Monat wie bisher)
+```
+
+### B) Datenmodell (in Worten)
+**Nichts wird gespeichert, keine Dataverse-Änderung.**
+
+**Pro Person und gewähltem Monat:**
+- Arbeitsmodell, Startsalden und Ferienanspruch (bereits vorhanden, PROJ-14/15).
+- Ihre Zeiteinträge vom frühesten nötigen Tag bis Ende des Monats. Der früheste Tag ist der frühere von Beginn der Gleitzeit bzw. des Feriensaldos und dem 1. Januar des Jahres (für die Jahreszahlen).
+
+**Daraus je Person eine Zeile:**
+- Gleitzeit am Monatsende bzw. heute und Saldo Vormonat; die Veränderung ist die Differenz.
+- Ist, Soll und Abweichung des Monats; Anzahl offener Einträge.
+- Krankheits- und Komp.-GLZ-Tage im Monat und im Jahr: Anzahl Kalendertage mit einem solchen Eintrag. Im laufenden Jahr nur bis zum Monatsende.
+- Ferien: Saldo am Monatsende, bezogen und geplant im Jahr.
+- Warnungen:
+  - kein Arbeitsmodell;
+  - offene Einträge;
+  - Feriensaldo unter 0;
+  - Gleitzeit über +40 h oder unter −40 h (feste Schwelle, an einer Stelle definiert).
+
+**Laden:**
+- Personenliste und alle Arbeitsmodelle wie auf der Personenseite.
+- Die Zeiteinträge pro Person parallel, mit der bestehenden Abfrage inkl. Nachladen aller Seiten.
+
+### C) Technische Entscheidungen (Begründung)
+- **Bestehende Rechenregeln wiederverwenden:** eine Wahrheit für alle Seiten; keine Abweichungen zwischen Übersicht, Zeitnachweis und Ferien-Seite.
+- **Pro Person eine Abfrage, parallel:** nutzt die erprobte Abfrage aus PROJ-13; bei rund 10 Personen schnell. Für deutlich mehr Personen wäre eine gemeinsame Abfrage nachrüstbar.
+- **Grafiken mit der shadcn-Komponente "Chart" (Recharts):** Standard-Baustein der verwendeten UI-Bibliothek. Farben und Dark Mode kommen aus dem Design-System, Tooltips und Achsen sind eingebaut. Recharts wird nur auf dieser Seite geladen.
+- **Horizontale Balken:** Namen bleiben bei vielen Personen lesbar; Plus und Minus um eine Nulllinie sind intuitiv.
+- **Barrierearm:** Farbe ist nie das einzige Merkmal (Vorzeichen, Legende), alle Werte stehen zusätzlich in der Tabelle.
+- **Sortieren im Browser:** die Daten sind klein (eine Zeile pro Person); kein erneutes Laden.
+- **Übersicht wird Startseite, Zeitnachweis zieht auf eine eigene Adresse:**
+  - Der Menüpunkt öffnet die Gesamtsicht (Product Decision).
+  - Links und die gemerkte Auswahl des Zeitnachweises werden angepasst.
+  - Alte Adressen mit Person und Monat leiten auf den Zeitnachweis weiter, damit Lesezeichen funktionieren.
+- **Freigeber-Prüfung auf der Seite**, keine Personendaten in Logs oder Fehlermeldungen.
+
+### D) Abhängigkeiten (Pakete)
+- shadcn-Komponente **chart** (installiert **recharts**): Balkengrafiken mit Tooltips, Farben aus dem Design-System
+
+### E) Tests
+- **Zusammenstellung pro Person:**
+  - Gleitzeit-Veränderung;
+  - Krankheits- und Komp.-GLZ-Tage Monat/Jahr (mehrere Einträge am selben Tag zählen einmal);
+  - Warnungen und ihre Schwellen;
+  - Person ohne Arbeitsmodell, vor dem Beginn, ausgetreten, künftiger Monat;
+  - Übereinstimmung mit Zeitnachweis und Ferienstand.
+- **Komponenten:** Sortieren, Link zum Zeitnachweis, Warnungs-Zusammenfassung, Leer-Hinweis, Grafiken mit Daten (Werte vorhanden, Personen ohne Wert ausgelassen).
+- **Zugriff:** Bearbeiter abgelehnt, ohne Login → `/login` (E2E), alte Zeitnachweis-Adresse leitet weiter.
+- **Manuell lokal mit den Testdaten:** Werte gegen Zeitnachweis und Ferien-Seite vergleichen; Dark Mode.
+
+### F) Vorgehen
+Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`, kein Deploy bis zur Freigabe.
 
 ## QA Test Results
 _To be added by /qa_
