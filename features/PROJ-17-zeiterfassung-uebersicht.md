@@ -1,6 +1,6 @@
 # PROJ-17: Zeiterfassung-Übersicht (Dashboard)
 
-## Status: In Review
+## Status: Approved
 **Created:** 2026-10-27
 **Last Updated:** 2026-10-27
 
@@ -231,7 +231,7 @@ Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`,
 
 #### Grafiken
 - [x] Gleitzeit-Balken mit Nulllinie, Plus/Minus farblich (Validator bestanden)
-- [ ] BUG-1: Ferien-Balken — der "Rest" ist der Saldo am Monatsende, später im Jahr geplante Ferien werden dadurch doppelt gezählt
+- [x] Ferien-Balken bezogen · geplant · Rest (BUG-1 behoben: Rest = Saldo am Jahresende)
 - [x] Tooltip mit Person und Wert
 
 #### Warnungen, Leer- und Fehlerzustände
@@ -263,10 +263,11 @@ Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`,
 - **Ursache:** Der Rest-Teil nimmt den Feriensaldo am Monatsende; dieser zieht später geplante Ferien noch nicht ab.
 - **Vorschlag:** In der Grafik als Rest den Saldo am Jahresende (nach allen geplanten Ferien) verwenden; in der Tabelle bleibt "Feriensaldo am Monatsende".
 - **Priority:** Fix before deployment
+- **Status:** ✅ Behoben (2026-10-27) — neuer Wert `ferienSaldoJahresende` (Saldo nach allen bezogenen und geplanten Ferien des Jahres) als Rest in der Grafik; die Tabelle zeigt weiterhin den Feriensaldo am Monatsende. Test: bezogen + geplant + Rest = verfügbare Tage
 
 ### Summary
 - **Acceptance Criteria:** alle bis auf die Ferien-Grafik erfüllt
-- **Bugs Found:** 1 total (0 critical, 0 high, 1 medium, 0 low)
+- **Bugs Found:** 1 total (0 critical, 0 high, 1 medium, 0 low) — behoben 2026-10-27 (668 Tests grün)
 - **Security:** Pass
 - **Production Ready:** YES nach Regel (kein Critical/High) — Empfehlung: BUG-1 vor dem Deploy beheben
 

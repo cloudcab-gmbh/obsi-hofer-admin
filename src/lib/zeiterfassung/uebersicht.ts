@@ -40,6 +40,8 @@ export interface UebersichtWerte {
   feriensaldo: number | null;
   ferienBezogen: number;
   ferienGeplant: number;
+  /** QA BUG-1: Saldo am Jahresende nach allen bezogenen und geplanten Ferien (Rest in der Grafik). */
+  ferienSaldoJahresende: number | null;
   ausgetreten: boolean;
   warnungen: {
     keinArbeitsmodell: boolean;
@@ -89,6 +91,7 @@ export function berechneUebersichtWerte(
     feriensaldo: z.feriensaldoEnde,
     ferienBezogen: ferien.bezogen,
     ferienGeplant: ferien.geplant,
+    ferienSaldoJahresende: ferien.saldoEnde,
     ausgetreten: !!person.austrittAm && person.austrittAm < heute,
     warnungen: {
       keinArbeitsmodell: person.versionen.length === 0,

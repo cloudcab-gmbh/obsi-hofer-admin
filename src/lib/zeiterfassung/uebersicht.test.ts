@@ -57,6 +57,14 @@ describe("berechneUebersichtWerte", () => {
     const f = ferienJahr(person(), eintraege, 2026, "2026-11-20");
     expect([w.ferienBezogen, w.ferienGeplant]).toEqual([f.bezogen, f.geplant]);
     expect([w.ferienBezogen, w.ferienGeplant]).toEqual([1, 1]);
+    expect(w.ferienSaldoJahresende).toBe(f.saldoEnde);
+  });
+
+  it("adds up bezogen + geplant + Rest to the available days (QA BUG-1)", () => {
+    const p = person({ stichtag: "2025-12-31", ferienStartsaldo: 0, ferienanspruch: 25 });
+    const w = berechneUebersichtWerte(p, [eintrag("2026-03-02", "ferien"), eintrag("2026-12-21", "ferien")], "2026-10", "2026-10-27");
+    expect(w.ferienBezogen + w.ferienGeplant + w.ferienSaldoJahresende!).toBe(25);
+    expect(w.feriensaldo).toBe(24); // Tabelle: Saldo am Monatsende
   });
 
   it("counts calendar days with Krankheit and Komp. GLZ per month and year (a day once)", () => {

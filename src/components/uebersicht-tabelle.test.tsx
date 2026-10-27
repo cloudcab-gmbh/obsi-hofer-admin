@@ -19,6 +19,7 @@ function zeile(anzeige: string, extra: Partial<UebersichtZeile> = {}): Uebersich
     feriensaldo: 0,
     ferienBezogen: 0,
     ferienGeplant: 0,
+    ferienSaldoJahresende: 0,
     ausgetreten: false,
     warnungen: { keinArbeitsmodell: false, offeneEintraege: false, ferienNegativ: false, gleitzeitAusserhalb: false },
     ...extra,

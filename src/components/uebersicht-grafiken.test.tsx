@@ -31,6 +31,7 @@ function zeile(anzeige: string, extra: Partial<UebersichtZeile> = {}): Uebersich
     feriensaldo: 5,
     ferienBezogen: 10,
     ferienGeplant: 3,
+    ferienSaldoJahresende: 5,
     ausgetreten: false,
     warnungen: { keinArbeitsmodell: false, offeneEintraege: false, ferienNegativ: false, gleitzeitAusserhalb: false },
     ...extra,
@@ -42,7 +43,7 @@ describe("UebersichtGrafiken", () => {
     render(
       <UebersichtGrafiken
         jahr={2026}
-        zeilen={[zeile("Anna"), zeile("Cleo", { gleitzeitMinuten: null, feriensaldo: null })]}
+        zeilen={[zeile("Anna"), zeile("Cleo", { gleitzeitMinuten: null, feriensaldo: null, ferienSaldoJahresende: null })]}
       />
     );
     expect(screen.getByText("Gleitzeit")).toBeInTheDocument();
@@ -52,7 +53,7 @@ describe("UebersichtGrafiken", () => {
   });
 
   it("shows empty hints without values", () => {
-    render(<UebersichtGrafiken jahr={2026} zeilen={[zeile("Cleo", { gleitzeitMinuten: null, feriensaldo: null })]} />);
+    render(<UebersichtGrafiken jahr={2026} zeilen={[zeile("Cleo", { gleitzeitMinuten: null, feriensaldo: null, ferienSaldoJahresende: null })]} />);
     expect(screen.getByText("Keine Gleitzeit in diesem Monat.")).toBeInTheDocument();
     expect(screen.getByText("Keine Ferienwerte in diesem Jahr.")).toBeInTheDocument();
   });

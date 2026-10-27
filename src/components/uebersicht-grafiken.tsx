@@ -56,9 +56,12 @@ export function UebersichtGrafiken({ zeilen, jahr }: { zeilen: UebersichtZeile[]
     stunden: Math.round((z.gleitzeitMinuten! / 60) * 100) / 100,
   }));
 
-  const mitFerien = zeilen.filter((z) => z.feriensaldo !== null);
+  // QA BUG-1: Rest = Saldo am Jahresende, damit bezogen + geplant + Rest dem
+  // verfügbaren Total entspricht (der Saldo am Monatsende zählte später
+  // geplante Ferien doppelt).
+  const mitFerien = zeilen.filter((z) => z.ferienSaldoJahresende !== null);
   const ferienDaten = mitFerien.map((z) => {
-    const rest = z.feriensaldo!;
+    const rest = z.ferienSaldoJahresende!;
     return {
       name: kurzname(z.anzeige),
       vollerName: z.anzeige,
@@ -115,7 +118,7 @@ export function UebersichtGrafiken({ zeilen, jahr }: { zeilen: UebersichtZeile[]
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Ferien {jahr}</CardTitle>
-          <CardDescription>Tage: bezogen, geplant und verbleibender Saldo am Monatsende</CardDescription>
+          <CardDescription>Tage: bezogen, geplant und Rest am Jahresende</CardDescription>
         </CardHeader>
         <CardContent>
           {ferienDaten.length === 0 ? (
@@ -151,7 +154,7 @@ export function UebersichtGrafiken({ zeilen, jahr }: { zeilen: UebersichtZeile[]
             </ChartContainer>
           )}
           <Ausgelassen
-            namen={zeilen.filter((z) => z.feriensaldo === null).map((z) => z.anzeige)}
+            namen={zeilen.filter((z) => z.ferienSaldoJahresende === null).map((z) => z.anzeige)}
             grund="Ohne Feriensaldo"
           />
         </CardContent>
