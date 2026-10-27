@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,7 +35,12 @@ export function AbwesenheitLoeschen({
   const [fehler, setFehler] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  // Doppelklick-Schutz: isPending greift erst nach dem ersten Rendern (Nutzer-Test 2026-10-27).
+  const laeuft = useRef(false);
+
   function loeschen() {
+    if (laeuft.current) return;
+    laeuft.current = true;
     setFehler(null);
     startTransition(async () => {
       try {
@@ -48,6 +53,8 @@ export function AbwesenheitLoeschen({
         setOffen(false);
       } catch {
         setFehler("Das Löschen ist fehlgeschlagen. Bitte die Seite neu laden und erneut versuchen.");
+      } finally {
+        laeuft.current = false;
       }
     });
   }

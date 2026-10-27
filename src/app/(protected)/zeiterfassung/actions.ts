@@ -325,11 +325,31 @@ async function bereinigeDoppelteFerien(email: string, von: string, bis: string):
   for (const { eintragIds } of bestehendeFerienNachTag(await listZeiteintraege(email, von, bis)).values()) {
     for (const id of [...eintragIds].sort().slice(1)) {
       try {
-        await loescheZeiteintrag(id);
+        await loescheMitNachpruefung(id);
       } catch (error) {
         if (!(error instanceof DataverseError && error.category === "not_found")) throw error;
       }
     }
+  }
+}
+
+/**
+ * Löscht einen Zeiteintrag. Lehnt Dataverse ab, weil gleichzeitig schon eine
+ * andere Löschung desselben Eintrags läuft ("More than one concurrent Delete
+ * requests", Nutzer-Test 2026-10-27), zählt das als Erfolg, sofern der Eintrag
+ * danach weg ist.
+ */
+async function loescheMitNachpruefung(id: string): Promise<void> {
+  try {
+    await loescheZeiteintrag(id);
+  } catch (error) {
+    if (!(error instanceof DataverseError) || error.category === "not_found") throw error;
+    try {
+      await getZeiteintragFuerKorrektur(id);
+    } catch (nachher) {
+      if (nachher instanceof DataverseError && nachher.category === "not_found") return;
+    }
+    throw error;
   }
 }
 
@@ -361,7 +381,7 @@ export async function loescheAbwesenheitenAction(eintragIds: string[]): Promise<
       if (typ === "unbekannt") {
         return { success: false, message: "Einträge unbekannten Typs können im Tool nicht gelöscht werden." };
       }
-      await loescheZeiteintrag(id);
+      await loescheMitNachpruefung(id);
       geloescht++;
     }
   } catch (error) {

@@ -275,6 +275,7 @@ Wie PROJ-14 in einem Schritt gebaut (nur lesend, keine Dataverse-Änderungen).
 - Neben jedem Kommen–Gehen-Paar ein Löschsymbol (×), bei ganztägigen Einträgen "löschen" — beide mit Bestätigungsdialog (Komponente `abwesenheit-loeschen.tsx`, erweitert um Symbol-Auslöser)
 - `loescheAbwesenheitenAction` löscht jetzt alle bekannten Typen (bisher nur Ferien/Frei); der Typ wird vor dem Löschen neu gelesen, unbekannte Typen nie
 - Ob der Power-Automate-Flow nach dem Löschen die Totals der übrigen Einträge des Tages neu rechnet, ist offen (sonst Abgleich-Hinweis)
+- Nutzer-Test: Fehlermeldung "More than one concurrent Delete requests" — der Eintrag war gelöscht, eine zweite gleichzeitige Löschung (vermutlich Doppelklick) wurde abgelehnt. Behoben: Doppelklick-Schutz im Dialog; scheitert das Löschen und ist der Eintrag danach weg, gilt es als Erfolg
 
 **Tests:** 46 neue Tests (Feiertage, Tagesauswertung, Zeitnachweis inkl. Jahreswechsel, Datenschicht, Ansicht, Auswahl); gesamt 542 grün, `tsc` und ESLint sauber; mit dem Nachtrag 15 weitere (557 grün); mit dem Erfassen 17 weitere (575 grün).
 

@@ -304,6 +304,22 @@ describe("loescheAbwesenheitenAction (PROJ-15)", () => {
     expect(loescheZeiteintrag).toHaveBeenCalledWith(ID);
   });
 
+  it("treats a concurrent delete of the same entry as success when it is gone afterwards", async () => {
+    getZeiteintragFuerKorrektur
+      .mockResolvedValueOnce({ typ: "arbeitszeit" })
+      .mockRejectedValueOnce(new DataverseError("not_found", "weg"));
+    loescheZeiteintrag.mockRejectedValueOnce(new DataverseError("validation_error", "More than one concurrent Delete requests detected"));
+
+    expect(await loescheAbwesenheitenAction([ID])).toEqual({ success: true, geloescht: 1 });
+  });
+
+  it("reports a delete error when the entry still exists", async () => {
+    getZeiteintragFuerKorrektur.mockResolvedValue({ typ: "arbeitszeit" });
+    loescheZeiteintrag.mockRejectedValueOnce(new DataverseError("validation_error", "abgelehnt"));
+
+    expect((await loescheAbwesenheitenAction([ID])).success).toBe(false);
+  });
+
   it("never deletes entries of an unknown type", async () => {
     getZeiteintragFuerKorrektur.mockResolvedValue({ typ: "unbekannt" });
     expect((await loescheAbwesenheitenAction([ID])).success).toBe(false);
