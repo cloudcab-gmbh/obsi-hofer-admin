@@ -7,6 +7,7 @@ import type { Tageszeile, Zeitnachweis } from "@/lib/zeiterfassung/zeitnachweis"
 import { formatKalenderdatum, formatMonat, wochentagName } from "@/lib/zeiterfassung/datum";
 import { formatGleitzeitTage, formatMinuten, formatMinutenMitVorzeichen } from "@/lib/zeiterfassung/format";
 import { cn } from "@/lib/utils";
+import { GehenNachtragen } from "@/components/gehen-nachtragen";
 
 function Hinweis({ warnung = false, children }: { warnung?: boolean; children: React.ReactNode }) {
   const Icon = warnung ? AlertTriangle : Info;
@@ -105,7 +106,15 @@ export function ZeitnachweisAnsicht({
         {z.offeneTage > 0 && (
           <Hinweis warnung>
             {z.offeneTage === 1 ? "An 1 Tag fehlt" : `An ${z.offeneTage} Tagen fehlt`} ein „Gehen“ — diese Einträge zählen
-            nicht ins Ist.
+            nicht ins Ist. Zum Nachtragen anklicken:{" "}
+            {z.offeneEintraege.map((o, i) => (
+              <span key={o.eintragId}>
+                {i > 0 && ", "}
+                <GehenNachtragen eintragId={o.eintragId} datum={o.datum} kommen={o.kommen} personName={personName}>
+                  {wochentagName(o.datum).slice(0, 2)} {formatKalenderdatum(o.datum).slice(0, 6)} {o.kommen}
+                </GehenNachtragen>
+              </span>
+            ))}
           </Hinweis>
         )}
         {z.flowMonatsAbweichung && z.flowMonatstotal !== null && (
@@ -174,10 +183,18 @@ export function ZeitnachweisAnsicht({
                         {t.auswertung.paare.length === 0
                           ? ""
                           : t.auswertung.paare.map((p, i) => (
-                              <span key={i} className={cn(p.unplausibel && "text-destructive line-through")}>
+                              <span key={p.eintragId} className={cn(p.unplausibel && "text-destructive line-through")}>
                                 {i > 0 && ", "}
                                 {p.kommen}–{p.gehen ?? "…"}
                                 {p.folgetag && " (+1)"}
+                                {p.gehen === null && t.offenWarnung && (
+                                  <>
+                                    {" "}
+                                    <GehenNachtragen eintragId={p.eintragId} datum={t.datum} kommen={p.kommen} personName={personName}>
+                                      nachtragen
+                                    </GehenNachtragen>
+                                  </>
+                                )}
                               </span>
                             ))}
                       </TableCell>

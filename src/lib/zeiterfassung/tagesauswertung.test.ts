@@ -4,6 +4,7 @@ import { werteTagAus, type Zeiteintrag } from "./tagesauswertung";
 // November 2026: Schweizer Zeit = UTC + 1 h.
 function eintrag(kommen: string | null, gehen: string | null, extra: Partial<Zeiteintrag> = {}): Zeiteintrag {
   return {
+    id: `e-${kommen}-${gehen}`,
     datum: "2026-11-02",
     typ: "arbeitszeit",
     kommen: kommen && `2026-11-02T${kommen}:00Z`,

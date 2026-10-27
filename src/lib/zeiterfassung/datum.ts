@@ -106,6 +106,24 @@ const uhrzeitFormat = new Intl.DateTimeFormat("de-CH", {
   hourCycle: "h23",
 });
 
+const UHRZEIT_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+export function istGueltigeUhrzeit(uhrzeit: string): boolean {
+  return UHRZEIT_PATTERN.test(uhrzeit);
+}
+
+/** Kalenderdatum + Uhrzeit ("HH:MM") in Schweizer Zeit → UTC-Zeitpunkt für Dataverse. */
+export function alsSchweizerZeitpunkt(datum: string, uhrzeit: string): string {
+  const u = UHRZEIT_PATTERN.exec(uhrzeit);
+  if (!u) throw new Error(`Ungültige Uhrzeit: "${uhrzeit}"`);
+  const mitternacht = new Date(alsSchweizerMitternacht(datum)).getTime();
+  // Lokale Zeit ab Mitternacht, danach Offset zum Zielzeitpunkt nachkorrigieren
+  // (an den Tagen der Zeitumstellung ändert er sich im Lauf des Tages).
+  const geschaetzt = mitternacht + (+u[1] * 60 + +u[2]) * 60000;
+  const versatz = schweizerTeile(new Date(geschaetzt)).offset - schweizerTeile(new Date(mitternacht)).offset;
+  return new Date(geschaetzt - versatz).toISOString().replace(".000Z", "Z");
+}
+
 /** Dataverse-Zeitpunkt → Uhrzeit in Schweizer Zeit ("HH:MM"). */
 export function zuSchweizerUhrzeit(zeitpunkt: string): string {
   return uhrzeitFormat.format(new Date(zeitpunkt));

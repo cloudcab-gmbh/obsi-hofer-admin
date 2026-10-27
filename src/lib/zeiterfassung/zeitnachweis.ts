@@ -70,6 +70,8 @@ export interface Zeitnachweis {
   /** Tage ohne Arbeitsmodell (Person hat gar keine Version). */
   ohneArbeitsmodell: boolean;
   offeneTage: number;
+  /** Einträge ohne Gehen an vergangenen Tagen (zum Nachtragen). */
+  offeneEintraege: { eintragId: string; datum: string; kommen: string }[];
   /** Höchstes Monatstotal des Flows und eigene Summe der Arbeitszeit, für den Abgleich. */
   flowMonatstotal: number | null;
   arbeitszeitMonatMinuten: number;
@@ -195,6 +197,9 @@ export function berechneZeitnachweis(e: ZeitnachweisEingabe): Zeitnachweis {
     keineEintraege: !e.eintraege.some((x) => x.datum.startsWith(e.monat)),
     ohneArbeitsmodell: e.versionen.length === 0,
     offeneTage: tage.filter((t) => t.offenWarnung).length,
+    offeneEintraege: tage
+      .filter((t) => t.offenWarnung)
+      .flatMap((t) => t.auswertung.paare.filter((p) => p.gehen === null).map((p) => ({ eintragId: p.eintragId, datum: t.datum, kommen: p.kommen }))),
     flowMonatstotal,
     arbeitszeitMonatMinuten: arbeitszeitMonat,
     flowMonatsAbweichung: flowMonatstotal !== null && Math.abs(flowMonatstotal - arbeitszeitMonat) > 1,

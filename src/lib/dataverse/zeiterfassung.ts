@@ -1,5 +1,5 @@
 import { dataverseFetch } from "./client";
-import { createRecord, deleteRecord, listAllRecords, listRecords, updateRecord, upsertRecordByKey } from "./records";
+import { createRecord, deleteRecord, getRecord, listAllRecords, listRecords, updateRecord, upsertRecordByKey } from "./records";
 import { alsSchweizerMitternacht, folgetag, formatKalenderdatum, zuSchweizerDatum } from "@/lib/zeiterfassung/datum";
 import type { Arbeitstage, ArbeitsmodellVersion } from "@/lib/zeiterfassung/soll";
 import type { Eintragstyp, Zeiteintrag } from "@/lib/zeiterfassung/tagesauswertung";
@@ -139,6 +139,7 @@ export async function ersterZeiteintrag(email: string): Promise<string | null> {
 }
 
 const ZEITEINTRAG_SPALTEN = [
+  "bmvcc_timetrackingentryid",
   "bmvcc_activitydate",
   "bmvcc_activitytype",
   "bmvcc_kommen",
@@ -167,6 +168,7 @@ function zuZeiteintrag(r: Record<string, unknown>): Zeiteintrag | null {
   const datum = zuSchweizerDatum(r.bmvcc_activitydate as string | null);
   if (!datum) return null;
   return {
+    id: r.bmvcc_timetrackingentryid as string,
     datum,
     typ: EINTRAGSTYPEN[r.bmvcc_activitytype as number] ?? "unbekannt",
     // Ältere Einträge haben nur Arbeitsbeginn/Checkout (Spec PROJ-13, Open Questions).
@@ -192,6 +194,34 @@ export async function listZeiteintraege(email: string, von: string, bis: string)
     orderBy: "bmvcc_activitydate asc",
   });
   return records.map(zuZeiteintrag).filter((e): e is Zeiteintrag => e !== null);
+}
+
+export interface OffenerEintrag {
+  email: string;
+  typ: Eintragstyp;
+  kommen: string | null;
+  gehen: string | null;
+}
+
+/** Einzelner Zeiteintrag für das Nachtragen von "Gehen" (PROJ-13). */
+export async function getZeiteintragFuerKorrektur(id: string): Promise<OffenerEintrag> {
+  const r = await getRecord<Record<string, unknown>>(ZEITEINTRAEGE_ENTITY, id, {
+    select: ["bmvcc_useremail", "bmvcc_activitytype", "bmvcc_kommen", "bmvcc_activitystarttime", "bmvcc_gehen", "bmvcc_checkouttime"],
+  });
+  return {
+    email: normalisiereEmail(String(r.bmvcc_useremail ?? "")),
+    typ: EINTRAGSTYPEN[r.bmvcc_activitytype as number] ?? "unbekannt",
+    kommen: textOderNull(r.bmvcc_kommen) ?? textOderNull(r.bmvcc_activitystarttime),
+    gehen: textOderNull(r.bmvcc_gehen) ?? textOderNull(r.bmvcc_checkouttime),
+  };
+}
+
+/**
+ * Trägt "Gehen" nach. Die Erfassungs-App setzt beim Gehen "Gehen" und
+ * "Checkout" gleichzeitig — hier ebenso, damit beide Felder übereinstimmen.
+ */
+export async function setzeGehen(id: string, gehen: string): Promise<void> {
+  await updateRecord(ZEITEINTRAEGE_ENTITY, id, { bmvcc_gehen: gehen, bmvcc_checkouttime: gehen });
 }
 
 export async function listPersonen(): Promise<ZeiterfassungPerson[]> {

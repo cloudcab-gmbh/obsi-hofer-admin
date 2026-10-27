@@ -6,6 +6,8 @@ import { zuSchweizerDatum, zuSchweizerUhrzeit } from "./datum";
 export type Eintragstyp = "arbeitszeit" | "komp-glz" | "krankheit" | "unbekannt";
 
 export interface Zeiteintrag {
+  /** Dataverse-ID, für das Nachtragen von "Gehen". */
+  id: string;
   /** Aktivitätsdatum in Schweizer Zeit ("YYYY-MM-DD") — bestimmt den Tag. */
   datum: string;
   typ: Eintragstyp;
@@ -21,6 +23,7 @@ export interface Zeiteintrag {
 }
 
 export interface Zeitpaar {
+  eintragId: string;
   kommen: string;
   /** "HH:MM"; `null` = offen. */
   gehen: string | null;
@@ -89,6 +92,7 @@ export function werteTagAus(eintraege: readonly Zeiteintrag[]): Tagesauswertung 
     else if (istUnplausibel) unplausibel = true;
     else intervalle.push([von, bis]);
     paare.push({
+      eintragId: e.id,
       kommen: zuSchweizerUhrzeit(e.kommen!),
       gehen: e.gehen ? zuSchweizerUhrzeit(e.gehen) : null,
       folgetag: !!e.gehen && (zuSchweizerDatum(e.gehen) ?? "") > (zuSchweizerDatum(e.kommen) ?? ""),

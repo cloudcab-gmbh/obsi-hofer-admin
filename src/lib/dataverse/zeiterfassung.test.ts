@@ -168,6 +168,7 @@ describe("listZeiteintraege", () => {
   it("filters by email and Swiss date range and maps types, fallback fields and totals", async () => {
     listAllRecords.mockResolvedValue([
       {
+        bmvcc_timetrackingentryid: "e1",
         bmvcc_activitydate: "2026-11-01T23:00:00Z",
         bmvcc_activitytype: 0,
         bmvcc_kommen: null,
@@ -191,6 +192,7 @@ describe("listZeiteintraege", () => {
     );
     expect(eintraege).toHaveLength(3);
     expect(eintraege[0]).toEqual({
+      id: "e1",
       datum: "2026-11-02",
       typ: "arbeitszeit",
       kommen: "2026-11-02T07:00:00Z",

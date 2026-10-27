@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   alsSchweizerMitternacht,
+  alsSchweizerZeitpunkt,
+  istGueltigeUhrzeit,
+  zuSchweizerUhrzeit,
   formatKalenderdatum,
   heuteSchweiz,
   istGueltigesDatum,
@@ -72,5 +75,28 @@ describe("helpers", () => {
   it("formats dates Swiss style", () => {
     expect(formatKalenderdatum("2026-11-01")).toBe("01.11.2026");
     expect(formatKalenderdatum(null)).toBe("—");
+  });
+});
+
+describe("alsSchweizerZeitpunkt", () => {
+  it("converts Swiss wall-clock time to UTC in winter and summer", () => {
+    expect(alsSchweizerZeitpunkt("2026-11-02", "17:15")).toBe("2026-11-02T16:15:00Z");
+    expect(alsSchweizerZeitpunkt("2026-07-01", "17:15")).toBe("2026-07-01T15:15:00Z");
+  });
+
+  it("handles the clock change during the day", () => {
+    expect(alsSchweizerZeitpunkt("2026-03-29", "01:00")).toBe("2026-03-29T00:00:00Z");
+    expect(alsSchweizerZeitpunkt("2026-03-29", "12:00")).toBe("2026-03-29T10:00:00Z");
+    expect(alsSchweizerZeitpunkt("2026-10-25", "12:00")).toBe("2026-10-25T11:00:00Z");
+  });
+
+  it("round-trips with zuSchweizerUhrzeit", () => {
+    expect(zuSchweizerUhrzeit(alsSchweizerZeitpunkt("2026-08-12", "07:05"))).toBe("07:05");
+  });
+
+  it("rejects invalid times", () => {
+    expect(istGueltigeUhrzeit("24:00")).toBe(false);
+    expect(istGueltigeUhrzeit("7:30")).toBe(false);
+    expect(() => alsSchweizerZeitpunkt("2026-08-12", "99:00")).toThrow();
   });
 });

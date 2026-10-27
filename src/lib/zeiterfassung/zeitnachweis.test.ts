@@ -10,6 +10,7 @@ const VOLLZEIT: ArbeitsmodellVersion = { id: "v1", gueltigAb: "2026-01-01", pens
 function arbeit(datum: string, von: number, bis: number, extra: Partial<Zeiteintrag> = {}): Zeiteintrag {
   const zeit = (h: number) => `${datum}T${String(h - 1).padStart(2, "0")}:00:00Z`;
   return {
+    id: `${datum}-${von}`,
     datum,
     typ: "arbeitszeit",
     kommen: zeit(von),

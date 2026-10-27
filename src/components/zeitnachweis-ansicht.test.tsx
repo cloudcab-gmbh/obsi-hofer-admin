@@ -1,11 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("@/app/(protected)/zeiterfassung/actions", () => ({ trageGehenNachAction: vi.fn() }));
 import { ZeitnachweisAnsicht } from "./zeitnachweis-ansicht";
 import { berechneZeitnachweis, type ZeitnachweisEingabe } from "@/lib/zeiterfassung/zeitnachweis";
 import type { Zeiteintrag } from "@/lib/zeiterfassung/tagesauswertung";
 
 function arbeit(datum: string, kommen: string, gehen: string | null, extra: Partial<Zeiteintrag> = {}): Zeiteintrag {
   return {
+    id: `${datum}-${kommen}`,
     datum,
     typ: "arbeitszeit",
     kommen: `${datum}T${kommen}:00Z`,
@@ -83,6 +87,9 @@ describe("ZeitnachweisAnsicht", () => {
 
     expect(screen.getByText(/An 1 Tag fehlt ein „Gehen“/)).toBeInTheDocument();
     expect(zeile("02.11.")).toHaveTextContent("offen – Gehen fehlt");
+    // Klickbar: im Hinweis (Datum + Kommen) und in der Tageszeile
+    expect(screen.getByRole("button", { name: "Mo 02.11. 07:30" })).toBeInTheDocument();
+    expect(within(zeile("02.11.")).getByRole("button", { name: "nachtragen" })).toBeInTheDocument();
   });
 
   it("links to the person when there is no Arbeitsmodell", () => {
