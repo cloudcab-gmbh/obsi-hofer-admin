@@ -1,103 +1,115 @@
+import { redirect } from "next/navigation";
+import { AlertTriangle } from "lucide-react";
 import { aktuellerBenutzerIstFreigeber } from "@/lib/auth/freigeber";
 import {
   listArbeitsmodelle,
   listPersonen,
   listZeiteintraege,
   listZeiterfassungEmails,
-  normalisiereEmail,
 } from "@/lib/dataverse/zeiterfassung";
 import { bauePersonenUebersicht } from "@/lib/zeiterfassung/personen-uebersicht";
 import { heuteSchweiz, istGueltigerMonat, tageDesMonats } from "@/lib/zeiterfassung/datum";
-import { berechneZeitnachweis, ladebeginn, type Zeitnachweis } from "@/lib/zeiterfassung/zeitnachweis";
-import { getZeitnachweisAuswahl } from "@/lib/zeiterfassung/auswahl-session";
-import { ZeitnachweisAuswahl } from "@/components/zeitnachweis-auswahl";
-import { ZeitnachweisAnsicht } from "@/components/zeitnachweis-ansicht";
-import { personHref } from "@/lib/zeiterfassung/links";
+import { berechneUebersichtWerte, GLEITZEIT_SCHWELLE_MINUTEN, uebersichtLadebeginn } from "@/lib/zeiterfassung/uebersicht";
+import { MonatsAuswahl } from "@/components/monats-auswahl";
+import { UebersichtTabelle, type UebersichtZeile } from "@/components/uebersicht-tabelle";
+import { UebersichtGrafiken } from "@/components/uebersicht-grafiken";
 import { NUR_FREIGEBER_HINWEIS, ZeiterfassungHinweis } from "@/components/zeiterfassung-hinweis";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const TITEL = "Zeiterfassung · Zeitnachweis";
+const TITEL = "Zeiterfassung · Übersicht";
 
 function einzeln(wert: string | string[] | undefined): string | null {
   return typeof wert === "string" && wert ? wert : null;
 }
 
-export default async function ZeitnachweisPage({
+function anzahlPersonen(n: number, text: string): string {
+  return `${n} ${n === 1 ? "Person" : "Personen"} ${text}`;
+}
+
+export default async function UebersichtPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  // PROJ-13: Zeitdaten sind vertraulich — nur Freigeber (serverseitig).
+  const params = await searchParams;
+  // Alte Adressen des Zeitnachweises (vor PROJ-17 unter /zeiterfassung) leiten weiter.
+  if (einzeln(params.person)) {
+    redirect(`/zeiterfassung/zeitnachweis?${new URLSearchParams(params as Record<string, string>)}`);
+  }
+  // PROJ-17: Personendaten aller Mitarbeitenden — nur Freigeber (serverseitig).
   if (!(await aktuellerBenutzerIstFreigeber())) {
     return <ZeiterfassungHinweis titel={TITEL}>{NUR_FREIGEBER_HINWEIS}</ZeiterfassungHinweis>;
   }
 
-  const params = await searchParams;
-  const gemerkt = await getZeitnachweisAuswahl();
   const heute = heuteSchweiz();
-  const angefragterMonat = einzeln(params.monat);
-  const monat =
-    angefragterMonat && istGueltigerMonat(angefragterMonat) ? angefragterMonat : (gemerkt.monat ?? heute.slice(0, 7));
-  const angefragtePerson = einzeln(params.person) ?? gemerkt.person;
+  const angefragt = einzeln(params.monat);
+  const monat = angefragt && istGueltigerMonat(angefragt) ? angefragt : heute.slice(0, 7);
+  const jahr = Number(monat.slice(0, 4));
 
-  let fehler: string | null = null;
-  let optionen: { id: string; name: string }[] = [];
-  let zeitnachweis: Zeitnachweis | null = null;
-  let person: { email: string; anzeige: string } | null = null;
+  let zeilen: UebersichtZeile[];
   try {
-    const [emails, personen] = await Promise.all([listZeiterfassungEmails(), listPersonen()]);
-    // Alle Personen aus PROJ-14 ausser "nicht auswerten".
+    const [emails, personen, versionen] = await Promise.all([listZeiterfassungEmails(), listPersonen(), listArbeitsmodelle()]);
     const uebersicht = bauePersonenUebersicht(emails, personen, [], heute).filter((p) => !p.nichtAuswerten);
-    optionen = uebersicht.map((p) => ({ id: p.email, name: p.anzeige }));
-
-    const email = angefragtePerson ? normalisiereEmail(angefragtePerson) : null;
-    const gewaehlt = uebersicht.find((p) => p.email === email);
-    if (gewaehlt) {
-      person = { email: gewaehlt.email, anzeige: gewaehlt.anzeige };
-      const gespeichert = personen.find((p) => p.email === gewaehlt.email) ?? null;
-      const versionen = gespeichert ? await listArbeitsmodelle(gespeichert.id) : [];
-      const daten = {
-        versionen,
-        austrittAm: gespeichert?.austrittAm ?? null,
-        startsaldoStunden: gespeichert?.startsaldo ?? null,
-        stichtag: gespeichert?.stichtag ?? null,
-        ferienanspruch: gespeichert?.ferienanspruch ?? null,
-        ferienStartsaldo: gespeichert?.ferienStartsaldo ?? null,
-      };
-      const eintraege = await listZeiteintraege(gewaehlt.email, ladebeginn(monat, daten), tageDesMonats(monat).at(-1)!);
-      zeitnachweis = berechneZeitnachweis({ ...daten, monat, heute, eintraege });
-    }
+    const monatsende = tageDesMonats(monat).at(-1)!;
+    zeilen = await Promise.all(
+      uebersicht.map(async (p) => {
+        const gespeichert = personen.find((x) => x.email === p.email);
+        const person = {
+          versionen: gespeichert ? versionen.filter((v) => v.personId === gespeichert.id) : [],
+          austrittAm: gespeichert?.austrittAm ?? null,
+          startsaldoStunden: gespeichert?.startsaldo ?? null,
+          stichtag: gespeichert?.stichtag ?? null,
+          ferienanspruch: gespeichert?.ferienanspruch ?? null,
+          ferienStartsaldo: gespeichert?.ferienStartsaldo ?? null,
+        };
+        const eintraege = await listZeiteintraege(p.email, uebersichtLadebeginn(monat, person), monatsende);
+        return { email: p.email, anzeige: p.anzeige, ...berechneUebersichtWerte(person, eintraege, monat, heute) };
+      })
+    );
   } catch {
-    // Keine Zeitdaten in der Meldung oder im Log (Technical Requirements).
-    fehler = "Der Zeitnachweis konnte nicht geladen werden. Bitte später erneut versuchen.";
+    // Keine Personendaten in Meldung oder Log.
+    return <ZeiterfassungHinweis titel={TITEL}>Die Übersicht konnte nicht geladen werden.</ZeiterfassungHinweis>;
   }
 
-  // Volle Höhe: die Tabelle des Zeitnachweises nimmt den Rest ein und scrollt selbst.
+  const warnungen = [
+    [zeilen.filter((z) => z.warnungen.keinArbeitsmodell).length, "ohne Arbeitsmodell"],
+    [zeilen.filter((z) => z.warnungen.offeneEintraege).length, "mit offenen Einträgen (Gehen fehlt)"],
+    [zeilen.filter((z) => z.warnungen.ferienNegativ).length, "mit negativem Feriensaldo"],
+    [zeilen.filter((z) => z.warnungen.gleitzeitAusserhalb).length, `mit Gleitzeit über ±${GLEITZEIT_SCHWELLE_MINUTEN / 60} h`],
+  ] as const;
+  const aktiveWarnungen = warnungen.filter(([n]) => n > 0);
+
   return (
-    <main className="mx-auto flex h-full max-w-6xl flex-col gap-6 px-4 py-6">
+    <main className="mx-auto max-w-6xl space-y-6 px-4 py-6">
       <h1 className="text-xl font-semibold">{TITEL}</h1>
-      <ZeitnachweisAuswahl personen={optionen} person={person?.email ?? null} monat={monat} />
-      {fehler ? (
-        <Card>
-          <CardContent role="alert" className="py-10 text-center text-sm text-destructive">
-            {fehler}
-          </CardContent>
-        </Card>
-      ) : zeitnachweis && person ? (
-        <ZeitnachweisAnsicht
-          zeitnachweis={zeitnachweis}
-          personName={person.anzeige}
-          personEmail={person.email}
-          personHref={personHref(person.email)}
-        />
-      ) : (
+      <MonatsAuswahl monat={monat} />
+
+      {zeilen.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            {optionen.length === 0
-              ? "Es gibt noch keine Zeiteinträge."
-              : "Bitte eine Person wählen, um ihren Zeitnachweis zu sehen."}
+            Es gibt noch keine Personen in der Zeiterfassung.
           </CardContent>
         </Card>
+      ) : (
+        <>
+          {aktiveWarnungen.length > 0 && (
+            <div role="status" className="flex flex-wrap gap-x-6 gap-y-1 rounded-md border border-status-warning px-3 py-2 text-sm">
+              <AlertTriangle className="h-4 w-4 shrink-0 self-center text-status-warning" aria-hidden />
+              {aktiveWarnungen.map(([n, text]) => (
+                <span key={text}>{anzahlPersonen(n, text)}</span>
+              ))}
+            </div>
+          )}
+          <UebersichtGrafiken zeilen={zeilen} jahr={jahr} />
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Alle Mitarbeitenden</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <UebersichtTabelle zeilen={zeilen} monat={monat} jahr={jahr} />
+            </CardContent>
+          </Card>
+        </>
       )}
     </main>
   );

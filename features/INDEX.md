@@ -31,7 +31,7 @@
 | PROJ-14 | Arbeitsmodell pro Person (Pensum, Arbeitstage, Gleitzeit-Startsaldo) | Approved | [Spec](../features/PROJ-14-arbeitsmodell-pro-person.md) | 2026-10-26 |
 | PROJ-15 | Ferien erfassen und Feriensaldo | Approved | [Spec](../features/PROJ-15-ferien-erfassen-und-feriensaldo.md) | 2026-10-26 |
 | PROJ-16 | Zeitnachweis als PDF | Roadmap | — | 2026-10-26 |
-| PROJ-17 | Zeiterfassung-Übersicht (Dashboard) | Architected | [Spec](../features/PROJ-17-zeiterfassung-uebersicht.md) | 2026-10-27 |
+| PROJ-17 | Zeiterfassung-Übersicht (Dashboard) | In Progress | [Spec](../features/PROJ-17-zeiterfassung-uebersicht.md) | 2026-10-27 |
 
 <!-- Add features above this line -->
 

@@ -5,12 +5,14 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const SEITEN = [
-  { href: "/zeiterfassung", label: "Zeitnachweis" },
+  // PROJ-17: Übersicht ist die Startseite der Zeiterfassung.
+  { href: "/zeiterfassung", label: "Übersicht" },
+  { href: "/zeiterfassung/zeitnachweis", label: "Zeitnachweis" },
   { href: "/zeiterfassung/personen", label: "Personen" },
   { href: "/zeiterfassung/ferien", label: "Ferien" },
 ];
 
-/** Unterseiten der Zeiterfassung (PROJ-13/14/15). */
+/** Unterseiten der Zeiterfassung (PROJ-13/14/15/17). */
 export function ZeiterfassungNav() {
   const pfad = usePathname();
   return (

@@ -1,6 +1,6 @@
 # PROJ-17: Zeiterfassung-Übersicht (Dashboard)
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-10-27
 **Last Updated:** 2026-10-27
 
@@ -185,6 +185,31 @@ Zeitnachweis zieht um: /zeiterfassung/zeitnachweis (Adresse mit Person und Monat
 
 ### F) Vorgehen
 Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`, kein Deploy bis zur Freigabe.
+
+## Implementation Notes
+
+### Umsetzung Frontend + Backend (2026-10-27, Branch `zeiterfassung`, nur lokal)
+- **Rechnung** `src/lib/zeiterfassung/uebersicht.ts`:
+  - `berechneUebersichtWerte` ruft pro Person `berechneZeitnachweis` (PROJ-13) und `ferienJahr` (PROJ-15) auf.
+  - Daraus kommen Gleitzeit und Veränderung, Ist/Soll/Abweichung, offene Einträge, Krankheits-/Komp.-GLZ-Kalendertage Monat/Jahr, Feriensaldo am Monatsende, bezogen/geplant im Jahr, "ausgetreten" und die Warnungen.
+  - Schwelle `GLEITZEIT_SCHWELLE_MINUTEN` = 40 h. `uebersichtLadebeginn` lädt ab dem früheren von Beginn und 1. Januar.
+- **Seite** `/zeiterfassung` = Übersicht:
+  - Monatsauswahl (`monats-auswahl.tsx`, `?monat=`) und Warnungs-Zusammenfassung;
+  - Grafiken (`uebersicht-grafiken.tsx`) und sortierbare Tabelle (`uebersicht-tabelle.tsx`, Link → Zeitnachweis des Monats).
+  - Einträge werden pro Person parallel geladen.
+- **Zeitnachweis umgezogen** nach `/zeiterfassung/zeitnachweis`:
+  - Alte Adressen `/zeiterfassung?person=…` leiten weiter.
+  - `zeitnachweisHref` angepasst; Unterseiten-Leiste "Übersicht · Zeitnachweis · Personen · Ferien".
+  - Alle Aktionen laden die ganze Zeiterfassung neu (`revalidatePath(…, "layout")`).
+- **Grafiken:** shadcn `chart` installiert (Recharts 2.15), horizontale Balken.
+  - Gleitzeit: Plus Blau / Minus Rot, Nulllinie.
+  - Ferien: gestapelt bezogen / geplant / Rest als Blau-Stufen, negativer Rest rot links der Nulllinie; 2px Fuge zwischen den Segmenten.
+  - Tooltips mit vollem Namen und Wert. Personen ohne Wert sind unter der Grafik genannt.
+  - Farben mit dem dataviz-Validator geprüft, hell auf Weiss und dunkel auf `#1d2129`, alle Checks bestanden.
+- **Probelauf** gegen die Testdaten (2026-10-27, nur Zählungen): 5 Personen, drei Monate in 0.7 s, Werte und Warnungen plausibel.
+- **`npm audit`:** 4 bekannte Schwachstellen (uuid, zod u.a.) bestanden schon vorher, nicht durch Recharts.
+
+**Tests:** 11 neue Tests (Zusammenstellung inkl. Übereinstimmung mit Zeitnachweis/Ferienstand, Sortierung, Link, Warnungen, Grafiken, E2E); gesamt 631 Unit- und 38 E2E-Tests grün, `tsc` und ESLint sauber.
 
 ## QA Test Results
 _To be added by /qa_

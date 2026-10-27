@@ -72,7 +72,7 @@ describe("trageGehenNachAction", () => {
     expect(await trageGehenNachAction(ID, "17:15", false)).toEqual({ success: true });
 
     expect(setzeGehen).toHaveBeenCalledWith(ID, "2026-08-12T15:15:00Z");
-    expect(revalidatePath).toHaveBeenCalledWith("/zeiterfassung");
+    expect(revalidatePath).toHaveBeenCalledWith("/zeiterfassung", "layout");
   });
 
   it("supports Gehen after midnight", async () => {
@@ -151,7 +151,7 @@ describe("erfasseTagAction", () => {
       mittagessen: false,
       bemerkung: null,
     }));
-    expect(revalidatePath).toHaveBeenCalledWith("/zeiterfassung");
+    expect(revalidatePath).toHaveBeenCalledWith("/zeiterfassung", "layout");
   });
 
   it("creates a whole-day Krankheit starting at midnight without Gehen", async () => {

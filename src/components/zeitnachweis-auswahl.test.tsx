@@ -20,11 +20,11 @@ describe("ZeitnachweisAuswahl", () => {
     render(<ZeitnachweisAuswahl personen={[{ id: "anna@x.ch", name: "Anna" }]} person="anna@x.ch" monat="2026-01" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Vormonat" }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/zeiterfassung?person=anna%40x.ch&monat=2025-12"));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/zeiterfassung/zeitnachweis?person=anna%40x.ch&monat=2025-12"));
     expect(merkeZeitnachweisAuswahl).toHaveBeenCalledWith("anna@x.ch", "2025-12");
 
     fireEvent.click(screen.getByRole("button", { name: "Folgemonat" }));
-    await waitFor(() => expect(push).toHaveBeenLastCalledWith("/zeiterfassung?person=anna%40x.ch&monat=2026-02"));
+    await waitFor(() => expect(push).toHaveBeenLastCalledWith("/zeiterfassung/zeitnachweis?person=anna%40x.ch&monat=2026-02"));
   });
 
   it("shows the chosen person and month", () => {

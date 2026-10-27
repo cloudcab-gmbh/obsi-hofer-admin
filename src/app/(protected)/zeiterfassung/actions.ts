@@ -81,7 +81,7 @@ export async function trageGehenNachAction(
     return { success: false, message };
   }
 
-  revalidatePath("/zeiterfassung");
+  revalidatePath("/zeiterfassung", "layout");
   return { success: true };
 }
 
@@ -192,7 +192,7 @@ export async function erfasseTagAction(eingabe: TagErfassenEingabe): Promise<Tag
     }
   } catch (error) {
     const grund = error instanceof DataverseError ? error.message : "Unbekannter Fehler.";
-    revalidatePath("/zeiterfassung");
+    revalidatePath("/zeiterfassung", "layout");
     return {
       success: false,
       message:
@@ -202,7 +202,7 @@ export async function erfasseTagAction(eingabe: TagErfassenEingabe): Promise<Tag
     };
   }
 
-  revalidatePath("/zeiterfassung");
+  revalidatePath("/zeiterfassung", "layout");
   return { success: true, angelegt };
 }
 
