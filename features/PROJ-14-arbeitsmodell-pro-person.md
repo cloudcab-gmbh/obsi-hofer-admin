@@ -1,6 +1,6 @@
 # PROJ-14: Arbeitsmodell pro Person
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-10-26
 **Last Updated:** 2026-10-27
 
@@ -268,7 +268,105 @@ Wie bei PROJ-11 in einem Schritt gebaut (die Oberfläche braucht die Dataverse-A
 **Tests:** 68 neue Unit- und Komponententests (Rechenregel, Datum inkl. Zeitumstellung, Datenschicht, Aktionen inkl. Bearbeiter-Sperre, Liste, Dialog); gesamt 496 grün, `tsc` und ESLint sauber.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-10-27
+**App URL:** http://localhost:3000 (Branch `zeiterfassung`, nur lokal)
+**Tester:** QA Engineer (AI) + Browser-Test durch den Nutzer (Testanleitung Punkte 1–8, "passt")
+
+### Acceptance Criteria Status
+
+#### Zugriff
+- [x] Bearbeiter: Seiten zeigen nur den Freigeber-Hinweis, alle drei Aktionen lehnen serverseitig ab, ohne Dataverse zu berühren (`actions.test.ts`); Menüpunkt nur für Freigeber
+- [x] Ohne Login: `/zeiterfassung`, `/zeiterfassung/personen` und die Personenseite leiten auf `/login` (E2E)
+
+#### Personenliste
+- [x] Jede E-Mail genau einmal, Gross-/Kleinschreibung zusammengeführt, mit Name, aktuellem Pensum/Arbeitstagen bzw. "kein Arbeitsmodell" und Startsaldo — Nutzer-Test (5 Testpersonen) + `personen-uebersicht.test.ts`, `zeiterfassung.test.ts`
+- [x] Ohne Arbeitsmodell deutlich markiert (rotes Badge + Zähler), Filter "nur ohne Arbeitsmodell"
+- [x] "nicht auswerten": standardmässig ausgeblendet, nicht im Zähler "ohne Arbeitsmodell", per Schalter wieder sichtbar und auf der Personenseite zurücksetzbar. Wirkung im Zeitnachweis → mit PROJ-13 zu prüfen
+- [x] Leer-Hinweis ohne Zeiteinträge (Komponententest)
+
+#### Name
+- [x] Name erscheint in Liste und Überschrift statt der E-Mail, leerer Name zeigt wieder die E-Mail (Nutzer-Test + `actions.test.ts`). Zeitnachweis → PROJ-13
+
+#### Arbeitsmodell
+- [x] Soll pro Arbeitstag wird im Dialog laufend und im Verlauf angezeigt (z.B. "8.00 h an Mo, Di"; 45 % an Mo–Mi = 6.00 h)
+- [x] Pensum > 0 ohne Arbeitstag, < 0, > 100, leer sowie fehlendes "gültig ab" werden serverseitig mit Meldung abgelehnt
+- [x] Neue Version ab späterem Datum: bisherige gilt bis zum Vortag (abgeleitetes "gültig bis", `soll.test.ts`)
+- [x] Verlauf neueste zuerst mit gültig ab/bis, Pensum, Arbeitstagen, Soll
+- [x] Korrigieren und Löschen (mit Bestätigung); nur Versionen der eigenen Person. Neuberechnung im Zeitnachweis → PROJ-13 (rechnet live, nichts gespeichert)
+- [x] Austritt: ab dem Folgetag kein Soll (`sollAmDatum`), Person bleibt in der Liste, Badge "ausgetreten" sobald das Datum vorbei ist (siehe BUG-1/BUG-3)
+
+#### Gleitzeit-Startsaldo
+- [x] Startsaldo in Stunden, auch negativ, Komma erlaubt, auf zwei Nachkommastellen gerundet, mit Stichtag; Startsaldo und Stichtag nur zusammen
+- [x] Genau ein Startsaldo pro Person, korrigierbar
+- [x] Ohne Startsaldo zeigt die Liste "kein Startsaldo". Rechnung ab der ersten Version mit 0 → PROJ-13
+
+#### Fehler
+- [x] Fehlgeschlagenes Speichern: verständliche Meldung, Formular bzw. Dialog bleiben mit den Eingaben offen (Komponententest + Aktionstests); Verbindungsabbruch/abgelaufene Aktion abgefangen
+
+### Edge Cases Status
+- [x] Zwei Versionen mit demselben "gültig ab" → abgelehnt (gleichzeitige Eingabe zweier Freigeber siehe BUG-2)
+- [x] Neue Version vor der bisher ersten → erlaubt
+- [x] Pensum 0 % ohne Arbeitstage → erlaubt, Soll 0
+- [x] Krumme Werte (45 %/3 Tage = 6.00 h, 30 %/4 Tage = 3.00 h, 50 %/3 Tage = 6.67 h)
+- [x] Arbeitstage am Wochenende → erlaubt und gerechnet
+- [x] Stichtag vor dem Eintritt bzw. nach dem ersten Zeiteintrag → Hinweis, Speichern erlaubt
+- [x] E-Mail in unterschiedlicher Schreibweise → eine Person
+- [x] Zwei Freigeber bearbeiten dieselbe Person → Last-Write-Wins
+- [x] Zeitumstellung: Datum bleibt an allen Tagen eines Jahres gleich (Rundlauf-Test 366 Tage, inkl. 29.03. und 25.10.)
+- [x] Unbekannte E-Mail in der URL → 404; Aktionen legen keine Personen an, die in den Zeiteinträgen nicht vorkommen
+
+### Security Audit Results
+- [x] Authentifizierung: alle neuen Routen hinter dem Login (E2E)
+- [x] Autorisierung: Freigeber-Prüfung auf Seiten- und Aktionsebene. Defense in depth geprüft: Ein Pfad auf `.png` (vom Login-Schutz in `proxy.ts` ausgenommen) zeigt ohne Sitzung nur den Freigeber-Hinweis, keine Daten
+- [x] Fremde Datensätze: Versionen lassen sich nur ändern/löschen, wenn sie zur Person der URL gehören; Versions-IDs per Zod-GUID geprüft
+- [x] Injection: E-Mail wird in OData-Filtern und im Schlüssel-Pfad escaped (`'` verdoppelt) und kodiert (Tests mit `o'neil@…`); Name per React escaped (kein XSS)
+- [x] Keine Personendaten in Logs (keine `console`-Ausgaben in den neuen Modulen); keine Zeit- oder Personendaten im Repo (Tests mit erfundenen Adressen)
+- [x] Rate Limiting: wie im übrigen Tool keines (nur angemeldete Freigeber) — kein neues Risiko
+- [ ] Hinweis: Die E-Mail steht in der URL der Personenseite und damit in Server-Logs (internes Tool, Firmen-Adressen — bewusst akzeptiert, siehe Implementation Notes)
+
+### Responsive / Browser
+- Nutzer-Test im Desktop-Browser. Mobile Ansicht nicht separat geprüft: Tabellen scrollen horizontal (`overflow-x-auto`), Formulare einspaltig unter `sm`, Menüpunkt auch im mobilen Menü. Firefox/Safari nicht getestet (Login nicht automatisierbar); verwendet nur Standard-Elemente (`input type=date`, shadcn)
+
+### Automatisierte Tests
+- [x] `npm test`: 40 Dateien, 496 Tests grün
+- [x] `npm run test:e2e`: 30/30 grün (neu: `tests/PROJ-14-arbeitsmodell-pro-person.spec.ts`, 3 Routen × 2 Browser)
+
+### Bugs Found
+
+#### BUG-1: Austritt vor dem Beginn einer Version ergibt widersprüchliches "gültig bis"
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Person mit Version ab 01.11.2026
+  2. Austritt am 31.05.2026 speichern
+  3. Expected: Hinweis, dass der Austritt vor einer Version liegt, bzw. sinnvolle Anzeige
+  4. Actual: Verlauf zeigt "gültig ab 01.11.2026, gültig bis 31.05.2026"; kein Hinweis. Die Rechnung stimmt (nach dem Austritt kein Soll)
+- **Priority:** Nice to have
+
+#### BUG-2: Gleichzeitig angelegte Versionen mit demselben Datum
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Zwei Freigeber öffnen dieselbe Person
+  2. Beide legen gleichzeitig eine Version mit demselben "gültig ab" an
+  3. Expected: zweite wird abgelehnt
+  4. Actual: beide werden gespeichert (die Prüfung im Tool liest vor dem Schreiben; Dataverse hat keinen alternativen Schlüssel Person + gültig ab). Danach gilt zufällig eine der beiden
+- **Priority:** Nice to have — sehr unwahrscheinlich; vollständig lösbar mit einem alternativen Schlüssel (Person + gültig ab) in Dataverse
+
+#### BUG-3: Künftiger Austritt in der Personenliste nicht sichtbar
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Austritt in der Zukunft erfassen
+  2. Personenliste öffnen
+  3. Expected: Hinweis auf den bevorstehenden Austritt
+  4. Actual: Badge erscheint erst, wenn das Datum vorbei ist
+- **Priority:** Nice to have
+
+### Summary
+- **Acceptance Criteria:** alle erfüllt (Wirkung im Zeitnachweis wird mit PROJ-13 geprüft)
+- **Bugs Found:** 3 total (0 critical, 0 high, 0 medium, 3 low)
+- **Security:** Pass
+- **Production Ready:** YES (fachlich) — Deploy aber erst nach Nutzer-Freigabe der Zeiterfassung (Vorgabe: erst alles lokal testen)
+- **Recommendation:** Low-Bugs nach Wunsch beheben; weiter mit PROJ-13
 
 ## Deployment
 _To be added by /deploy_
