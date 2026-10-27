@@ -1,5 +1,5 @@
 import { folgetag } from "./datum";
-import { feiertagAm } from "./feiertage";
+import { VORSCHLAGS_KALENDER, type Feiertag, type Feiertagskalender } from "./feiertage";
 import { gueltigeVersion, sollAmDatum, type ArbeitsmodellVersion } from "./soll";
 import type { Zeiteintrag } from "./tagesauswertung";
 
@@ -13,6 +13,8 @@ export const STANDARD_FERIENANSPRUCH = 25;
 export interface FerienModell {
   versionen: readonly ArbeitsmodellVersion[];
   austrittAm: string | null;
+  /** PROJ-18: gepflegte Feiertage; ohne Angabe der Vorschlag. */
+  feiertage?: Feiertagskalender;
 }
 
 export interface FerienPerson extends FerienModell {
@@ -31,14 +33,26 @@ function hatSoll(modell: FerienModell, datum: string): boolean {
   return sollAmDatum(modell, datum) > 0;
 }
 
+function feiertag(modell: FerienModell, datum: string): Feiertag | null {
+  return (modell.feiertage ?? VORSCHLAGS_KALENDER).am(datum);
+}
+
+/** Ganzer Feiertag (Soll 0); ein halber Feiertag lässt Raum für einen halben Ferientag. */
+function ganzerFeiertag(modell: FerienModell, datum: string): boolean {
+  const f = feiertag(modell, datum);
+  return !!f && !f.halb;
+}
+
 /** Wert eines Tages als Ferientag: 0, 0.5 oder 1. */
 export function ferientagWert(modell: FerienModell, datum: string, eintraegeDesTages: readonly Zeiteintrag[]): number {
   const ferien = eintraegeDesTages.filter((e) => e.typ === "ferien");
   if (ferien.length === 0) return 0;
   // Krankheit überwiegt (Product Decision); Feiertage und Tage ohne Soll sind keine Ferientage.
   if (eintraegeDesTages.some((e) => e.typ === "krankheit")) return 0;
-  if (feiertagAm(datum) || !hatSoll(modell, datum)) return 0;
-  return ferien.some((e) => !e.halberTag) ? 1 : 0.5;
+  if (ganzerFeiertag(modell, datum) || !hatSoll(modell, datum)) return 0;
+  const wert = ferien.some((e) => !e.halberTag) ? 1 : 0.5;
+  // PROJ-18: an einem halben Feiertag zählt Ferien höchstens 0.5.
+  return feiertag(modell, datum)?.halb ? Math.min(wert, 0.5) : wert;
 }
 
 /** Beginn des Feriensaldos: Tag nach dem Stichtag, sonst erste Arbeitsmodell-Version. */
@@ -178,7 +192,7 @@ export function planeFerien(
     const ohneModell = !gueltigeVersion(modell.versionen, tag) || (!!modell.austrittAm && tag > modell.austrittAm);
     if (ohneModell) plan.uebersprungen.ohneArbeitsmodell++;
     else if (!hatSoll(modell, tag)) plan.uebersprungen.ohneSoll++;
-    else if (feiertagAm(tag)) plan.uebersprungen.feiertag++;
+    else if (ganzerFeiertag(modell, tag)) plan.uebersprungen.feiertag++;
     else {
       const bestehend = bestehendeFerien.get(tag);
       if (!bestehend) plan.tage.push(tag);
@@ -186,7 +200,9 @@ export function planeFerien(
       else plan.umstellen.push({ datum: tag, eintragIds: bestehend.eintragIds });
     }
   }
-  plan.ferientage = (plan.tage.length + plan.umstellen.length) * (halberTag ? 0.5 : 1);
+  // An halben Feiertagen zählt ein Ferientag höchstens 0.5 (PROJ-18).
+  const wert = (tag: string) => (halberTag || feiertag(modell, tag)?.halb ? 0.5 : 1);
+  plan.ferientage = [...plan.tage, ...plan.umstellen.map((u) => u.datum)].reduce((summe, tag) => summe + wert(tag), 0);
   return plan;
 }
 
@@ -213,7 +229,7 @@ export function ferienZeitraeume(modell: FerienModell, eintraege: readonly Zeite
     if (letzter) {
       anschliessend = true;
       for (let t = folgetag(letzter.bis); t < tag; t = folgetag(t)) {
-        if (hatSoll(modell, t) && !feiertagAm(t)) {
+        if (hatSoll(modell, t) && !ganzerFeiertag(modell, t)) {
           anschliessend = false;
           break;
         }

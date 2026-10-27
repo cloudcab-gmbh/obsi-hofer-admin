@@ -1,6 +1,6 @@
 # PROJ-18: Feiertage im Tool pflegen
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-10-27
 **Last Updated:** 2026-10-27
 
@@ -206,6 +206,27 @@ Keine neuen Pakete.
 - `bmvcc_feiertagsjahr` (Verweis, Pflicht), Navigation `bmvcc_Feiertagsjahr`; Löschverhalten "Verknüpfung entfernen" statt "Alle weitergeben" → das Tool löscht beim Zurücksetzen zuerst die Feiertage, dann das Jahr
 
 **Rechte** ("# OBSI Hofer Admin"): auf beiden Tabellen Lesen, Erstellen, Schreiben, Löschen, Anfügen, Anfügen an (Organisation)
+
+### Umsetzung Frontend + Backend (2026-10-27, Branch `zeiterfassung`, nur lokal)
+- **Kalender** `src/lib/zeiterfassung/feiertage.ts`:
+  - `baueFeiertagskalender`: gepflegte Jahre mit ihrer Liste (auch leer), übrige nach dem Vorschlag.
+  - `VORSCHLAGS_KALENDER` als Standard, `vorschlagListe(jahr)` für "Jahr übernehmen".
+- **Rechnung:** Zeitnachweis (`feiertage` in der Eingabe) und Ferien-Regeln (`feiertage` im Modell) nutzen den Kalender; die Übersicht reicht ihn durch.
+  - Ganzer Feiertag: Soll 0.
+  - Halber Feiertag: Soll × ½, Anzeige "½ Feiertag: Name". Ferien zählen dort höchstens 0.5 und decken das Rest-Soll.
+  - Ferien-Vorschau überspringt gepflegte ganze Feiertage.
+- **Laden:** `ladeFeiertagskalender(von, bis)` (`src/lib/dataverse/feiertage.ts`), einmal pro Aufruf auf Zeitnachweis, Übersicht (ab frühestem Ladebeginn) und Ferien-Seite sowie in der Ferien-Vorschau/-Erfassung.
+- **Seite** `/zeiterfassung/feiertage?jahr=` (`feiertage-verwaltung.tsx`):
+  - Status Vorschlag/gepflegt; "Jahr übernehmen", bei vergangenen Jahren mit Bestätigung und Hinweis auf Neuberechnung.
+  - Hinzufügen-Dialog (Datum im Jahr, Name, halber Tag); Bearbeiten (Name, halb; Datum fest); Entfernen und "Auf Vorschlag zurücksetzen" mit Bestätigung.
+  - Reiter "Feiertage".
+- **Aktionen** (`feiertage/actions.ts`):
+  - Freigeber-Prüfung; Datum im Jahr, Name 1–100, höchstens ein Feiertag pro Datum.
+  - Übernehmen legt Jahr + 9 Feiertage an; Zurücksetzen löscht zuerst die Feiertage, dann das Jahr.
+  - Alle Aktionen laden die ganze Zeiterfassung neu.
+- **Lesender Check** gegen Dataverse (2026-10-27): Abfragen laufen; noch kein Jahr gepflegt, Vorschlag gilt.
+
+**Tests:** 30 neue Tests (Kalender, halbe Feiertage in Zeitnachweis und Ferien, Datenschicht, Aktionen, Oberfläche, E2E); gesamt 661 grün, `tsc` und ESLint sauber.
 
 ## QA Test Results
 _To be added by /qa_

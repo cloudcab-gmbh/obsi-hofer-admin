@@ -53,6 +53,56 @@ export function feiertageAargau(jahr: number): Map<string, string> {
   return feiertage;
 }
 
+/** Vorschlag (ohne Pflege) — für Stellen ohne geladenen Kalender. */
 export function feiertagAm(tag: string): string | null {
   return feiertageAargau(Number(tag.slice(0, 4))).get(tag) ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// PROJ-18: pflegbare Feiertage. Gepflegte Jahre (in Dataverse übernommen)
+// gelten mit ihrer Liste, alle anderen Jahre mit dem Vorschlag oben.
+
+export interface Feiertag {
+  name: string;
+  /** Halber Feiertag: Soll halbiert. */
+  halb: boolean;
+}
+
+export interface GepflegterFeiertag extends Feiertag {
+  datum: string;
+}
+
+export interface Feiertagskalender {
+  /** Feiertag an einem Datum ("YYYY-MM-DD"), sonst `null`. */
+  am(datum: string): Feiertag | null;
+  /** Ob das Jahr gepflegt ist (sonst gilt der Vorschlag). */
+  gepflegt(jahr: number): boolean;
+}
+
+/**
+ * Kalender aus den gepflegten Jahren; ein gepflegtes Jahr ohne Einträge hat
+ * keine Feiertage (bewusst leer gepflegt).
+ */
+export function baueFeiertagskalender(gepflegt: ReadonlyMap<number, readonly GepflegterFeiertag[]> = new Map()): Feiertagskalender {
+  const nachDatum = new Map<string, Feiertag>();
+  for (const liste of gepflegt.values()) {
+    for (const f of liste) nachDatum.set(f.datum, { name: f.name, halb: f.halb });
+  }
+  return {
+    am(tag) {
+      const jahr = Number(tag.slice(0, 4));
+      if (gepflegt.has(jahr)) return nachDatum.get(tag) ?? null;
+      const name = feiertageAargau(jahr).get(tag);
+      return name ? { name, halb: false } : null;
+    },
+    gepflegt: (jahr) => gepflegt.has(jahr),
+  };
+}
+
+/** Kalender nur mit dem Vorschlag (Standard, wenn nichts gepflegt bzw. geladen ist). */
+export const VORSCHLAGS_KALENDER = baueFeiertagskalender();
+
+/** Vorschlag eines Jahres als Liste (für "Jahr übernehmen" und die Anzeige). */
+export function vorschlagListe(jahr: number): GepflegterFeiertag[] {
+  return [...feiertageAargau(jahr)].map(([datum, name]) => ({ datum, name, halb: false }));
 }

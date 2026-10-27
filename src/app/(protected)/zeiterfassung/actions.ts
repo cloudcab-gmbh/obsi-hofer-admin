@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { aktuellerBenutzerIstFreigeber } from "@/lib/auth/freigeber";
 import { DataverseError } from "@/lib/dataverse/errors";
+import { ladeFeiertagskalender } from "@/lib/dataverse/feiertage";
 import {
   erstelleZeiteintrag,
   getPersonByEmail,
@@ -237,7 +238,9 @@ async function berechneFerienPlan(d: z.output<typeof ferienSchema>): Promise<Fer
   if (!person && !(await listZeiterfassungEmails()).includes(email)) return "Diese Person kommt in der Zeiterfassung nicht vor.";
   const versionen = person ? await listArbeitsmodelle(person.id) : [];
   const bestehende = bestehendeFerienNachTag(await listZeiteintraege(email, d.von, d.bis));
-  return planeFerien({ versionen, austrittAm: person?.austrittAm ?? null }, d.von, d.bis, bestehende, d.halberTag);
+  // PROJ-18: gepflegte Feiertage werden übersprungen (halbe zählen 0.5).
+  const feiertage = await ladeFeiertagskalender(d.von, d.bis);
+  return planeFerien({ versionen, austrittAm: person?.austrittAm ?? null, feiertage }, d.von, d.bis, bestehende, d.halberTag);
 }
 
 async function pruefeFerien(eingabe: FerienEingabe): Promise<z.output<typeof ferienSchema> | string> {

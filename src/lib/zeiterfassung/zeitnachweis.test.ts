@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { berechneZeitnachweis, ladebeginn, type ZeitnachweisEingabe } from "./zeitnachweis";
 import type { Arbeitstage, ArbeitsmodellVersion } from "./soll";
 import type { Zeiteintrag } from "./tagesauswertung";
+import { baueFeiertagskalender } from "./feiertage";
 
 const MO_FR: Arbeitstage = [true, true, true, true, true, false, false];
 const VOLLZEIT: ArbeitsmodellVersion = { id: "v1", gueltigAb: "2026-01-01", pensum: 100, arbeitstage: MO_FR };
@@ -227,6 +228,40 @@ describe("berechneZeitnachweis", () => {
     expect(z.ferienBezogenMonat).toBe(1);
     expect(z.ferienGeplantMonat).toBe(1.5);
     expect(z.feriensaldoEnde).toBe(3 + 4 - 2.5);
+  });
+});
+
+describe("gepflegte Feiertage (PROJ-18)", () => {
+  // 2026 gepflegt: Mo 02.11. halber Feiertag, Di 03.11. ganzer Feiertag
+  const feiertage = baueFeiertagskalender(
+    new Map([[2026, [{ datum: "2026-11-02", name: "Firmenanlass", halb: true }, { datum: "2026-11-03", name: "Betriebsferientag", halb: false }]]])
+  );
+
+  it("halves the Soll on a half holiday and sets it to 0 on a full one", () => {
+    const z = berechneZeitnachweis(eingabe({ feiertage }));
+    expect(tag(z, "2026-11-02")).toMatchObject({ sollMinuten: 240, halberFeiertag: "Firmenanlass", grund: null });
+    expect(tag(z, "2026-11-03")).toMatchObject({ sollMinuten: 0, grund: { art: "feiertag", name: "Betriebsferientag" } });
+  });
+
+  it("counts Ferien on a half holiday as 0.5 and leaves no Soll", () => {
+    const z = berechneZeitnachweis(eingabe({ feiertage, eintraege: [ferien("2026-11-02")] }));
+    expect(tag(z, "2026-11-02")).toMatchObject({ ferientag: 0.5, sollMinuten: 0 });
+  });
+
+  it("no longer counts Ferien on a newly maintained full holiday", () => {
+    const z = berechneZeitnachweis(eingabe({ feiertage, eintraege: [ferien("2026-11-03")] }));
+    expect(tag(z, "2026-11-03")).toMatchObject({ ferientag: 0, ferienOhneSoll: true });
+  });
+
+  it("treats Krankheit on a half holiday as fulfilling the halved Soll", () => {
+    const z = berechneZeitnachweis(eingabe({ feiertage, eintraege: [{ ...ferien("2026-11-02"), typ: "krankheit" }] }));
+    expect(tag(z, "2026-11-02")).toMatchObject({ sollMinuten: 240, istMinuten: 240, abweichungMinuten: 0 });
+  });
+
+  it("ignores the suggested holidays in a maintained year", () => {
+    const leer = baueFeiertagskalender(new Map([[2026, []]]));
+    const z = berechneZeitnachweis(eingabe({ monat: "2026-12", heute: "2027-01-15", stichtag: "2026-11-30", feiertage: leer }));
+    expect(tag(z, "2026-12-25")).toMatchObject({ sollMinuten: 480, grund: null });
   });
 });
 

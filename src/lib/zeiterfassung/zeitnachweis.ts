@@ -1,5 +1,5 @@
 import { folgetag, tageDesMonats } from "./datum";
-import { feiertagAm } from "./feiertage";
+import { VORSCHLAGS_KALENDER, type Feiertagskalender } from "./feiertage";
 import { gueltigeVersion, sollAmDatum, type ArbeitsmodellVersion } from "./soll";
 import { werteTagAus, type Tagesauswertung, type Zeiteintrag } from "./tagesauswertung";
 import { ferienBeginn, feriensaldoAm, ferientagWert } from "./ferien";
@@ -42,6 +42,8 @@ export interface Tageszeile {
   ferienOhneSoll: boolean;
   /** Krankheit während der Ferien: Krankheit überwiegt. */
   krankheitInFerien: boolean;
+  /** PROJ-18: Name eines halben Feiertags (Soll halbiert), sonst . */
+  halberFeiertag: string | null;
 }
 
 export interface ZeitnachweisEingabe {
@@ -55,6 +57,8 @@ export interface ZeitnachweisEingabe {
   /** PROJ-15: Ferienanspruch (Tage/Jahr bei 100 %, null = Vorgabe) und Ferien-Startsaldo. */
   ferienanspruch?: number | null;
   ferienStartsaldo?: number | null;
+  /** PROJ-18: gepflegte Feiertage; ohne Angabe der Vorschlag. */
+  feiertage?: Feiertagskalender;
 }
 
 export interface Zeitnachweis {
@@ -114,7 +118,8 @@ function zeile(datum: string, eintraege: Zeiteintrag[], e: ZeitnachweisEingabe, 
   const auswertung = werteTagAus(eintraege);
   const zukunft = datum > e.heute;
   const vorBeginn = beginn === null || datum < beginn;
-  const feiertag = feiertagAm(datum);
+  const feiertag = (e.feiertage ?? VORSCHLAGS_KALENDER).am(datum);
+  const ganzerFeiertag = feiertag && !feiertag.halb ? feiertag.name : null;
   const ferientag = ferientagWert(e, datum, eintraege);
   const version = gueltigeVersion(e.versionen, datum);
   const nachAustritt = !!e.austrittAm && datum > e.austrittAm;
@@ -124,12 +129,14 @@ function zeile(datum: string, eintraege: Zeiteintrag[], e: ZeitnachweisEingabe, 
   let grund: Tagesgrund | null = null;
   if (e.versionen.length === 0) grund = { art: "kein-arbeitsmodell" };
   else if (!version || nachAustritt) grund = { art: "nicht-angestellt" };
-  else if (feiertag) grund = { art: "feiertag", name: feiertag };
+  else if (ganzerFeiertag) grund = { art: "feiertag", name: ganzerFeiertag };
   else if (ferientag === 1) grund = { art: "ferien" };
   else if (sollLautModell === 0) grund = { art: "frei" };
 
-  // Halber Ferientag: halbes Soll, die andere Hälfte wird gestempelt.
-  const sollMinuten = grund !== null ? 0 : stundenZuMinuten(ferientag === 0.5 ? sollLautModell / 2 : sollLautModell);
+  // Halber Feiertag (PROJ-18) und halber Ferientag ziehen je die Hälfte des Solls ab;
+  // die verbleibende Hälfte wird gestempelt.
+  const anteil = Math.max(0, 1 - (feiertag?.halb ? 0.5 : 0) - (ferientag < 1 ? ferientag : 0));
+  const sollMinuten = grund !== null ? 0 : stundenZuMinuten(sollLautModell * anteil);
   // Krankheit: Soll gilt als erfüllt. Komp. GLZ: kein zusätzliches Ist, Soll bleibt.
   const istMinuten = auswertung.krankheit ? Math.max(sollMinuten, auswertung.arbeitszeitMinuten) : auswertung.arbeitszeitMinuten;
 
@@ -154,6 +161,7 @@ function zeile(datum: string, eintraege: Zeiteintrag[], e: ZeitnachweisEingabe, 
     ferientag,
     ferienOhneSoll: auswertung.ferien !== null && ferientag === 0 && !auswertung.krankheit,
     krankheitInFerien: auswertung.ferien !== null && auswertung.krankheit,
+    halberFeiertag: feiertag?.halb ? feiertag.name : null,
   };
 }
 

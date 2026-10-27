@@ -13,6 +13,7 @@ import {
 } from "./ferien";
 import type { Arbeitstage, ArbeitsmodellVersion } from "./soll";
 import type { Zeiteintrag } from "./tagesauswertung";
+import { baueFeiertagskalender } from "./feiertage";
 
 const MO_FR: Arbeitstage = [true, true, true, true, true, false, false];
 const MO_DI: Arbeitstage = [true, true, false, false, false, false, false];
@@ -184,5 +185,17 @@ describe("ferienZeitraeumeImJahr (QA BUG-2)", () => {
       ["2026-12-28", "2027-01-05"],
       ["2027-03-01", "2027-03-01"],
     ]);
+  });
+});
+
+describe("planeFerien mit gepflegten Feiertagen (PROJ-18)", () => {
+  it("skips maintained full holidays and counts half holidays as 0.5", () => {
+    const feiertage = baueFeiertagskalender(
+      new Map([[2026, [{ datum: "2026-11-02", name: "Anlass", halb: true }, { datum: "2026-11-03", name: "Frei", halb: false }]]])
+    );
+    const plan = planeFerien({ ...person(), feiertage }, "2026-11-02", "2026-11-04", new Map(), false);
+    expect(plan.tage).toEqual(["2026-11-02", "2026-11-04"]);
+    expect(plan.ferientage).toBe(1.5);
+    expect(plan.uebersprungen.feiertag).toBe(1);
   });
 });

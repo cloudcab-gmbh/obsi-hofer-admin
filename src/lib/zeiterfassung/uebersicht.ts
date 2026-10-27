@@ -1,6 +1,7 @@
 import { tageDesMonats } from "./datum";
 import { ferienJahr } from "./ferien";
 import type { ArbeitsmodellVersion } from "./soll";
+import type { Feiertagskalender } from "./feiertage";
 import type { Zeiteintrag } from "./tagesauswertung";
 import { berechneZeitnachweis, ladebeginn } from "./zeitnachweis";
 
@@ -18,6 +19,8 @@ export interface UebersichtPerson {
   stichtag: string | null;
   ferienanspruch: number | null;
   ferienStartsaldo: number | null;
+  /** PROJ-18: gepflegte Feiertage. */
+  feiertage?: Feiertagskalender;
 }
 
 export interface UebersichtWerte {

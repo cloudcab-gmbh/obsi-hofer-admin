@@ -1,4 +1,5 @@
 import { aktuellerBenutzerIstFreigeber } from "@/lib/auth/freigeber";
+import { ladeFeiertagskalender } from "@/lib/dataverse/feiertage";
 import {
   listArbeitsmodelle,
   listPersonen,
@@ -65,8 +66,11 @@ export default async function ZeitnachweisPage({
         ferienanspruch: gespeichert?.ferienanspruch ?? null,
         ferienStartsaldo: gespeichert?.ferienStartsaldo ?? null,
       };
-      const eintraege = await listZeiteintraege(gewaehlt.email, ladebeginn(monat, daten), tageDesMonats(monat).at(-1)!);
-      zeitnachweis = berechneZeitnachweis({ ...daten, monat, heute, eintraege });
+      const von = ladebeginn(monat, daten);
+      const bis = tageDesMonats(monat).at(-1)!;
+      // PROJ-18: gepflegte Feiertage der betroffenen Jahre, einmal pro Aufruf.
+      const [eintraege, feiertage] = await Promise.all([listZeiteintraege(gewaehlt.email, von, bis), ladeFeiertagskalender(von, bis)]);
+      zeitnachweis = berechneZeitnachweis({ ...daten, monat, heute, eintraege, feiertage });
     }
   } catch {
     // Keine Zeitdaten in der Meldung oder im Log (Technical Requirements).

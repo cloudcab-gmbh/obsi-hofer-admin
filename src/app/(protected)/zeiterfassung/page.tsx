@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { aktuellerBenutzerIstFreigeber } from "@/lib/auth/freigeber";
+import { ladeFeiertagskalender } from "@/lib/dataverse/feiertage";
 import {
   listArbeitsmodelle,
   listPersonen,
@@ -51,19 +52,27 @@ export default async function UebersichtPage({
     const [emails, personen, versionen] = await Promise.all([listZeiterfassungEmails(), listPersonen(), listArbeitsmodelle()]);
     const uebersicht = bauePersonenUebersicht(emails, personen, [], heute).filter((p) => !p.nichtAuswerten);
     const monatsende = tageDesMonats(monat).at(-1)!;
-    zeilen = await Promise.all(
-      uebersicht.map(async (p) => {
-        const gespeichert = personen.find((x) => x.email === p.email);
-        const person = {
+    const personenDaten = uebersicht.map((p) => {
+      const gespeichert = personen.find((x) => x.email === p.email);
+      return {
+        p,
+        person: {
           versionen: gespeichert ? versionen.filter((v) => v.personId === gespeichert.id) : [],
           austrittAm: gespeichert?.austrittAm ?? null,
           startsaldoStunden: gespeichert?.startsaldo ?? null,
           stichtag: gespeichert?.stichtag ?? null,
           ferienanspruch: gespeichert?.ferienanspruch ?? null,
           ferienStartsaldo: gespeichert?.ferienStartsaldo ?? null,
-        };
+        },
+      };
+    });
+    // PROJ-18: gepflegte Feiertage einmal für den ganzen Zeitraum laden.
+    const fruehester = personenDaten.map(({ person }) => uebersichtLadebeginn(monat, person)).sort()[0] ?? `${monat}-01`;
+    const feiertage = await ladeFeiertagskalender(fruehester, monatsende);
+    zeilen = await Promise.all(
+      personenDaten.map(async ({ p, person }) => {
         const eintraege = await listZeiteintraege(p.email, uebersichtLadebeginn(monat, person), monatsende);
-        return { email: p.email, anzeige: p.anzeige, ...berechneUebersichtWerte(person, eintraege, monat, heute) };
+        return { email: p.email, anzeige: p.anzeige, ...berechneUebersichtWerte({ ...person, feiertage }, eintraege, monat, heute) };
       })
     );
   } catch {

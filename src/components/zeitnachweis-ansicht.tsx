@@ -239,6 +239,11 @@ export function ZeitnachweisAnsicht({
                             {grund}
                           </Badge>
                         )}
+                        {t.halberFeiertag && (
+                          <Badge variant="outline" className="ml-1 font-normal">
+                            ½ Feiertag: {t.halberFeiertag}
+                          </Badge>
+                        )}
                         {t.auswertung.frei && (
                           <Badge variant="outline" className="ml-1 font-normal">
                             Frei

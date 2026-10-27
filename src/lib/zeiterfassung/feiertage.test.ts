@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { feiertagAm, feiertageAargau, ostersonntag } from "./feiertage";
+import { baueFeiertagskalender, feiertagAm, feiertageAargau, ostersonntag, vorschlagListe, VORSCHLAGS_KALENDER } from "./feiertage";
 
 describe("ostersonntag", () => {
   it.each([
@@ -36,5 +36,35 @@ describe("feiertageAargau", () => {
   it("does not include 1. Mai or Fronleichnam (open question)", () => {
     expect(feiertagAm("2026-05-01")).toBeNull();
     expect(feiertagAm("2026-06-04")).toBeNull();
+  });
+});
+
+describe("Feiertagskalender (PROJ-18)", () => {
+  const kalender = baueFeiertagskalender(
+    new Map([
+      [2027, [{ datum: "2027-12-24", name: "Heiligabend", halb: true }, { datum: "2027-12-25", name: "Weihnachten", halb: false }]],
+      [2028, []],
+    ])
+  );
+
+  it("uses the maintained list for maintained years", () => {
+    expect(kalender.am("2027-12-24")).toEqual({ name: "Heiligabend", halb: true });
+    expect(kalender.am("2027-01-01")).toBeNull(); // nicht in der gepflegten Liste
+    expect(kalender.gepflegt(2027)).toBe(true);
+  });
+
+  it("treats a maintained empty year as without holidays", () => {
+    expect(kalender.am("2028-01-01")).toBeNull();
+  });
+
+  it("falls back to the suggestion for other years", () => {
+    expect(kalender.am("2026-05-14")).toEqual({ name: "Auffahrt", halb: false });
+    expect(kalender.gepflegt(2026)).toBe(false);
+    expect(VORSCHLAGS_KALENDER.am("2026-12-25")?.name).toBe("Weihnachten");
+  });
+
+  it("lists the suggestion of a year", () => {
+    expect(vorschlagListe(2026)).toHaveLength(9);
+    expect(vorschlagListe(2026)[0]).toEqual({ datum: "2026-01-01", name: "Neujahr", halb: false });
   });
 });

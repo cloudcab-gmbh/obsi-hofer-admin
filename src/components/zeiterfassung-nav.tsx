@@ -10,9 +10,10 @@ const SEITEN = [
   { href: "/zeiterfassung/zeitnachweis", label: "Zeitnachweis" },
   { href: "/zeiterfassung/personen", label: "Personen" },
   { href: "/zeiterfassung/ferien", label: "Ferien" },
+  { href: "/zeiterfassung/feiertage", label: "Feiertage" },
 ];
 
-/** Unterseiten der Zeiterfassung (PROJ-13/14/15/17). */
+/** Unterseiten der Zeiterfassung (PROJ-13/14/15/17/18). */
 export function ZeiterfassungNav() {
   const pfad = usePathname();
   return (

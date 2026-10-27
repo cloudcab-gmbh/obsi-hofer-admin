@@ -1,4 +1,5 @@
 import { aktuellerBenutzerIstFreigeber } from "@/lib/auth/freigeber";
+import { ladeFeiertagskalender } from "@/lib/dataverse/feiertage";
 import {
   listArbeitsmodelle,
   listFerienUndKrankheit,
@@ -63,6 +64,10 @@ export default async function FerienPage({
     for (const { email, eintrag } of await listFerienUndKrankheit(von, `${jahr + 1}-12-31`)) {
       nachEmail.set(email, [...(nachEmail.get(email) ?? []), eintrag]);
     }
+
+    // PROJ-18: gepflegte Feiertage für den ganzen geladenen Zeitraum.
+    const feiertage = await ladeFeiertagskalender(von, `${jahr + 1}-12-31`);
+    for (const person of ferienPersonen.values()) person.feiertage = feiertage;
 
     zeilen = uebersicht.map((p) => {
       const person = ferienPersonen.get(p.email)!;

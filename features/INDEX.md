@@ -32,7 +32,7 @@
 | PROJ-15 | Ferien erfassen und Feriensaldo | Approved | [Spec](../features/PROJ-15-ferien-erfassen-und-feriensaldo.md) | 2026-10-26 |
 | PROJ-16 | Zeitnachweis als PDF | Roadmap | — | 2026-10-26 |
 | PROJ-17 | Zeiterfassung-Übersicht (Dashboard) | In Progress | [Spec](../features/PROJ-17-zeiterfassung-uebersicht.md) | 2026-10-27 |
-| PROJ-18 | Feiertage im Tool pflegen | Architected | [Spec](../features/PROJ-18-feiertage-pflegen.md) | 2026-10-27 |
+| PROJ-18 | Feiertage im Tool pflegen | In Progress | [Spec](../features/PROJ-18-feiertage-pflegen.md) | 2026-10-27 |
 
 <!-- Add features above this line -->
 

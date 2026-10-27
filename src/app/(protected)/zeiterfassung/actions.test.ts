@@ -27,6 +27,11 @@ vi.mock("@/lib/dataverse/zeiterfassung", () => ({
   setzeHalberTag: (...args: unknown[]) => setzeHalberTag(...args),
   normalisiereEmail: (e: string) => e.trim().toLowerCase(),
 }));
+// PROJ-18: ohne gepflegte Jahre gilt der Vorschlag.
+vi.mock("@/lib/dataverse/feiertage", async () => {
+  const { VORSCHLAGS_KALENDER } = await import("@/lib/zeiterfassung/feiertage");
+  return { ladeFeiertagskalender: async () => VORSCHLAGS_KALENDER };
+});
 vi.mock("@/lib/zeiterfassung/datum", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/zeiterfassung/datum")>()),
   heuteSchweiz: () => heuteSchweiz(),
