@@ -31,10 +31,11 @@
 | PROJ-14 | Arbeitsmodell pro Person (Pensum, Arbeitstage, Gleitzeit-Startsaldo) | Approved | [Spec](../features/PROJ-14-arbeitsmodell-pro-person.md) | 2026-10-26 |
 | PROJ-15 | Ferien erfassen und Feriensaldo | Approved | [Spec](../features/PROJ-15-ferien-erfassen-und-feriensaldo.md) | 2026-10-26 |
 | PROJ-16 | Zeitnachweis als PDF | Roadmap | — | 2026-10-26 |
+| PROJ-17 | Zeiterfassung-Übersicht (Dashboard) | Planned | [Spec](../features/PROJ-17-zeiterfassung-uebersicht.md) | 2026-10-27 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-17
+## Next Available ID: PROJ-18
 
 ## Dependencies (für /write-spec)
 - PROJ-1: None
@@ -53,6 +54,7 @@
 - PROJ-14: Requires PROJ-1, PROJ-2 — Dataverse: Lesen auf `bmvcc_timetrackingentry` (erteilt), Ablage für Arbeitsmodell, Name und Startsaldo (existiert noch nicht, Form in /architecture)
 - PROJ-15: Requires PROJ-1, PROJ-2, PROJ-13, PROJ-14 (Pensum für den Ferienanspruch) — Dataverse: Aktivitätstyp 3 = Ferien und 4 = Frei angelegt (2026-10-27); Felder für Ferienanspruch und Ferien-Startsaldo an der Person (Form in /architecture)
 - PROJ-16: Requires PROJ-13 (Berechnung), Muster: PDF-Export aus PROJ-7
+- PROJ-17: Requires PROJ-1, PROJ-13, PROJ-14, PROJ-15 (gleiche Rechenregeln) — nur lesend, keine Dataverse-Änderung
 
 ## Empfohlene Baureihenfolge
 1. PROJ-1 und PROJ-2 parallel (beide unabhängig, beide Grundlage für alles Weitere)
@@ -63,4 +65,4 @@
 6. PROJ-7 (PDF-Export, kann unabhängig von PROJ-5/6 jederzeit nach PROJ-4 gebaut werden)
 7. PROJ-9 (PDF-Export digital signieren, P0) — als Nächstes; Phase 1 mit Test-Zertifikat sofort möglich, parallel Anbieter/Zertifikat für Phase 2 wählen
 8. PROJ-10 (Standort als Arbeitskontext, P1) — nur dieses Repo, sofort machbar; danach PROJ-11 und PROJ-12, sobald die Fragen zu Dataverse (Kontakt ↔ Standort) und zum Kundenportal-Sync geklärt sind
-9. Zeiterfassung: PROJ-14 (Arbeitsmodell) → PROJ-13 (Zeitnachweis) → PROJ-15 (Ferien) → PROJ-16 (PDF). Nutzer-Vorgabe 2026-10-26: erst alles lokal testen, kein Deploy vorher
+9. Zeiterfassung: PROJ-14 (Arbeitsmodell) → PROJ-13 (Zeitnachweis) → PROJ-15 (Ferien) → PROJ-17 (Übersicht, vom Nutzer vorgezogen) → PROJ-16 (PDF). Nutzer-Vorgabe 2026-10-26: erst alles lokal testen, kein Deploy vorher
