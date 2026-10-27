@@ -110,7 +110,7 @@ Ferien werden wie Krankheit als **ganztägige Zeiteinträge** gespeichert (neuer
 | Anspruch = Tage pro Jahr bei 100 % pro Person (Vorgabe 25) × Pensum, anteilig | Unterschiedliche Ansprüche (z.B. Alter) ohne Sonderlogik; Teilzeit korrekt in eigenen Arbeitstagen (Nutzer-Entscheidung) | 2026-10-27 |
 | Ferien-Startsaldo am Stichtag der Gleitzeit, Restferien ohne Verfall übertragen | Übernahme aus Excel wie bei der Gleitzeit; keine Jahresabschlüsse nötig (Nutzer-Entscheidung) | 2026-10-27 |
 | Anzeige im Zeitnachweis und auf einer eigenen Seite "Ferien" (Jahresübersicht aller Personen) | Monatsbezug beim Nachweis, Jahresstand für die Planung (Nutzer-Entscheidung) | 2026-10-27 |
-| Ferien- und Frei-Einträge im Tool löschbar, andere Typen nicht | Geplante Ferien ändern sich; gestempelte Zeiten bleiben unverändert (Nutzer-Entscheidung) | 2026-10-27 |
+| Ferien- und Frei-Einträge im Tool löschbar, andere Typen nicht — **überholt 2026-10-27:** seit PROJ-13-Nachtrag sind alle bekannten Typen einzeln löschbar | Geplante Ferien ändern sich (Nutzer-Entscheidung) | 2026-10-27 |
 | Krankheit während der Ferien überwiegt (kein Ferienbezug) | Übliche Regel: Krankheit verbraucht keine Ferien (Nutzer-Entscheidung) | 2026-10-27 |
 | Typ "Frei" (4) nur Kennzeichnung ohne Rechenwirkung | Vom Nutzer so festgelegt; bezahlte Absenzen mit Wirkung sind nicht Teil dieses Features | 2026-10-27 |
 | Ferien in Tagen statt Stunden | Wie bisher in Excel; unabhängig vom Soll pro Tag | 2026-10-27 |

@@ -79,6 +79,8 @@ describe("ZeitnachweisAnsicht", () => {
     expect(montag).toHaveTextContent("+1.00 h");
     expect(montag).toHaveTextContent("Mittag");
     expect(montag).toHaveTextContent("Kunde A");
+    // Einzelne Einträge löschbar (Nutzerwunsch 2026-10-27)
+    expect(within(montag).getByRole("button", { name: "Eintrag 07:30–12:00 löschen" })).toBeInTheDocument();
   });
 
   it("names holidays and free days", () => {

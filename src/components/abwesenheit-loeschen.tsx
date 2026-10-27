@@ -16,16 +16,19 @@ import {
 } from "@/components/ui/alert-dialog";
 import { loescheAbwesenheitenAction } from "@/app/(protected)/zeiterfassung/actions";
 
-/** PROJ-15: Ferien- oder Frei-Einträge nach Bestätigung löschen. */
+/** PROJ-13/15: Zeiteinträge (Ferien, Frei, Krankheit, Komp. GLZ, einzelne Kommen/Gehen) nach Bestätigung löschen. */
 export function AbwesenheitLoeschen({
   eintragIds,
   beschreibung,
   label = "löschen",
+  ariaLabel,
 }: {
   eintragIds: string[];
   /** z.B. "Ferien 22.12.2026–02.01.2027 (6 Ferientage)". */
   beschreibung: string;
-  label?: string;
+  label?: React.ReactNode;
+  /** Für Auslöser ohne Text (Symbol). */
+  ariaLabel?: string;
 }) {
   const router = useRouter();
   const [offen, setOffen] = useState(false);
@@ -59,7 +62,7 @@ export function AbwesenheitLoeschen({
       }}
     >
       <AlertDialogTrigger asChild>
-        <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs text-destructive">
+        <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs text-destructive" aria-label={ariaLabel}>
           {label}
         </Button>
       </AlertDialogTrigger>

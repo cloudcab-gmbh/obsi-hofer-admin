@@ -336,9 +336,9 @@ async function bereinigeDoppelteFerien(email: string, von: string, bis: string):
 export type LoeschenResult = { success: true; geloescht: number } | { success: false; message: string };
 
 /**
- * PROJ-15: löscht Ferien- und Frei-Einträge. Der Typ jedes Eintrags wird vor
- * dem Löschen neu gelesen — andere Typen (gestempelte Zeiten, Krankheit,
- * Komp. GLZ) werden nie gelöscht.
+ * PROJ-15: löscht Ferien- und Frei-Einträge; seit 2026-10-27 (Nutzerwunsch)
+ * auch einzelne Arbeitszeit-, Krankheits- und Komp.-GLZ-Einträge. Der Typ
+ * wird vor dem Löschen neu gelesen — Einträge unbekannten Typs werden nie gelöscht.
  */
 export async function loescheAbwesenheitenAction(eintragIds: string[]): Promise<LoeschenResult> {
   if (!(await aktuellerBenutzerIstFreigeber())) {
@@ -358,8 +358,8 @@ export async function loescheAbwesenheitenAction(eintragIds: string[]): Promise<
         if (error instanceof DataverseError && error.category === "not_found") continue;
         throw error;
       }
-      if (typ !== "ferien" && typ !== "frei") {
-        return { success: false, message: "Nur Ferien- und Frei-Einträge können gelöscht werden." };
+      if (typ === "unbekannt") {
+        return { success: false, message: "Einträge unbekannten Typs können im Tool nicht gelöscht werden." };
       }
       await loescheZeiteintrag(id);
       geloescht++;

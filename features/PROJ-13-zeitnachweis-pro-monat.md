@@ -24,7 +24,7 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 - Als Bearbeiter möchte ich diese Funktion nicht sehen, da Zeitdaten der Mitarbeitenden vertraulich sind.
 
 ## Out of Scope
-- Erfassen oder Korrigieren von Zeiteinträgen — Einträge werden weiterhin im bisherigen Erfassungs-Werkzeug gepflegt. **Ausnahmen (2026-10-27):** ein fehlendes "Gehen" nachtragen und für einen Tag neue Einträge erfassen (vergessenes Stempeln, Krankheit, Komp. GLZ); Ändern erfasster Zeiten und Löschen bleiben ausgeschlossen
+- Erfassen oder Korrigieren von Zeiteinträgen — Einträge werden weiterhin im bisherigen Erfassungs-Werkzeug gepflegt. **Ausnahmen (2026-10-27):** ein fehlendes "Gehen" nachtragen, für einen Tag neue Einträge erfassen (vergessenes Stempeln, Krankheit, Komp. GLZ) und einzelne Einträge nach Bestätigung löschen; Ändern erfasster Zeiten bleibt ausgeschlossen
 - Pflege von Arbeitsmodell (Soll je Wochentag) und Gleitzeit-Startsaldo — PROJ-14
 - Ferien erfassen, Ferienanspruch und Feriensaldo — PROJ-15 (der Zeitnachweis zeigt Ferien an, sobald PROJ-15 sie liefert)
 - PDF "Zeitnachweis <Person> <Monat>" — eigenes Feature PROJ-16
@@ -122,6 +122,7 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 | Quelle ist ausschliesslich Dataverse (neue Erfassung, ein Eintrag pro Kommen/Gehen); die SharePoint-Liste wird nicht angebunden | Die SharePoint-Erfassung ist abgelöst (Nutzer, 2026-10-26) | 2026-10-26 |
 | Mittag-/Abendessen pro Tag = ja, sobald ein Eintrag des Tages ja hat | Die App fragt bei jedem Kommen/Gehen erneut; ein Tag mit Mittagessen soll nicht durch einen späteren Eintrag "nein" verlieren (Nutzer-Vorgabe) | 2026-10-26 |
 | Ist = Summe (Gehen − Kommen) der Einträge, selbst berechnet; das Flow-Tagestotal nur als Abgleich-Hinweis | Nachvollziehbar Zeile für Zeile und unabhängig von Fehlern im Flow; in den bisherigen Daten passen Flow-Total und Einzeleinträge selten zusammen (Nutzer-Entscheidung) | 2026-10-26 |
+| Einzelne Einträge im Zeitnachweis löschbar (jedes Kommen/Gehen-Paar und jeder ganztägige Eintrag, mit Bestätigung); Einträge unbekannten Typs nie | Fehlerhafte Stempelungen ohne Umweg über Dataverse entfernen (Nutzerwunsch, Beispiel 26.10.) | 2026-10-27 |
 | Einträge für einen Tag im Zeitnachweis erfassen (Klick auf das Datum): alle drei Typen, mehrere Paare pro Dialog, jeder Tag bis heute | Vergessenes Stempeln und vergessene Krankmeldungen ohne Umweg über die Erfassungs-App korrigieren (Nutzer-Entscheidung zu Typen, Paaren und Tagen) | 2026-10-27 |
 | Fehlendes "Gehen" direkt im Zeitnachweis nachtragen (statt Link nach Dataverse oder nur Sprung zur Zeile) | Häufigster Korrekturfall, sofort sichtbar und behebbar ohne Wechsel ins Erfassungs-Werkzeug (Nutzer-Entscheidung); bewusst eng: nur offene Einträge, nichts überschreiben | 2026-10-27 |
 | PDF als eigenes Feature (PROJ-16), obwohl Bildschirm + PDF gewünscht | Einzeln testbar und baut auf der fertigen Berechnung auf; gleiches Vorgehen wie Geräteliste (PROJ-3) und Prüfbericht-PDF (PROJ-7) | 2026-10-26 |
@@ -269,6 +270,11 @@ Wie PROJ-14 in einem Schritt gebaut (nur lesend, keine Dataverse-Änderungen).
 - Aktion `erfasseTagAction`: Freigeber-Prüfung; Tag nicht in der Zukunft; Uhrzeiten HH:MM in Schweizer Zeit am gewählten Tag (über Mitternacht nicht möglich — dafür "Gehen nachtragen" mit Folgetag); höchstens 10 Paare; Prüfung auf Überschneidung untereinander und mit bestehenden Einträgen; Krankheit/Komp. GLZ höchstens einmal pro Tag; nur Personen aus den Zeiteinträgen. Scheitert ein Paar mitten im Speichern, meldet die Aktion, wie viele gespeichert wurden
 - `erstelleZeiteintrag` in `src/lib/dataverse/zeiterfassung.ts` legt den Eintrag mit den App-Feldern an
 - Browser-Test 2026-10-27: Arbeitszeit-Einträge werden angelegt, der Flow rechnet die Totals. Ein ganztägiger Eintrag **ohne** Kommen liess den Flow scheitern (`startOfDay` auf leeres Feld, Aktion `varStartOfDay`) → behoben: ganztägige Einträge erhalten als Kommen/Arbeitsbeginn den Tagesbeginn (00:00 Schweizer Zeit), Gehen bleibt leer; die Erfassungs-App setzt Kommen ebenfalls immer
+
+**Nachtrag 2026-10-27: einzelne Einträge löschen** (Nutzerwunsch)
+- Neben jedem Kommen–Gehen-Paar ein Löschsymbol (×), bei ganztägigen Einträgen "löschen" — beide mit Bestätigungsdialog (Komponente `abwesenheit-loeschen.tsx`, erweitert um Symbol-Auslöser)
+- `loescheAbwesenheitenAction` löscht jetzt alle bekannten Typen (bisher nur Ferien/Frei); der Typ wird vor dem Löschen neu gelesen, unbekannte Typen nie
+- Ob der Power-Automate-Flow nach dem Löschen die Totals der übrigen Einträge des Tages neu rechnet, ist offen (sonst Abgleich-Hinweis)
 
 **Tests:** 46 neue Tests (Feiertage, Tagesauswertung, Zeitnachweis inkl. Jahreswechsel, Datenschicht, Ansicht, Auswahl); gesamt 542 grün, `tsc` und ESLint sauber; mit dem Nachtrag 15 weitere (557 grün); mit dem Erfassen 17 weitere (575 grün).
 

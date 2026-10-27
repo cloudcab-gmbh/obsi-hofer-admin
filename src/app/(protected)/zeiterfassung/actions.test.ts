@@ -298,8 +298,14 @@ describe("loescheAbwesenheitenAction (PROJ-15)", () => {
     expect(await loescheAbwesenheitenAction([ID, ID, ID])).toEqual({ success: true, geloescht: 2 });
   });
 
-  it("never deletes other types", async () => {
+  it("deletes a single working-time entry (Nutzerwunsch 2026-10-27)", async () => {
     getZeiteintragFuerKorrektur.mockResolvedValue({ typ: "arbeitszeit" });
+    expect(await loescheAbwesenheitenAction([ID])).toEqual({ success: true, geloescht: 1 });
+    expect(loescheZeiteintrag).toHaveBeenCalledWith(ID);
+  });
+
+  it("never deletes entries of an unknown type", async () => {
+    getZeiteintragFuerKorrektur.mockResolvedValue({ typ: "unbekannt" });
     expect((await loescheAbwesenheitenAction([ID])).success).toBe(false);
     expect(loescheZeiteintrag).not.toHaveBeenCalled();
   });

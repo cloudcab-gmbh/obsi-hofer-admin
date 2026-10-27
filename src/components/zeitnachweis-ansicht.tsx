@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Info } from "lucide-react";
+import { AlertTriangle, Info, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -62,7 +62,8 @@ function grundText(t: Tageszeile): string | null {
 
 /** PROJ-15: Ferien- und Frei-Einträge eines Tages (im Tool löschbar). */
 function loeschbar(t: Tageszeile): string[] {
-  return t.auswertung.abwesenheiten.filter((a) => a.typ === "ferien" || a.typ === "frei").map((a) => a.eintragId);
+  // Ganztägige Einträge (Ferien, Frei, Krankheit, Komp. GLZ) des Tages.
+  return t.auswertung.abwesenheiten.map((a) => a.eintragId);
 }
 
 function tageshinweise(t: Tageszeile, beginnArt: Zeitnachweis["beginnArt"]): { text: string; warnung: boolean }[] {
@@ -222,6 +223,15 @@ export function ZeitnachweisAnsicht({
                                 {i > 0 && ", "}
                                 {p.kommen}–{p.gehen ?? "…"}
                                 {p.folgetag && " (+1)"}
+                                {/* Nutzerwunsch 2026-10-27: einzelnen Eintrag löschen. */}
+                                <span className="ml-1 inline-flex align-middle">
+                                  <AbwesenheitLoeschen
+                                    eintragIds={[p.eintragId]}
+                                    beschreibung={`Der Eintrag ${p.kommen}–${p.gehen ?? "(offen)"} vom ${formatKalenderdatum(t.datum)}`}
+                                    label={<X className="h-3 w-3" aria-hidden />}
+                                    ariaLabel={`Eintrag ${p.kommen}–${p.gehen ?? "offen"} löschen`}
+                                  />
+                                </span>
                                 {p.gehen === null && !t.zukunft && (
                                   <>
                                     {" "}
@@ -254,7 +264,7 @@ export function ZeitnachweisAnsicht({
                             {" "}
                             <AbwesenheitLoeschen
                               eintragIds={loeschbar(t)}
-                              beschreibung={`Ferien/Frei am ${formatKalenderdatum(t.datum)}`}
+                              beschreibung={`Der ganztägige Eintrag (${grund ?? "Frei"}) vom ${formatKalenderdatum(t.datum)}`}
                             />
                           </>
                         )}
