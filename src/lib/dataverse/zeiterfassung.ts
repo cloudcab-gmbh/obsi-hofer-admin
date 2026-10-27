@@ -1,7 +1,8 @@
 import { dataverseFetch } from "./client";
 import { createRecord, deleteRecord, listAllRecords, listRecords, updateRecord, upsertRecordByKey } from "./records";
-import { alsSchweizerMitternacht, formatKalenderdatum, zuSchweizerDatum } from "@/lib/zeiterfassung/datum";
+import { alsSchweizerMitternacht, folgetag, formatKalenderdatum, zuSchweizerDatum } from "@/lib/zeiterfassung/datum";
 import type { Arbeitstage, ArbeitsmodellVersion } from "@/lib/zeiterfassung/soll";
+import type { Eintragstyp, Zeiteintrag } from "@/lib/zeiterfassung/tagesauswertung";
 
 // PROJ-14: Tabellen "Zeiterfassung Person" und "Arbeitsmodell" (vom Nutzer
 // angelegt, Schema 2026-10-26 gelesen, siehe Spec). Die Person wird über die
@@ -135,6 +136,62 @@ export async function ersterZeiteintrag(email: string): Promise<string | null> {
     top: 1,
   });
   return zuSchweizerDatum(records[0]?.bmvcc_activitydate ?? null);
+}
+
+const ZEITEINTRAG_SPALTEN = [
+  "bmvcc_activitydate",
+  "bmvcc_activitytype",
+  "bmvcc_kommen",
+  "bmvcc_gehen",
+  "bmvcc_activitystarttime",
+  "bmvcc_checkouttime",
+  "bmvcc_tagestotal",
+  "bmvcc_monatstotal",
+  "bmvcc_mittagessen",
+  "bmvcc_abendessen",
+  "bmvcc_remarks",
+];
+
+// Auswahl "Aktivitätstyp": 0 = Arbeitszeit, 1 = Komp. GLZ, 2 = Krankheit.
+const EINTRAGSTYPEN: Record<number, Eintragstyp> = { 0: "arbeitszeit", 1: "komp-glz", 2: "krankheit" };
+
+function textOderNull(wert: unknown): string | null {
+  return typeof wert === "string" && wert ? wert : null;
+}
+
+function zahlOderNull(wert: unknown): number | null {
+  return typeof wert === "number" ? wert : null;
+}
+
+function zuZeiteintrag(r: Record<string, unknown>): Zeiteintrag | null {
+  const datum = zuSchweizerDatum(r.bmvcc_activitydate as string | null);
+  if (!datum) return null;
+  return {
+    datum,
+    typ: EINTRAGSTYPEN[r.bmvcc_activitytype as number] ?? "unbekannt",
+    // Ältere Einträge haben nur Arbeitsbeginn/Checkout (Spec PROJ-13, Open Questions).
+    kommen: textOderNull(r.bmvcc_kommen) ?? textOderNull(r.bmvcc_activitystarttime),
+    gehen: textOderNull(r.bmvcc_gehen) ?? textOderNull(r.bmvcc_checkouttime),
+    tagestotal: zahlOderNull(r.bmvcc_tagestotal),
+    monatstotal: zahlOderNull(r.bmvcc_monatstotal),
+    mittagessen: r.bmvcc_mittagessen === true,
+    abendessen: r.bmvcc_abendessen === true,
+    bemerkung: textOderNull(r.bmvcc_remarks),
+  };
+}
+
+/** Zeiteinträge einer Person mit Aktivitätsdatum von `von` bis `bis` (Schweizer Kalendertage, inklusive). */
+export async function listZeiteintraege(email: string, von: string, bis: string): Promise<Zeiteintrag[]> {
+  const records = await listAllRecords(ZEITEINTRAEGE_ENTITY, {
+    select: ZEITEINTRAG_SPALTEN,
+    filter: [
+      `bmvcc_useremail eq ${odataString(normalisiereEmail(email))}`,
+      `bmvcc_activitydate ge ${alsSchweizerMitternacht(von)}`,
+      `bmvcc_activitydate lt ${alsSchweizerMitternacht(folgetag(bis))}`,
+    ].join(" and "),
+    orderBy: "bmvcc_activitydate asc",
+  });
+  return records.map(zuZeiteintrag).filter((e): e is Zeiteintrag => e !== null);
 }
 
 export async function listPersonen(): Promise<ZeiterfassungPerson[]> {

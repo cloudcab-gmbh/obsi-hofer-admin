@@ -52,7 +52,7 @@ export default async function ZeiterfassungPersonPage({ params }: { params: Prom
   const ersteVersionAb = verlauf.at(-1)?.gueltigAb ?? null;
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
+    <main className="mx-auto max-w-6xl space-y-6 px-4 py-6">
       <Link
         href="/zeiterfassung/personen"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"

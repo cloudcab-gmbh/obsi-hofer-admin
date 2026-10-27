@@ -21,6 +21,7 @@ import {
   erstelleArbeitsmodell,
   getPersonByEmail,
   listArbeitsmodelle,
+  listZeiteintraege,
   listZeiterfassungEmails,
   speicherePersonStammdaten,
 } from "./zeiterfassung";
@@ -160,5 +161,46 @@ describe("writing", () => {
       bmvcc_arbeitstagsonntag: false,
       "bmvcc_Person@odata.bind": `/bmvcc_zeiterfassungpersons(${PERSON_ID})`,
     });
+  });
+});
+
+describe("listZeiteintraege", () => {
+  it("filters by email and Swiss date range and maps types, fallback fields and totals", async () => {
+    listAllRecords.mockResolvedValue([
+      {
+        bmvcc_activitydate: "2026-11-01T23:00:00Z",
+        bmvcc_activitytype: 0,
+        bmvcc_kommen: null,
+        bmvcc_activitystarttime: "2026-11-02T07:00:00Z",
+        bmvcc_gehen: "2026-11-02T11:00:00Z",
+        bmvcc_tagestotal: 240,
+        bmvcc_monatstotal: 960,
+        bmvcc_mittagessen: true,
+        bmvcc_abendessen: false,
+        bmvcc_remarks: "",
+      },
+      { bmvcc_activitydate: "2026-11-02T23:00:00Z", bmvcc_activitytype: 2 },
+      { bmvcc_activitydate: "2026-11-03T23:00:00Z", bmvcc_activitytype: 7 },
+      { bmvcc_activitydate: null, bmvcc_activitytype: 0 },
+    ]);
+
+    const eintraege = await listZeiteintraege("Anna@Example.ch", "2026-11-01", "2026-11-30");
+
+    expect(listAllRecords.mock.calls[0][1].filter).toBe(
+      "bmvcc_useremail eq 'anna@example.ch' and bmvcc_activitydate ge 2026-10-31T23:00:00Z and bmvcc_activitydate lt 2026-11-30T23:00:00Z"
+    );
+    expect(eintraege).toHaveLength(3);
+    expect(eintraege[0]).toEqual({
+      datum: "2026-11-02",
+      typ: "arbeitszeit",
+      kommen: "2026-11-02T07:00:00Z",
+      gehen: "2026-11-02T11:00:00Z",
+      tagestotal: 240,
+      monatstotal: 960,
+      mittagessen: true,
+      abendessen: false,
+      bemerkung: null,
+    });
+    expect(eintraege.map((e) => e.typ)).toEqual(["arbeitszeit", "krankheit", "unbekannt"]);
   });
 });

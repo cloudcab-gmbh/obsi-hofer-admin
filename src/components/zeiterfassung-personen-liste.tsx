@@ -10,10 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { PersonUebersicht } from "@/lib/zeiterfassung/personen-uebersicht";
 import { formatKalenderdatum } from "@/lib/zeiterfassung/datum";
 import { formatArbeitstage, formatPensum, formatStunden } from "@/lib/zeiterfassung/soll";
-
-export function personHref(email: string): string {
-  return `/zeiterfassung/personen/${encodeURIComponent(email)}`;
-}
+import { personHref } from "@/lib/zeiterfassung/links";
 
 export function ZeiterfassungPersonenListe({ personen }: { personen: PersonUebersicht[] }) {
   const [nurOhneModell, setNurOhneModell] = useState(false);

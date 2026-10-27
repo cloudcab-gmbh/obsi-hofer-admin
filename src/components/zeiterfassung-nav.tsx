@@ -1,0 +1,37 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+
+const SEITEN = [
+  { href: "/zeiterfassung", label: "Zeitnachweis" },
+  { href: "/zeiterfassung/personen", label: "Personen" },
+];
+
+/** Unterseiten der Zeiterfassung (PROJ-13/14; später Ferien, PROJ-15). */
+export function ZeiterfassungNav() {
+  const pfad = usePathname();
+  return (
+    <nav aria-label="Zeiterfassung" className="flex gap-1 border-b">
+      {SEITEN.map((seite) => {
+        const aktiv = seite.href === "/zeiterfassung" ? pfad === seite.href : pfad.startsWith(seite.href);
+        return (
+          <Link
+            key={seite.href}
+            href={seite.href}
+            aria-current={aktiv ? "page" : undefined}
+            className={cn(
+              "-mb-px border-b-2 px-3 py-2 text-sm",
+              aktiv
+                ? "border-primary font-medium text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {seite.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}

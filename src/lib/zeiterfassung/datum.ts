@@ -71,6 +71,59 @@ export function vortag(datum: string): string {
   return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] - 1)).toISOString().slice(0, 10);
 }
 
+export function folgetag(datum: string): string {
+  const m = DATUM_PATTERN.exec(datum);
+  if (!m) throw new Error(`Ungültiges Datum: "${datum}"`);
+  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] + 1)).toISOString().slice(0, 10);
+}
+
+const MONAT_PATTERN = /^(\d{4})-(\d{2})$/;
+
+export function istGueltigerMonat(monat: string): boolean {
+  const m = MONAT_PATTERN.exec(monat);
+  return !!m && +m[2] >= 1 && +m[2] <= 12 && +m[1] >= 2000 && +m[1] <= 2100;
+}
+
+/** Alle Kalendertage eines Monats ("YYYY-MM") als "YYYY-MM-DD". */
+export function tageDesMonats(monat: string): string[] {
+  const m = MONAT_PATTERN.exec(monat);
+  if (!m) throw new Error(`Ungültiger Monat: "${monat}"`);
+  const anzahl = new Date(Date.UTC(+m[1], +m[2], 0)).getUTCDate();
+  return Array.from({ length: anzahl }, (_, i) => `${monat}-${String(i + 1).padStart(2, "0")}`);
+}
+
+/** Monat verschieben, z.B. ("2026-01", -1) → "2025-12". */
+export function verschiebeMonat(monat: string, delta: number): string {
+  const m = MONAT_PATTERN.exec(monat);
+  if (!m) throw new Error(`Ungültiger Monat: "${monat}"`);
+  return new Date(Date.UTC(+m[1], +m[2] - 1 + delta, 1)).toISOString().slice(0, 7);
+}
+
+const uhrzeitFormat = new Intl.DateTimeFormat("de-CH", {
+  timeZone: ZEITZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/** Dataverse-Zeitpunkt → Uhrzeit in Schweizer Zeit ("HH:MM"). */
+export function zuSchweizerUhrzeit(zeitpunkt: string): string {
+  return uhrzeitFormat.format(new Date(zeitpunkt));
+}
+
+const WOCHENTAGE_LANG = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+const MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+
+export function wochentagName(datum: string): string {
+  return WOCHENTAGE_LANG[wochentagIndex(datum)];
+}
+
+/** "2026-10" → "Oktober 2026". */
+export function formatMonat(monat: string): string {
+  const m = MONAT_PATTERN.exec(monat);
+  return m ? `${MONATE[+m[2] - 1]} ${m[1]}` : monat;
+}
+
 /** "YYYY-MM-DD" → "dd.mm.yyyy" (ohne Zeitzonen-Umweg über Date). */
 export function formatKalenderdatum(datum: string | null): string {
   if (!datum) return "—";

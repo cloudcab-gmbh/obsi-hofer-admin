@@ -1,6 +1,6 @@
 # PROJ-13: Zeitnachweis pro Monat
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-10-26
 **Last Updated:** 2026-10-27
 
@@ -222,6 +222,34 @@ Keine neuen Pakete.
 ### F) Vorgehen
 1. Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`, kein Deploy bis zur Freigabe (Nutzer-Vorgabe 2026-10-26)
 2. Keine Dataverse-Änderungen nötig (Lesen auf den Zeiteinträgen ist erteilt)
+
+## Implementation Notes
+
+### Umsetzung Frontend + Backend (2026-10-27, Branch `zeiterfassung`, nur lokal)
+Wie PROJ-14 in einem Schritt gebaut (nur lesend, keine Dataverse-Änderungen).
+
+**Seiten**
+- `/zeiterfassung` ist jetzt der Zeitnachweis (vorher Weiterleitung auf die Personen); Unterseiten-Leiste "Zeitnachweis · Personen" im Layout `zeiterfassung/layout.tsx` (nur für Freigeber)
+- Auswahl (`zeitnachweis-auswahl.tsx`): Person per durchsuchbarer Auswahl (ohne "nicht auswerten"), Monat mit Vor/Zurück und Monatsfeld; Adresse `?person=…&monat=YYYY-MM`, zusätzlich im Cookie `zeitnachweis_auswahl` gemerkt (30 Tage, httpOnly). Ohne Angaben: gemerkte Auswahl bzw. aktueller Monat, keine Person
+- Ansicht (`zeitnachweis-ansicht.tsx`): Hinweise (kein Arbeitsmodell mit Link zu PROJ-14, Excel-Zeitraum bzw. vor dem ersten Arbeitsmodell, keine Einträge, fehlendes Gehen, Abweichung Monatstotal), Kennzahlen (Saldo Vormonat bzw. "Startsaldo", wenn die Gleitzeit im Monat beginnt; Ist; Soll; Abweichung; Gleitzeit Monatsende/"Stand heute" in Stunden und Tagen), Tagestabelle mit Summenzeile. Tage vor dem Beginn und nach heute ausgegraut, freie Tage/Feiertage hinterlegt, unplausible Paare durchgestrichen
+
+**Rechenregeln (rein, für PROJ-16 wiederverwendbar)**
+- `src/lib/zeiterfassung/feiertage.ts`: 9 Feiertage Aargau, Ostern nach der gregorianischen Formel
+- `src/lib/zeiterfassung/tagesauswertung.ts`: Paare in zeitlicher Reihenfolge, Ist in ganzen Minuten als Vereinigung der Intervalle (Überschneidung einmal), offen/unplausibel (> 14 h oder Gehen vor Kommen) zählen nicht, Gehen am Folgetag "(+1)", Essen-Regel, Bemerkungen, höchstes Tagestotal des Flows
+- `src/lib/zeiterfassung/zeitnachweis.ts`: Tag für Tag Grund (kein Arbeitsmodell → nicht angestellt → Feiertag → Ferien → frei), Soll, Krankheit (Ist = max(Soll, Arbeitszeit)), Komp. GLZ, Abweichung, fortlaufende Gleitzeit ab Beginn; Saldo Vormonat durch Durchrechnen ab Beginn; Flow-Abgleich Tag/Monat; `ladebeginn` bestimmt den Ladezeitraum
+- Ferien: Schnittstelle `ferientage` vorbereitet, bis PROJ-15 leer
+- `datum.ts` erweitert (Folgetag, Tage des Monats, Monat verschieben, Uhrzeit Schweizer Zeit, Wochentag/Monat als Text), `format.ts` (Minuten → "x.xx h", Tage = Stunden ÷ 8), `links.ts` (Adressen, von Server und Client genutzt)
+
+**Daten**
+- `listZeiteintraege(email, von, bis)` in `src/lib/dataverse/zeiterfassung.ts`: Filter auf E-Mail und Aktivitätsdatum (Schweizer Mitternacht), alle Seiten, nur benötigte Felder; Typ 0/1/2 → Arbeitszeit/Komp. GLZ/Krankheit, andere → "unbekannt" (zählt nicht); Kommen/Gehen mit Ersatz Arbeitsbeginn/Checkout
+
+**Abweichungen / Hinweise**
+- Krankheit + Arbeitszeit am selben Tag: Ist = das Grössere aus Soll und Arbeitszeit (Gleitzeit sinkt nicht, steigt nur bei Mehrarbeit) — in der Spec nicht geregelt
+- Feiertag an einem freien Tag wird als "Feiertag: …" angezeigt (Soll ohnehin 0)
+- Monatsfeld: Firefox/Safari zeigen statt der Monatsauswahl ein Textfeld (Eingabe JJJJ-MM); Vor/Zurück funktioniert überall
+- Probelauf gegen die Testdaten 2026-10-27 (5 Personen, April–Oktober, nur Summen ausgegeben): Laden und Rechnen fehlerfrei; Flow-Abweichungen an einzelnen Tagen sichtbar
+
+**Tests:** 46 neue Tests (Feiertage, Tagesauswertung, Zeitnachweis inkl. Jahreswechsel, Datenschicht, Ansicht, Auswahl); gesamt 542 grün, `tsc` und ESLint sauber.
 
 ## QA Test Results
 _To be added by /qa_
