@@ -14,6 +14,7 @@ import {
   setzeGehen,
 } from "@/lib/dataverse/zeiterfassung";
 import {
+  alsSchweizerMitternacht,
   alsSchweizerZeitpunkt,
   folgetag,
   heuteSchweiz,
@@ -164,7 +165,18 @@ export async function erfasseTagAction(eingabe: TagErfassenEingabe): Promise<Tag
             abendessen: n === 0 && d.abendessen,
             bemerkung: n === 0 ? bemerkung : null,
           }))
-        : [{ typ: d.typ, kommen: null, gehen: null, mittagessen: d.mittagessen, abendessen: d.abendessen, bemerkung }];
+        : [
+            {
+              typ: d.typ,
+              // Der Power-Automate-Flow braucht ein "Kommen" (startOfDay) — ganztägige
+              // Einträge erhalten den Tagesbeginn, ohne "Gehen" (Fehler im Browser-Test 2026-10-27).
+              kommen: alsSchweizerMitternacht(d.datum),
+              gehen: null,
+              mittagessen: d.mittagessen,
+              abendessen: d.abendessen,
+              bemerkung,
+            },
+          ];
     for (const eintrag of neue) {
       await erstelleZeiteintrag(email, d.datum, eintrag);
       angelegt++;

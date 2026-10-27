@@ -138,9 +138,10 @@ describe("erfasseTagAction", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/zeiterfassung");
   });
 
-  it("creates a whole-day Krankheit without times", async () => {
+  it("creates a whole-day Krankheit starting at midnight without Gehen", async () => {
     expect(await erfasseTagAction({ ...TAG, typ: "krankheit", paare: [] })).toEqual({ success: true, angelegt: 1 });
-    expect(erstelleZeiteintrag).toHaveBeenCalledWith("anna@x.ch", "2026-08-12", expect.objectContaining({ typ: "krankheit", kommen: null, gehen: null }));
+    // Kommen = Tagesbeginn Schweizer Zeit, weil der Flow ein Kommen braucht
+    expect(erstelleZeiteintrag).toHaveBeenCalledWith("anna@x.ch", "2026-08-12", expect.objectContaining({ typ: "krankheit", kommen: "2026-08-11T22:00:00Z", gehen: null }));
   });
 
   it.each([

@@ -268,7 +268,7 @@ Wie PROJ-14 in einem Schritt gebaut (nur lesend, keine Dataverse-Änderungen).
 - Datum jeder Zeile bis heute ist klickbar (gepunktet unterstrichen) und öffnet den Dialog `tag-erfassen.tsx`: Art (Arbeitszeit / Krankheit / Komp. GLZ), bei Arbeitszeit Paare Kommen–Gehen mit "+ weiteres Paar" und laufendem Total, Mittag-/Abendessen, Bemerkung
 - Aktion `erfasseTagAction`: Freigeber-Prüfung; Tag nicht in der Zukunft; Uhrzeiten HH:MM in Schweizer Zeit am gewählten Tag (über Mitternacht nicht möglich — dafür "Gehen nachtragen" mit Folgetag); höchstens 10 Paare; Prüfung auf Überschneidung untereinander und mit bestehenden Einträgen; Krankheit/Komp. GLZ höchstens einmal pro Tag; nur Personen aus den Zeiteinträgen. Scheitert ein Paar mitten im Speichern, meldet die Aktion, wie viele gespeichert wurden
 - `erstelleZeiteintrag` in `src/lib/dataverse/zeiterfassung.ts` legt den Eintrag mit den App-Feldern an
-- **Offen, im Browser zu prüfen:** ob der Flow beim Anlegen läuft (Totals) und mit ganztägigen Einträgen ohne Kommen/Gehen zurechtkommt
+- Browser-Test 2026-10-27: Arbeitszeit-Einträge werden angelegt, der Flow rechnet die Totals. Ein ganztägiger Eintrag **ohne** Kommen liess den Flow scheitern (`startOfDay` auf leeres Feld, Aktion `varStartOfDay`) → behoben: ganztägige Einträge erhalten als Kommen/Arbeitsbeginn den Tagesbeginn (00:00 Schweizer Zeit), Gehen bleibt leer; die Erfassungs-App setzt Kommen ebenfalls immer
 
 **Tests:** 46 neue Tests (Feiertage, Tagesauswertung, Zeitnachweis inkl. Jahreswechsel, Datenschicht, Ansicht, Auswahl); gesamt 542 grün, `tsc` und ESLint sauber; mit dem Nachtrag 15 weitere (557 grün); mit dem Erfassen 17 weitere (575 grün).
 

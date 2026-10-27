@@ -226,7 +226,7 @@ export async function setzeGehen(id: string, gehen: string): Promise<void> {
 
 export interface NeuerZeiteintrag {
   typ: Exclude<Eintragstyp, "unbekannt">;
-  /** Zeitpunkte (ISO, UTC); bei Krankheit/Komp. GLZ leer. */
+  /** Zeitpunkte (ISO, UTC); bei Krankheit/Komp. GLZ Kommen = Tagesbeginn, Gehen leer. */
   kommen: string | null;
   gehen: string | null;
   mittagessen: boolean;
