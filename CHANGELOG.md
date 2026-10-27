@@ -2,6 +2,31 @@
 
 Alle für Nutzer relevanten Änderungen am Admin-Tool. Neueste Version zuerst. Versionen entsprechen den Git-Tags `vX.Y.Z-PROJ-N`.
 
+## [Unveröffentlicht] – Branch `zeiterfassung` · PROJ-13 bis PROJ-18 Zeiterfassung
+Noch nicht in Production — wird beim Deploy zur nächsten Version. Nur für Freigeber.
+### Neu
+- Menüpunkt „Zeiterfassung“ mit den Reitern Übersicht, Zeitnachweis, Personen, Ferien und Feiertage.
+- Personen (PROJ-14):
+  - Alle Personen aus den Zeiteinträgen, mit Name, „nicht auswerten“ und Austritt.
+  - Arbeitsmodell mit Versionen (Pensum, Arbeitstage, gültig ab).
+  - Gleitzeit- und Ferien-Startsaldo am Stichtag sowie Ferienanspruch.
+- Zeitnachweis (PROJ-13):
+  - Pro Person und Monat Tag für Tag Kommen/Gehen, Ist, Soll, Abweichung, Gleitzeit, Essen und Bemerkungen.
+  - Saldo Vormonat sowie Gleitzeit in Stunden und Tagen.
+  - Feiertage, Krankheit und Komp. GLZ werden berücksichtigt.
+  - Fehlendes „Gehen“ nachtragen, Einträge für einen Tag erfassen und einzelne Einträge löschen. Der Power-Automate-Flow rechnet die Totals danach neu.
+- Ferien (PROJ-15):
+  - Ferien von–bis erfassen (nur Tage mit Soll, halbe Tage möglich, mit Vorschau), umstellen und löschen.
+  - Feriensaldo mit Anspruch × Pensum, Gutschrift am 1. Januar und Restferien-Übertrag.
+  - Jahresübersicht aller Personen.
+  - Kennzeichnung „Frei“.
+- Zeitnachweis als PDF (PROJ-16): Download pro Person und Monat, A4 hoch, mit „Erstellt von“.
+- Übersicht (PROJ-17):
+  - Alle Mitarbeitenden eines Monats mit Gleitzeit, Ist/Soll, Abwesenheiten und Ferien.
+  - Grafiken für Gleitzeit und Ferien.
+  - Warnungen, z.B. kein Arbeitsmodell, offene Einträge, negativer Feriensaldo.
+- Feiertage (PROJ-18): Pro Jahr übernehmen und pflegen, auch betriebliche und halbe Feiertage. Ohne Pflege gelten die gesetzlichen Feiertage Aargau.
+
 ## [1.12.2] – 2026-10-20 · PROJ-7 PDF-Export Prüfberichte (kundenspezifisches Template)
 ### Neu
 - Vorbereitet: Das PDF kann unten rechts ein Visum (Unterschrift) tragen. Es ist noch ausgeschaltet; bis zur Freigabe ändert sich am PDF nichts.
