@@ -1,3 +1,5 @@
+import type { FerienPlan } from "./ferien";
+
 // PROJ-13: Anzeige von Minuten als Stunden mit zwei Nachkommastellen.
 
 /** Gleitzeit-Tage = Stunden ÷ 8 (wie in der bisherigen Excel-Mappe). */
@@ -16,6 +18,25 @@ export function formatMinutenMitVorzeichen(minuten: number): string {
 /** PROJ-15: z.B. "1 Ferientag", "7.5 Ferientage" (von Server- und Client-Komponenten genutzt). */
 export function formatFerientage(tage: number): string {
   return tage === 1 ? "1 Ferientag" : `${tage} Ferientage`;
+}
+
+/** Übersprungene Tage einer Ferien-Vorschau, z.B. "2 Feiertage, 1 bereits Ferien" (leer = keine). */
+export function uebersprungenText(plan: FerienPlan): string {
+  const u = plan.uebersprungen;
+  return [
+    u.feiertag && `${u.feiertag} Feiertag${u.feiertag === 1 ? "" : "e"}`,
+    u.ohneSoll && `${u.ohneSoll} ohne Soll (Wochenende/frei)`,
+    u.bereitsFerien && `${u.bereitsFerien} bereits Ferien`,
+    u.ohneArbeitsmodell && `${u.ohneArbeitsmodell} ohne Arbeitsmodell`,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+/** Text der Vorschau, z.B. "ergibt 8 Ferientage; übersprungen: 2 Feiertage, 1 bereits Ferien". */
+export function vorschauText(plan: FerienPlan): string {
+  const uebersprungen = uebersprungenText(plan);
+  return `ergibt ${formatFerientage(plan.ferientage)}${uebersprungen ? `; übersprungen: ${uebersprungen}` : ""}`;
 }
 
 export function formatGleitzeitTage(minuten: number): string {

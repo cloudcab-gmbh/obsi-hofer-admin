@@ -25,6 +25,7 @@ import {
   zuSchweizerDatum,
 } from "@/lib/zeiterfassung/datum";
 import { planeFerien, type FerienPlan } from "@/lib/zeiterfassung/ferien";
+import { uebersprungenText } from "@/lib/zeiterfassung/format";
 
 export type GehenNachtragenResult = { success: true } | { success: false; message: string };
 
@@ -272,7 +273,11 @@ export async function erfasseFerienAction(eingabe: FerienEingabe): Promise<Ferie
     const plan = await berechneFerienPlan(d);
     if (typeof plan === "string") return { success: false, message: plan };
     if (plan.tage.length === 0) {
-      return { success: false, message: "Im gewählten Zeitraum gibt es keinen Tag mit Soll, der als Ferientag erfasst werden kann." };
+      // Grund nennen (Nutzer-Test 2026-10-27: Meldung ohne Grund war unklar).
+      return {
+        success: false,
+        message: `Kein Ferientag zu erfassen — übersprungen: ${uebersprungenText(plan) || "keine Tage"}.`,
+      };
     }
     for (const tag of plan.tage) {
       await erstelleZeiteintrag(normalisiereEmail(d.email), tag, {

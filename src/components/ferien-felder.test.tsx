@@ -6,7 +6,8 @@ vi.mock("@/app/(protected)/zeiterfassung/actions", () => ({
   planeFerienAction: (...args: unknown[]) => planeFerienAction(...args),
 }));
 
-import { FerienFelder, vorschauText } from "./ferien-felder";
+import { FerienFelder } from "./ferien-felder";
+import { vorschauText } from "@/lib/zeiterfassung/format";
 
 beforeEach(() => {
   vi.resetAllMocks();

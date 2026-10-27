@@ -5,25 +5,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { planeFerienAction } from "@/app/(protected)/zeiterfassung/actions";
-import type { FerienPlan } from "@/lib/zeiterfassung/ferien";
-import { formatFerientage } from "@/lib/zeiterfassung/format";
+import { vorschauText } from "@/lib/zeiterfassung/format";
 
 export interface FerienWerte {
   von: string;
   bis: string;
   halberTag: boolean;
-}
-
-/** Text der Vorschau, z.B. "ergibt 8 Ferientage; übersprungen: 2 Feiertage, 1 bereits Ferien". */
-export function vorschauText(plan: FerienPlan): string {
-  const u = plan.uebersprungen;
-  const teile = [
-    u.feiertag && `${u.feiertag} Feiertag${u.feiertag === 1 ? "" : "e"}`,
-    u.ohneSoll && `${u.ohneSoll} ohne Soll (Wochenende/frei)`,
-    u.bereitsFerien && `${u.bereitsFerien} bereits Ferien`,
-    u.ohneArbeitsmodell && `${u.ohneArbeitsmodell} ohne Arbeitsmodell`,
-  ].filter(Boolean);
-  return `ergibt ${formatFerientage(plan.ferientage)}${teile.length ? `; übersprungen: ${teile.join(", ")}` : ""}`;
 }
 
 /**

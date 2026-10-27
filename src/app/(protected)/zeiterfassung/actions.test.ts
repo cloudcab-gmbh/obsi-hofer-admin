@@ -234,9 +234,15 @@ describe("Ferien (PROJ-15)", () => {
     expect(await erfasseFerienAction({ ...FERIEN, ...aenderung })).toEqual({ success: false, message });
   });
 
-  it("rejects a period without any Ferientag", async () => {
+  it("rejects a period without any Ferientag and names the reason", async () => {
     const result = await erfasseFerienAction({ ...FERIEN, von: "2026-11-07", bis: "2026-11-08" });
-    expect(result.success).toBe(false);
+    expect(result).toEqual({ success: false, message: "Kein Ferientag zu erfassen — übersprungen: 2 ohne Soll (Wochenende/frei)." });
+
+    listZeiteintraege.mockResolvedValue([{ datum: "2026-11-02", typ: "ferien" }]);
+    expect(await erfasseFerienAction({ ...FERIEN, von: "2026-11-02", bis: "2026-11-02", halberTag: true })).toEqual({
+      success: false,
+      message: "Kein Ferientag zu erfassen — übersprungen: 1 bereits Ferien.",
+    });
     expect(erstelleZeiteintrag).not.toHaveBeenCalled();
   });
 
