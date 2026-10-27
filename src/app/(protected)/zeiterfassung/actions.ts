@@ -14,6 +14,7 @@ import {
   listZeiterfassungEmails,
   loescheZeiteintrag,
   setzeHalberTag,
+  stosseFlowAn,
   normalisiereEmail,
   setzeGehen,
 } from "@/lib/dataverse/zeiterfassung";
@@ -22,6 +23,7 @@ import {
   alsSchweizerZeitpunkt,
   folgetag,
   heuteSchweiz,
+  tageDesMonats,
   istGueltigesDatum,
   istGueltigeUhrzeit,
   zuSchweizerDatum,
@@ -368,11 +370,15 @@ export async function loescheAbwesenheitenAction(eintragIds: string[]): Promise<
   if (!ids.success) return { success: false, message: "Ungültige Auswahl." };
 
   let geloescht = 0;
+  /** Betroffene Person und Tag — für das Anstossen des Flows danach. */
+  const betroffen = new Map<string, { email: string; datum: string }>();
   try {
     for (const id of ids.data) {
       let typ;
       try {
-        typ = (await getZeiteintragFuerKorrektur(id)).typ;
+        const eintrag = await getZeiteintragFuerKorrektur(id);
+        typ = eintrag.typ;
+        if (eintrag.email && eintrag.datum) betroffen.set(`${eintrag.email}|${eintrag.datum}`, { email: eintrag.email, datum: eintrag.datum });
       } catch (error) {
         // Bereits gelöscht → Ziel erreicht.
         if (error instanceof DataverseError && error.category === "not_found") continue;
@@ -390,6 +396,26 @@ export async function loescheAbwesenheitenAction(eintragIds: string[]): Promise<
     return { success: false, message: `Löschen abgebrochen nach ${geloescht} Eintrag/Einträgen: ${grund}` };
   }
 
+  await stosseFlowNachLoeschenAn([...betroffen.values()]);
   revalidatePath("/zeiterfassung", "layout");
   return { success: true, geloescht };
+}
+
+/**
+ * Der Power-Automate-Flow läuft beim Löschen nicht (Nutzer-Test 2026-10-27).
+ * Damit Tages- und Monatstotal stimmen, wird ein verbleibender Eintrag desselben
+ * Tages — sonst desselben Monats — unverändert neu geschrieben; dabei läuft der
+ * Flow. Ein Fehler hier lässt das Löschen bestehen (nur die Totals bleiben alt).
+ */
+async function stosseFlowNachLoeschenAn(betroffen: { email: string; datum: string }[]): Promise<void> {
+  for (const { email, datum } of betroffen) {
+    try {
+      const amTag = await listZeiteintraege(email, datum, datum);
+      const monat = datum.slice(0, 7);
+      const kandidat = amTag[0] ?? (await listZeiteintraege(email, `${monat}-01`, tageDesMonats(monat).at(-1)!)).at(-1);
+      if (kandidat) await stosseFlowAn(kandidat);
+    } catch {
+      // Totals bleiben veraltet; der Zeitnachweis zeigt dann den Abgleich-Hinweis.
+    }
+  }
 }

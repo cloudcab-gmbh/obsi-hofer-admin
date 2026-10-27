@@ -213,6 +213,8 @@ export async function listZeiteintraege(email: string, von: string, bis: string)
 
 export interface OffenerEintrag {
   email: string;
+  /** Aktivitätsdatum in Schweizer Zeit. */
+  datum: string | null;
   typ: Eintragstyp;
   kommen: string | null;
   gehen: string | null;
@@ -221,26 +223,31 @@ export interface OffenerEintrag {
 /** Einzelner Zeiteintrag für das Nachtragen von "Gehen" (PROJ-13). */
 export async function getZeiteintragFuerKorrektur(id: string): Promise<OffenerEintrag> {
   const r = await getRecord<Record<string, unknown>>(ZEITEINTRAEGE_ENTITY, id, {
-    select: ["bmvcc_useremail", "bmvcc_activitytype", "bmvcc_kommen", "bmvcc_activitystarttime", "bmvcc_gehen", "bmvcc_checkouttime"],
+    select: [
+      "bmvcc_useremail",
+      "bmvcc_activitydate",
+      "bmvcc_activitytype",
+      "bmvcc_kommen",
+      "bmvcc_activitystarttime",
+      "bmvcc_gehen",
+      "bmvcc_checkouttime",
+    ],
   });
   return {
     email: normalisiereEmail(String(r.bmvcc_useremail ?? "")),
+    datum: zuSchweizerDatum(r.bmvcc_activitydate as string | null),
     typ: EINTRAGSTYPEN[r.bmvcc_activitytype as number] ?? "unbekannt",
     kommen: textOderNull(r.bmvcc_kommen) ?? textOderNull(r.bmvcc_activitystarttime),
     gehen: textOderNull(r.bmvcc_gehen) ?? textOderNull(r.bmvcc_checkouttime),
   };
 }
 
-/**
- * Trägt "Gehen" nach. Die Erfassungs-App setzt beim Gehen "Gehen" und
- * "Checkout" gleichzeitig — hier ebenso, damit beide Felder übereinstimmen.
- */
 /** QA BUG-1 (PROJ-15): Ferientag auf ganz bzw. halb umstellen. */
 export async function setzeHalberTag(id: string, halberTag: boolean): Promise<void> {
   await updateRecord(ZEITEINTRAEGE_ENTITY, id, { [HALBER_TAG_SPALTE]: halberTag });
 }
 
-/** PROJ-15: löscht einen Zeiteintrag (die Aktion prüft vorher, dass er Ferien oder Frei ist). */
+/** Löscht einen Zeiteintrag (die Aktion prüft vorher den Typ). */
 export async function loescheZeiteintrag(id: string): Promise<void> {
   await deleteRecord(ZEITEINTRAEGE_ENTITY, id);
 }
@@ -264,8 +271,27 @@ export async function listFerienUndKrankheit(von: string, bis: string): Promise<
   });
 }
 
+/**
+ * Trägt "Gehen" nach. Die Erfassungs-App setzt beim Gehen "Gehen" und
+ * "Checkout" gleichzeitig — hier ebenso, damit beide Felder übereinstimmen.
+ */
 export async function setzeGehen(id: string, gehen: string): Promise<void> {
   await updateRecord(ZEITEINTRAEGE_ENTITY, id, { bmvcc_gehen: gehen, bmvcc_checkouttime: gehen });
+}
+
+/**
+ * Stösst den Power-Automate-Flow für einen Eintrag an, ohne ihn inhaltlich zu
+ * ändern: Gehen bzw. (ohne Gehen) Kommen wird mit demselben Wert neu
+ * geschrieben. Der Flow läuft beim Löschen nicht (Nutzer-Test 2026-10-27) —
+ * so rechnet er Tages- und Monatstotal der übrigen Einträge neu.
+ */
+export async function stosseFlowAn(eintrag: { id: string; kommen: string | null; gehen: string | null }): Promise<void> {
+  const daten = eintrag.gehen
+    ? { bmvcc_gehen: eintrag.gehen, bmvcc_checkouttime: eintrag.gehen }
+    : eintrag.kommen
+      ? { bmvcc_kommen: eintrag.kommen, bmvcc_activitystarttime: eintrag.kommen }
+      : null;
+  if (daten) await updateRecord(ZEITEINTRAEGE_ENTITY, eintrag.id, daten);
 }
 
 export interface NeuerZeiteintrag {

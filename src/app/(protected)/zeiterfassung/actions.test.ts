@@ -12,6 +12,7 @@ const heuteSchweiz = vi.fn();
 const listArbeitsmodelle = vi.fn();
 const loescheZeiteintrag = vi.fn();
 const setzeHalberTag = vi.fn();
+const stosseFlowAn = vi.fn();
 
 vi.mock("@/lib/auth/freigeber", () => ({ aktuellerBenutzerIstFreigeber: () => istFreigeberMock() }));
 vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => revalidatePath(...args) }));
@@ -25,6 +26,7 @@ vi.mock("@/lib/dataverse/zeiterfassung", () => ({
   listArbeitsmodelle: (...args: unknown[]) => listArbeitsmodelle(...args),
   loescheZeiteintrag: (...args: unknown[]) => loescheZeiteintrag(...args),
   setzeHalberTag: (...args: unknown[]) => setzeHalberTag(...args),
+  stosseFlowAn: (...args: unknown[]) => stosseFlowAn(...args),
   normalisiereEmail: (e: string) => e.trim().toLowerCase(),
 }));
 // PROJ-18: ohne gepflegte Jahre gilt der Vorschlag.
@@ -318,6 +320,31 @@ describe("loescheAbwesenheitenAction (PROJ-15)", () => {
     loescheZeiteintrag.mockRejectedValueOnce(new DataverseError("validation_error", "abgelehnt"));
 
     expect((await loescheAbwesenheitenAction([ID])).success).toBe(false);
+  });
+
+  it("triggers the Flow on a remaining entry of the same day, else of the month", async () => {
+    getZeiteintragFuerKorrektur.mockResolvedValue({ email: "anna@x.ch", datum: "2026-10-26", typ: "arbeitszeit" });
+    const rest = { id: "r1", datum: "2026-10-26", kommen: "2026-10-26T17:12:00Z", gehen: "2026-10-26T17:13:00Z" };
+    listZeiteintraege.mockResolvedValueOnce([rest]);
+
+    await loescheAbwesenheitenAction([ID]);
+    expect(listZeiteintraege).toHaveBeenCalledWith("anna@x.ch", "2026-10-26", "2026-10-26");
+    expect(stosseFlowAn).toHaveBeenCalledWith(rest);
+
+    stosseFlowAn.mockClear();
+    const imMonat = { id: "r2", datum: "2026-10-27", kommen: "2026-10-27T06:46:00Z", gehen: null };
+    listZeiteintraege.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: "r0" }, imMonat]);
+    await loescheAbwesenheitenAction([ID]);
+    expect(listZeiteintraege).toHaveBeenLastCalledWith("anna@x.ch", "2026-10-01", "2026-10-31");
+    expect(stosseFlowAn).toHaveBeenCalledWith(imMonat);
+  });
+
+  it("keeps the deletion successful when triggering the Flow fails", async () => {
+    getZeiteintragFuerKorrektur.mockResolvedValue({ email: "anna@x.ch", datum: "2026-10-26", typ: "arbeitszeit" });
+    listZeiteintraege.mockResolvedValueOnce([{ id: "r1" }]);
+    stosseFlowAn.mockRejectedValueOnce(new DataverseError("unavailable", "weg"));
+
+    expect(await loescheAbwesenheitenAction([ID])).toEqual({ success: true, geloescht: 1 });
   });
 
   it("never deletes entries of an unknown type", async () => {

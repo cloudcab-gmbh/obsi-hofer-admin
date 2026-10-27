@@ -18,6 +18,7 @@ vi.mock("./records", () => ({
 }));
 
 import {
+  stosseFlowAn,
   erstelleArbeitsmodell,
   erstelleZeiteintrag,
   getPersonByEmail,
@@ -258,5 +259,20 @@ describe("erstelleZeiteintrag", () => {
       bemerkung: null,
     });
     expect(createRecord.mock.calls[0][1]).toMatchObject({ bmvcc_activitydatetimecode: "202608120000", bmvcc_activitytype: 2 });
+  });
+});
+
+describe("stosseFlowAn", () => {
+  it("rewrites Gehen (or Kommen without Gehen) with the same value", async () => {
+    await stosseFlowAn({ id: "a", kommen: "2026-10-26T15:54:00Z", gehen: "2026-10-26T16:00:00Z" });
+    expect(updateRecord).toHaveBeenCalledWith("bmvcc_timetrackingentries", "a", {
+      bmvcc_gehen: "2026-10-26T16:00:00Z",
+      bmvcc_checkouttime: "2026-10-26T16:00:00Z",
+    });
+    await stosseFlowAn({ id: "b", kommen: "2026-10-27T06:46:00Z", gehen: null });
+    expect(updateRecord).toHaveBeenLastCalledWith("bmvcc_timetrackingentries", "b", {
+      bmvcc_kommen: "2026-10-27T06:46:00Z",
+      bmvcc_activitystarttime: "2026-10-27T06:46:00Z",
+    });
   });
 });
