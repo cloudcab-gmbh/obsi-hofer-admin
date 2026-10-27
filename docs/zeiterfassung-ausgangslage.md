@@ -30,8 +30,8 @@ Anzeigename "Time Tracking Entry", Entity-Set `bmvcc_timetrackingentries`, gleic
 | `bmvcc_activitystarttime` / `bmvcc_checkouttime` | Datum/Zeit | Arbeitsbeginn / Checkout |
 | `bmvcc_pausestarttime` / `bmvcc_pauseendtime` | Datum/Zeit | Pausenbeginn / -ende |
 | `bmvcc_networkinghours` | Dezimal | Arbeitszeit netto (aznetto) |
-| `bmvcc_aznetto4` | Dezimal | aznetto4 |
-| `bmvcc_tagestotal` / `bmvcc_monatstotal` | Ganzzahl | Tages- / Monatstotal |
+| `bmvcc_aznetto4` | Dezimal | aznetto4 — Dauer dieses Eintrags in ganzen Minuten (vom Flow berechnet, Nutzer + Datenprüfung 2026-10-27) |
+| `bmvcc_tagestotal` / `bmvcc_monatstotal` | Ganzzahl | Tages- / Monatstotal in Minuten (vom Flow; aktuellster Stand auf dem neuesten Eintrag, ältere tragen teils Zwischenstände) |
 | `bmvcc_mittagessen`, `bmvcc_essen`, `bmvcc_abendessen` | Ja/Nein | Mittagessen / Abendessen |
 | `bmvcc_remarks` | Text | Bemerkung |
 | `bmvcc_recordid`, `bmvcc_timerecordid`, `bmvcc_timetrackingid` | Zahl/Text | IDs aus dem Vorsystem (id, zeitrecid, zeiterfassungid) |

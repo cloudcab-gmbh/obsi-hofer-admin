@@ -47,7 +47,7 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 - [ ] Angenommen Person und Monat sind gewählt, wenn der Zeitnachweis lädt, dann erscheint jeder Kalendertag des Monats als Zeile mit Datum und Wochentag
 - [ ] Angenommen eine Person hat an einem Tag einen oder mehrere Einträge vom Typ "Arbeitszeit", wenn der Tag angezeigt wird, dann zeigt er alle Kommen/Gehen-Paare des Tages in zeitlicher Reihenfolge (z.B. "07:30–12:00, 12:45–17:15"), und das Ist ist die Summe (Gehen − Kommen) aller Einträge des Tages
 - [ ] Angenommen ein Eintrag hat ein "Kommen", aber kein "Gehen", dann zählt er nicht ins Ist und die Zeile ist als "offen – Gehen fehlt" markiert; beim laufenden Tag (heute) ohne Warnung, an vergangenen Tagen als Warnung
-- [ ] Angenommen das Tagestotal des Power-Automate-Flows (`bmvcc_aznetto4`) weicht vom selbst berechneten Ist des Tages ab, dann zeigt die Zeile einen dezenten Hinweis mit beiden Werten; massgeblich bleibt das selbst berechnete Ist
+- [ ] Angenommen das Tagestotal des Power-Automate-Flows (`bmvcc_tagestotal`, Minuten) weicht vom selbst berechneten Ist des Tages ab, dann zeigt die Zeile einen dezenten Hinweis mit beiden Werten; massgeblich bleibt das selbst berechnete Ist. Dasselbe gilt in der Monatsübersicht für das Monatstotal (`bmvcc_monatstotal`)
 - [ ] Angenommen ein Tag ist laut Arbeitsmodell ein Arbeitstag und weder Feiertag noch Ferientag, dann ist sein Soll das Soll des Wochentags aus dem Arbeitsmodell, das an diesem Datum gilt
 - [ ] Angenommen ein Tag ist ein gesetzlicher Feiertag im Aargau, ein Ferientag (PROJ-15) oder laut Arbeitsmodell kein Arbeitstag, dann ist sein Soll 0 und der Grund steht in der Zeile ("Feiertag: Auffahrt", "Ferien", "frei")
 - [ ] Angenommen ein Tag hat einen Eintrag vom Typ "Krankheit", dann gilt das Soll als erfüllt (Ist = Soll), die Gleitzeit bleibt unverändert, und die Zeile ist als "Krankheit" gekennzeichnet
@@ -93,8 +93,8 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 - [x] Netto-Arbeitszeit aus `bmvcc_networkinghours` oder `bmvcc_aznetto4`? → keines von beiden: Das Ist wird aus Kommen/Gehen gerechnet (Nutzer-Entscheidung 2026-10-26). Befund der Daten: `bmvcc_networkinghours` 1× gefüllt, `bmvcc_aznetto4` 127× (von 143), entspricht aber nur 12× der Dauer des Eintrags
 - [x] Muss der Zeitnachweis Pausen abziehen? → Nein: Pausen sind Lücken zwischen den Einträgen; die Pausenfelder sind praktisch leer (5× bzw. 3× von 143)
 - [x] Welches Feldpaar ist Kommen/Gehen? → Die Erfassungs-App setzt beim Kommen `Kommen` und `astart`, beim Gehen `Gehen` und `checkout` jeweils gleichzeitig auf die aktuelle Zeit (Code vom Nutzer, 2026-10-26). Massgeblich: `bmvcc_kommen`/`bmvcc_gehen`, bei leeren Werten (ältere Einträge) `bmvcc_activitystarttime`/`bmvcc_checkouttime`. Abweichungen zwischen beiden Paaren (10 von 139) stammen vermutlich aus älteren Einträgen oder Korrekturen
-- [x] Wohin schreibt der Flow das Tagestotal? → in `bmvcc_aznetto4` (Nutzer, 2026-10-26) — erklärt, warum `aznetto4` selten der Dauer eines einzelnen Eintrags entspricht
-- [x] Einheit von `bmvcc_aznetto4`? → Datenprüfung 2026-10-27: ganze **Minuten**, und zwar die Dauer **des einzelnen Eintrags**, kein Tagestotal (129 von 129 Einträgen mit Kommen/Gehen stimmen auf ±1 Minute). Der Abgleich-Hinweis vergleicht deshalb pro Eintrag; das Ist wird auf ganze Minuten gerechnet
+- [x] Wohin schreibt der Flow das Tagestotal? → korrigiert 2026-10-27 (Nutzer + Datenprüfung): `bmvcc_aznetto4` = Dauer des einzelnen Eintrags, `bmvcc_tagestotal` = Tagestotal, `bmvcc_monatstotal` = Monatstotal, alle in ganzen Minuten. Tagestotal stimmt an 49 von 52 Tagen mit der Summe der Eintragsdauern, Monatstotal in 14 von 16 Personen-Monaten; der aktuellste Wert steht auf dem neuesten Eintrag (ältere Einträge tragen teils Zwischenstände) — massgeblich für den Abgleich ist daher der höchste Wert des Tages bzw. Monats
+- [x] Einheit von `bmvcc_aznetto4`? → Datenprüfung 2026-10-27: ganze **Minuten**, Dauer **des einzelnen Eintrags** (129 von 129 Einträgen mit Kommen/Gehen stimmen auf ±1 Minute); vom Nutzer bestätigt. Das Ist wird ebenfalls auf ganze Minuten gerechnet
 - [x] Mittagessen: welches Feld? → Die App schreibt `mittagessen` (Ja/Nein, `bmvcc_essen`) und `Mittagessen` (Yes/No, `bmvcc_mittagessen`) immer gleich; massgeblich `bmvcc_mittagessen`, Abendessen `bmvcc_abendessen`. Pro Tag "ja", sobald ein Eintrag des Tages "ja" hat (Nutzer, 2026-10-26)
 - [x] Läuft die neue Erfassung schon produktiv? → Nein: Die 143 Einträge in Dataverse (April bis 02.09.2026, 5 Personen) sind alles Testdaten (Nutzer, 2026-10-26). Lokal wird mit diesen Testdaten getestet; Monate ab September sind dabei leer
 - [x] Kann beim Stempeln ein anderer Tag gewählt werden? → Nein, immer heute (Nutzer, 2026-10-26); Aktivitätsdatum und Uhrzeit von Kommen gehören also zum selben Tag
@@ -130,7 +130,7 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 | Rechenregeln (Feiertage, Tagesauswertung, Zeitnachweis) rein und getrennt von Datenzugriff/Oberfläche | Wiederverwendung im PDF (PROJ-16), jede Regel einzeln testbar | 2026-10-27 |
 | Feiertage Aargau berechnet (Ostern per Standard-Formel) | Keine Pflege pro Jahr | 2026-10-27 |
 | Dauer je Eintrag auf ganze Minuten | Die App rechnet in Minuten; Sekunden erzeugen nur Rundungsdifferenzen | 2026-10-27 |
-| `aznetto4` = Dauer eines Eintrags in Minuten; Abgleich pro Eintrag (Hinweis ab > 1 Minute Abweichung) | Datenprüfung: kein Tagestotal gespeichert | 2026-10-27 |
+| Abgleich gegen `bmvcc_tagestotal` (pro Tag) und `bmvcc_monatstotal` (pro Monat), je höchster Wert, Hinweis ab > 1 Minute; `bmvcc_aznetto4` ist nur die Dauer eines Eintrags | Feldbedeutung vom Nutzer bestätigt, Datenprüfung: aktuellster Stand auf dem neuesten Eintrag, ältere tragen Zwischenstände | 2026-10-27 |
 | Person und Monat in der Adresse, letzte Auswahl zusätzlich gemerkt | Neuladen, Zurück-Taste und Lesezeichen ohne Zusatzlogik | 2026-10-27 |
 | Zeitnachweis ist die Startseite von "Zeiterfassung", "Personen" eine Unterseite | Häufigste Tätigkeit | 2026-10-27 |
 
@@ -144,7 +144,7 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 - Datenprüfung der Testdaten (2026-10-27, 146 Einträge, nur Zählungen):
   - Das Aktivitätsdatum ist als Mitternacht Schweizer Zeit gespeichert ("Benutzer lokal") — gleiche Umrechnung wie in PROJ-14.
   - Kommen/Gehen enthalten Sekunden; 15 Einträge ohne Gehen; 1 Eintrag, dessen Gehen auf einen anderen Tag fällt.
-  - **`bmvcc_aznetto4` ist kein Tagestotal**, sondern die Dauer des einzelnen Eintrags in Minuten (129 von 129 Einträgen mit Kommen und Gehen stimmen auf ±1 Minute). Ein Tagestotal ist nirgends gespeichert.
+  - Totals des Power-Automate-Flows, alle in ganzen Minuten: `bmvcc_aznetto4` = Dauer des Eintrags (129/129 stimmen), `bmvcc_tagestotal` = Tagestotal (49/52 Tage stimmen), `bmvcc_monatstotal` = Monatstotal (14/16 Personen-Monate stimmen). Den aktuellsten Stand trägt der neueste Eintrag; ältere Einträge haben teils Zwischenstände.
   - Bisher nur Typ "Arbeitszeit" in den Daten; Krankheit und Komp. GLZ sind nur aus dem Schema bekannt.
 
 ### A) Bausteine
@@ -163,10 +163,10 @@ Menüpunkt "Zeiterfassung" (bestehend, nur Freigeber)
 |   +-- "Keine Zeiteinträge in diesem Monat"
 |   +-- offene Einträge (Gehen fehlt) an vergangenen Tagen
 +-- Monatsübersicht (Karten): Saldo Vormonat · Ist · Soll · Abweichung · Gleitzeit Monatsende in Stunden und Tagen
-|   (laufender Monat: "Stand heute")
+|   (laufender Monat: "Stand heute"; Hinweis, wenn das Monatstotal des Flows abweicht)
 +-- Tagestabelle (eine Zeile pro Kalendertag)
 |   +-- Datum + Wochentag · Zeiten (Kommen–Gehen-Paare) · Art/Grund · Ist · Soll · Abweichung · Gleitzeit
-|   +-- Mittag · Abend · Bemerkung · Hinweise (offen, Überschneidung, unplausibel, Abweichung zur App)
+|   +-- Mittag · Abend · Bemerkung · Hinweise (offen, Überschneidung, unplausibel, Abweichung zum Tagestotal des Flows)
 |   +-- Wochenenden/Feiertage dezent hinterlegt; Tage nach heute ausgegraut
 +-- Fehlermeldung statt Tabelle, wenn Dataverse nicht antwortet
 
@@ -183,7 +183,7 @@ Rechenregeln (rein, ohne Datenzugriff, eigens getestet)
 ### B) Datenmodell (in Worten)
 **Keine neuen Tabellen, nichts wird gespeichert.** Der Zeitnachweis wird bei jedem Aufruf aus den vorhandenen Daten berechnet.
 
-Gelesen werden pro Zeiteintrag: Aktivitätsdatum, Typ (Arbeitszeit / Komp. GLZ / Krankheit), Kommen und Gehen (Ersatz: Arbeitsbeginn/Checkout bei älteren Einträgen), Dauer laut App (`aznetto4`, Minuten), Mittagessen, Abendessen, Bemerkung — gefiltert auf die E-Mail der Person und den Zeitraum.
+Gelesen werden pro Zeiteintrag: Aktivitätsdatum, Typ (Arbeitszeit / Komp. GLZ / Krankheit), Kommen und Gehen (Ersatz: Arbeitsbeginn/Checkout bei älteren Einträgen), Tages- und Monatstotal des Flows (Minuten), Mittagessen, Abendessen, Bemerkung — gefiltert auf die E-Mail der Person und den Zeitraum.
 
 Ein Tag ergibt sich so:
 - **Ist** = Summe der Dauer aller vollständigen Arbeitszeit-Einträge, je auf ganze Minuten; Überschneidungen zählen einmal. Unvollständige (ohne Gehen) und unplausible (Gehen vor Kommen, mehr als 14 h) zählen nicht und erzeugen einen Hinweis.
@@ -192,7 +192,7 @@ Ein Tag ergibt sich so:
 - **Abweichung** = Ist − Soll; **Gleitzeit** = Gleitzeit des Vortags + Abweichung.
 - **Beginn der Gleitzeit**: mit Startsaldo am Tag nach dem Stichtag mit diesem Saldo; ohne Startsaldo am "gültig ab" der ersten Arbeitsmodell-Version mit 0. Einträge davor werden angezeigt (Hinweis "vor Arbeitsmodell" bzw. "Excel-Zeitraum"), zählen aber nicht zur Gleitzeit.
 - **Laufender Monat**: Tage nach heute zählen weder Soll noch Ist.
-- **Abgleich mit der App**: weicht die App-Dauer (`aznetto4`) eines Eintrags um mehr als eine Minute von der selbst berechneten Dauer ab, erscheint ein dezenter Hinweis mit beiden Werten.
+- **Abgleich mit dem Flow**: weicht das Tagestotal (höchster Wert `bmvcc_tagestotal` des Tages) um mehr als eine Minute vom selbst berechneten Ist ab, zeigt die Zeile einen dezenten Hinweis mit beiden Werten; ebenso die Monatsübersicht mit dem Monatstotal (höchster Wert `bmvcc_monatstotal` im Monat). Tage ohne Arbeitszeit-Einträge und der laufende Tag werden nicht verglichen.
 
 Die Zeile "Saldo Vormonat" ist die Gleitzeit am letzten Tag des Vormonats — berechnet in derselben Rechnung, die vom Beginn der Gleitzeit bis zum Monatsende läuft. Kein Monat muss vorher geöffnet worden sein.
 
@@ -202,7 +202,7 @@ Die Zeile "Saldo Vormonat" ist die Gleitzeit am letzten Tag des Vormonats — be
 - **Rechenregeln getrennt von Datenzugriff und Oberfläche:** dieselbe Rechnung braucht der PDF-Export (PROJ-16); jede Regel (Feiertage, Überschneidung, Krankheit, Komp. GLZ, Monatswechsel) ist einzeln testbar.
 - **Feiertage berechnet statt gepflegt:** feste Liste aus der Excel-Mappe, Ostern per Standard-Formel; keine Pflege pro Jahr.
 - **Dauer auf ganze Minuten:** die App rechnet ebenfalls in Minuten; Sekunden würden nur Rundungsdifferenzen erzeugen.
-- **`aznetto4` nur als Abgleich pro Eintrag:** es ist die Dauer eines Eintrags, kein Tagestotal (Datenprüfung); massgeblich bleibt die eigene Rechnung (Product Decision).
+- **Flow-Totals nur als Abgleich:** Tages- und Monatstotal werden mit der eigenen Rechnung verglichen und bei Abweichung angezeigt; massgeblich bleibt die eigene Rechnung (Product Decision). Verglichen wird mit dem höchsten Wert des Tages bzw. Monats, weil ältere Einträge Zwischenstände tragen.
 - **Auswahl in der Adresse (Person, Monat):** Neuladen, Zurück-Taste und Lesezeichen funktionieren ohne Zusatzlogik; zusätzlich wird die letzte Auswahl gemerkt, damit der Menüpunkt dort weitermacht.
 - **Zeitnachweis wird Startseite der Zeiterfassung**, "Personen" eine Unterseite — er ist die häufigste Tätigkeit.
 - **Freigeber-Prüfung auf Seite und Aktion**, Zeitdaten weder in Logs noch in Fehlermeldungen.
@@ -213,7 +213,7 @@ Keine neuen Pakete.
 
 ### E) Tests
 - Feiertage: mehrere Jahre (bewegliche Feiertage), Feiertag am Wochenende
-- Tagesauswertung: mehrere Paare, Überschneidung, ohne Gehen (heute/vergangen), über Mitternacht, unplausibel, Ersatzfelder, Essen-Regel, Abgleich `aznetto4`
+- Tagesauswertung: mehrere Paare, Überschneidung, ohne Gehen (heute/vergangen), über Mitternacht, unplausibel, Ersatzfelder, Essen-Regel, Abgleich Tages-/Monatstotal (Zwischenstände)
 - Zeitnachweis: Krankheit/Komp. GLZ mit und ohne Soll, Komp. GLZ + Arbeitszeit, Versionswechsel mitten im Monat, Eintritt/Austritt, Startsaldo-Beginn, Beginn ohne Startsaldo, Monat vor dem Stichtag, laufender Monat, Saldo über mehrere Monate/Jahreswechsel
 - Aktionen/Seite: Bearbeiter abgelehnt, Fehler beim Laden
 - Komponenten: Auswahl, Hinweise, Tabelle, Summen
