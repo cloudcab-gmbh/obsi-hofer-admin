@@ -9,7 +9,7 @@
 - Requires: PROJ-2 (Dataverse-Web-API-Anbindung) — Lesen der Zeiteinträge
 - Requires: PROJ-14 (Arbeitsmodell pro Person) — liefert die Personenliste, das Soll je Wochentag und den Gleitzeit-Startsaldo
 - Optional: PROJ-15 (Ferien erfassen und Feriensaldo) — solange PROJ-15 nicht live ist, kennt der Zeitnachweis keine Ferientage
-- **Dataverse-Voraussetzung:** Der App-Benutzer "# OBSI Hofer Admin" braucht **Lesen** auf `bmvcc_timetrackingentry` — vom Nutzer erteilt und verifiziert 2026-10-26; für das Nachtragen von "Gehen" zusätzlich **Schreiben** — vorhanden (Global, geprüft 2026-10-27)
+- **Dataverse-Voraussetzung:** Der App-Benutzer "# OBSI Hofer Admin" braucht **Lesen** auf `bmvcc_timetrackingentry` — vom Nutzer erteilt und verifiziert 2026-10-26; für das Nachtragen von "Gehen" zusätzlich **Schreiben**, für das Erfassen von Einträgen **Erstellen** — beide vorhanden (Global, geprüft 2026-10-27)
 - Grundlage: [docs/zeiterfassung-ausgangslage.md](../docs/zeiterfassung-ausgangslage.md) (bisherige Excel-Mappe, Dataverse-Schema)
 
 ## Ausgangslage
@@ -24,7 +24,7 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 - Als Bearbeiter möchte ich diese Funktion nicht sehen, da Zeitdaten der Mitarbeitenden vertraulich sind.
 
 ## Out of Scope
-- Erfassen oder Korrigieren von Zeiteinträgen — Einträge werden weiterhin im bisherigen Erfassungs-Werkzeug gepflegt. **Ausnahme (2026-10-27):** ein fehlendes "Gehen" kann im Zeitnachweis nachgetragen werden; Ändern erfasster Zeiten, Löschen und neue Einträge bleiben ausgeschlossen
+- Erfassen oder Korrigieren von Zeiteinträgen — Einträge werden weiterhin im bisherigen Erfassungs-Werkzeug gepflegt. **Ausnahmen (2026-10-27):** ein fehlendes "Gehen" nachtragen und für einen Tag neue Einträge erfassen (vergessenes Stempeln, Krankheit, Komp. GLZ); Ändern erfasster Zeiten und Löschen bleiben ausgeschlossen
 - Pflege von Arbeitsmodell (Soll je Wochentag) und Gleitzeit-Startsaldo — PROJ-14
 - Ferien erfassen, Ferienanspruch und Feriensaldo — PROJ-15 (der Zeitnachweis zeigt Ferien an, sobald PROJ-15 sie liefert)
 - PDF "Zeitnachweis <Person> <Monat>" — eigenes Feature PROJ-16
@@ -48,6 +48,8 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 - [ ] Angenommen eine Person hat an einem Tag einen oder mehrere Einträge vom Typ "Arbeitszeit", wenn der Tag angezeigt wird, dann zeigt er alle Kommen/Gehen-Paare des Tages in zeitlicher Reihenfolge (z.B. "07:30–12:00, 12:45–17:15"), und das Ist ist die Summe (Gehen − Kommen) aller Einträge des Tages
 - [ ] Angenommen ein Eintrag hat ein "Kommen", aber kein "Gehen", dann zählt er nicht ins Ist und die Zeile ist als "offen – Gehen fehlt" markiert; beim laufenden Tag (heute) ohne Warnung, an vergangenen Tagen als Warnung
 - [ ] Angenommen an einem vergangenen Tag fehlt ein "Gehen", wenn der Freigeber im Hinweis oben oder in der Tageszeile darauf klickt, dann kann er die Uhrzeit (optional am Folgetag) in einem Dialog nachtragen; sie wird im Zeiteintrag in Dataverse gespeichert ("Gehen" und "Checkout"), der Zeitnachweis rechnet sofort neu. "Gehen" vor "Kommen", mehr als 14 h, bereits erfasstes "Gehen" oder Bearbeiter werden serverseitig abgelehnt
+- [ ] Angenommen ein Tag liegt nicht in der Zukunft, wenn der Freigeber auf das Datum der Zeile klickt, dann kann er in einem Dialog Einträge erfassen: Arbeitszeit mit einem oder mehreren Kommen/Gehen-Paaren (laufendes Total), oder ganztägig Krankheit bzw. Komp. GLZ, dazu Mittag-/Abendessen und Bemerkung. Jedes Paar wird ein eigener Zeiteintrag mit denselben Feldern wie aus der Erfassungs-App; der Zeitnachweis rechnet sofort neu
+- [ ] Angenommen die erfassten Paare überschneiden sich untereinander oder mit bestehenden Einträgen des Tages, Gehen liegt vor Kommen, ein Paar dauert mehr als 14 h, der Tag liegt in der Zukunft oder Krankheit/Komp. GLZ ist für den Tag schon erfasst, dann wird nichts gespeichert und eine verständliche Meldung angezeigt (serverseitig geprüft)
 - [ ] Angenommen das Tagestotal des Power-Automate-Flows (`bmvcc_tagestotal`, Minuten) weicht vom selbst berechneten Ist des Tages ab, dann zeigt die Zeile einen dezenten Hinweis mit beiden Werten; massgeblich bleibt das selbst berechnete Ist. Dasselbe gilt in der Monatsübersicht für das Monatstotal (`bmvcc_monatstotal`)
 - [ ] Angenommen ein Tag ist laut Arbeitsmodell ein Arbeitstag und weder Feiertag noch Ferientag, dann ist sein Soll das Soll des Wochentags aus dem Arbeitsmodell, das an diesem Datum gilt
 - [ ] Angenommen ein Tag ist ein gesetzlicher Feiertag im Aargau, ein Ferientag (PROJ-15) oder laut Arbeitsmodell kein Arbeitstag, dann ist sein Soll 0 und der Grund steht in der Zeile ("Feiertag: Auffahrt", "Ferien", "frei")
@@ -120,6 +122,7 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 | Quelle ist ausschliesslich Dataverse (neue Erfassung, ein Eintrag pro Kommen/Gehen); die SharePoint-Liste wird nicht angebunden | Die SharePoint-Erfassung ist abgelöst (Nutzer, 2026-10-26) | 2026-10-26 |
 | Mittag-/Abendessen pro Tag = ja, sobald ein Eintrag des Tages ja hat | Die App fragt bei jedem Kommen/Gehen erneut; ein Tag mit Mittagessen soll nicht durch einen späteren Eintrag "nein" verlieren (Nutzer-Vorgabe) | 2026-10-26 |
 | Ist = Summe (Gehen − Kommen) der Einträge, selbst berechnet; das Flow-Tagestotal nur als Abgleich-Hinweis | Nachvollziehbar Zeile für Zeile und unabhängig von Fehlern im Flow; in den bisherigen Daten passen Flow-Total und Einzeleinträge selten zusammen (Nutzer-Entscheidung) | 2026-10-26 |
+| Einträge für einen Tag im Zeitnachweis erfassen (Klick auf das Datum): alle drei Typen, mehrere Paare pro Dialog, jeder Tag bis heute | Vergessenes Stempeln und vergessene Krankmeldungen ohne Umweg über die Erfassungs-App korrigieren (Nutzer-Entscheidung zu Typen, Paaren und Tagen) | 2026-10-27 |
 | Fehlendes "Gehen" direkt im Zeitnachweis nachtragen (statt Link nach Dataverse oder nur Sprung zur Zeile) | Häufigster Korrekturfall, sofort sichtbar und behebbar ohne Wechsel ins Erfassungs-Werkzeug (Nutzer-Entscheidung); bewusst eng: nur offene Einträge, nichts überschreiben | 2026-10-27 |
 | PDF als eigenes Feature (PROJ-16), obwohl Bildschirm + PDF gewünscht | Einzeln testbar und baut auf der fertigen Berechnung auf; gleiches Vorgehen wie Geräteliste (PROJ-3) und Prüfbericht-PDF (PROJ-7) | 2026-10-26 |
 | Gleitzeit beginnt mit Startsaldo am Tag nach dem Stichtag, ohne Startsaldo mit 0 am "gültig ab" der ersten Version; Einträge davor werden angezeigt, zählen aber nicht | Testphasen und Einträge vor dem Eintritt sollen die Gleitzeit nicht aufblähen; löst den Widerspruch zum Edge Case "Zeiteinträge vor dem ersten gültig ab" in PROJ-14 (Nutzer-Entscheidung) | 2026-10-27 |
@@ -135,6 +138,8 @@ Die neue Zeiterfassung speichert in Dataverse (`bmvcc_timetrackingentry`, Typen 
 | Abgleich gegen `bmvcc_tagestotal` (pro Tag) und `bmvcc_monatstotal` (pro Monat), je höchster Wert, Hinweis ab > 1 Minute; `bmvcc_aznetto4` ist nur die Dauer eines Eintrags | Feldbedeutung vom Nutzer bestätigt, Datenprüfung: aktuellster Stand auf dem neuesten Eintrag, ältere tragen Zwischenstände | 2026-10-27 |
 | Person und Monat in der Adresse, letzte Auswahl zusätzlich gemerkt | Neuladen, Zurück-Taste und Lesezeichen ohne Zusatzlogik | 2026-10-27 |
 | Zeitnachweis ist die Startseite von "Zeiterfassung", "Personen" eine Unterseite | Häufigste Tätigkeit | 2026-10-27 |
+| Erfasste Einträge erhalten dieselben Felder wie aus der Erfassungs-App: Kommen/Arbeitsbeginn und Gehen/Checkout doppelt, Mittagessen doppelt (`bmvcc_mittagessen`, `bmvcc_essen`), Primärspalte `bmvcc_activitydatetimecode` = JJJJMMTTHHMM des Kommens (Schweizer Zeit; ganztägig HHMM = 0000), `bmvcc_timerecordid` = neue GUID | Datenprüfung 2026-10-27 (147 Einträge): so füllt die App die Felder; Totals rechnet der Flow | 2026-10-27 |
+| Essen und Bemerkung nur auf dem ersten Eintrag eines Erfassungs-Dialogs | Gelten pro Tag (Regel "ja, sobald ein Eintrag ja hat") | 2026-10-27 |
 | Nachtragen schreibt "Gehen" und "Checkout" gleich (wie die Erfassungs-App), Uhrzeit als Schweizer Zeit am Tag des Kommens bzw. Folgetag | Beide Feldpaare bleiben konsistent; Zeitumstellung korrekt | 2026-10-27 |
 
 ---
@@ -259,7 +264,13 @@ Wie PROJ-14 in einem Schritt gebaut (nur lesend, keine Dataverse-Änderungen).
 - Nachtragen am laufenden Tag ebenfalls möglich (ohne Warnhinweis oben); Stundenwerte umbrechen nicht mehr
 - In Dataverse steht als "Geändert von" der App-Benutzer, nicht der Freigeber (Vermerk in der Bemerkung bei Bedarf nachrüstbar)
 
-**Tests:** 46 neue Tests (Feiertage, Tagesauswertung, Zeitnachweis inkl. Jahreswechsel, Datenschicht, Ansicht, Auswahl); gesamt 542 grün, `tsc` und ESLint sauber; mit dem Nachtrag 15 weitere (557 grün).
+**Nachtrag 2026-10-27: Einträge für einen Tag erfassen** (Nutzerwunsch: auf den Tag klicken, wenn das Stempeln vergessen wurde)
+- Datum jeder Zeile bis heute ist klickbar (gepunktet unterstrichen) und öffnet den Dialog `tag-erfassen.tsx`: Art (Arbeitszeit / Krankheit / Komp. GLZ), bei Arbeitszeit Paare Kommen–Gehen mit "+ weiteres Paar" und laufendem Total, Mittag-/Abendessen, Bemerkung
+- Aktion `erfasseTagAction`: Freigeber-Prüfung; Tag nicht in der Zukunft; Uhrzeiten HH:MM in Schweizer Zeit am gewählten Tag (über Mitternacht nicht möglich — dafür "Gehen nachtragen" mit Folgetag); höchstens 10 Paare; Prüfung auf Überschneidung untereinander und mit bestehenden Einträgen; Krankheit/Komp. GLZ höchstens einmal pro Tag; nur Personen aus den Zeiteinträgen. Scheitert ein Paar mitten im Speichern, meldet die Aktion, wie viele gespeichert wurden
+- `erstelleZeiteintrag` in `src/lib/dataverse/zeiterfassung.ts` legt den Eintrag mit den App-Feldern an
+- **Offen, im Browser zu prüfen:** ob der Flow beim Anlegen läuft (Totals) und mit ganztägigen Einträgen ohne Kommen/Gehen zurechtkommt
+
+**Tests:** 46 neue Tests (Feiertage, Tagesauswertung, Zeitnachweis inkl. Jahreswechsel, Datenschicht, Ansicht, Auswahl); gesamt 542 grün, `tsc` und ESLint sauber; mit dem Nachtrag 15 weitere (557 grün); mit dem Erfassen 17 weitere (575 grün).
 
 ## QA Test Results
 

@@ -4,15 +4,29 @@ const istFreigeberMock = vi.fn();
 const revalidatePath = vi.fn();
 const getZeiteintragFuerKorrektur = vi.fn();
 const setzeGehen = vi.fn();
+const erstelleZeiteintrag = vi.fn();
+const getPersonByEmail = vi.fn();
+const listZeiterfassungEmails = vi.fn();
+const listZeiteintraege = vi.fn();
+const heuteSchweiz = vi.fn();
 
 vi.mock("@/lib/auth/freigeber", () => ({ aktuellerBenutzerIstFreigeber: () => istFreigeberMock() }));
 vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => revalidatePath(...args) }));
 vi.mock("@/lib/dataverse/zeiterfassung", () => ({
   getZeiteintragFuerKorrektur: (...args: unknown[]) => getZeiteintragFuerKorrektur(...args),
   setzeGehen: (...args: unknown[]) => setzeGehen(...args),
+  erstelleZeiteintrag: (...args: unknown[]) => erstelleZeiteintrag(...args),
+  getPersonByEmail: (...args: unknown[]) => getPersonByEmail(...args),
+  listZeiterfassungEmails: () => listZeiterfassungEmails(),
+  listZeiteintraege: (...args: unknown[]) => listZeiteintraege(...args),
+  normalisiereEmail: (e: string) => e.trim().toLowerCase(),
+}));
+vi.mock("@/lib/zeiterfassung/datum", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/zeiterfassung/datum")>()),
+  heuteSchweiz: () => heuteSchweiz(),
 }));
 
-import { trageGehenNachAction } from "./actions";
+import { erfasseTagAction, trageGehenNachAction, type TagErfassenEingabe } from "./actions";
 import { DataverseError } from "@/lib/dataverse/errors";
 
 const ID = "37b3cb61-90c0-f111-aaaf-70a8a5061d7a";
@@ -23,6 +37,11 @@ beforeEach(() => {
   vi.resetAllMocks();
   istFreigeberMock.mockResolvedValue(true);
   getZeiteintragFuerKorrektur.mockResolvedValue(OFFEN);
+  heuteSchweiz.mockReturnValue("2026-10-27");
+  getPersonByEmail.mockResolvedValue({ id: "p" });
+  listZeiterfassungEmails.mockResolvedValue([]);
+  listZeiteintraege.mockResolvedValue([]);
+  erstelleZeiteintrag.mockResolvedValue("neu");
 });
 
 describe("trageGehenNachAction", () => {
@@ -77,5 +96,88 @@ describe("trageGehenNachAction", () => {
       success: false,
       message: "Diesen Eintrag gibt es nicht mehr. Bitte die Seite neu laden.",
     });
+  });
+});
+
+const TAG: TagErfassenEingabe = {
+  email: "Anna@X.ch",
+  datum: "2026-08-12",
+  typ: "arbeitszeit",
+  paare: [
+    { kommen: "07:30", gehen: "12:00" },
+    { kommen: "12:45", gehen: "17:15" },
+  ],
+  mittagessen: true,
+  abendessen: false,
+  bemerkung: " Stempeln vergessen ",
+};
+
+describe("erfasseTagAction", () => {
+  it("rejects Bearbeiter", async () => {
+    istFreigeberMock.mockResolvedValue(false);
+    expect((await erfasseTagAction(TAG)).success).toBe(false);
+    expect(erstelleZeiteintrag).not.toHaveBeenCalled();
+  });
+
+  it("creates one entry per pair in Swiss time; meals and remark on the first", async () => {
+    expect(await erfasseTagAction(TAG)).toEqual({ success: true, angelegt: 2 });
+
+    expect(erstelleZeiteintrag).toHaveBeenNthCalledWith(1, "anna@x.ch", "2026-08-12", {
+      typ: "arbeitszeit",
+      kommen: "2026-08-12T05:30:00Z",
+      gehen: "2026-08-12T10:00:00Z",
+      mittagessen: true,
+      abendessen: false,
+      bemerkung: "Stempeln vergessen",
+    });
+    expect(erstelleZeiteintrag).toHaveBeenNthCalledWith(2, "anna@x.ch", "2026-08-12", expect.objectContaining({
+      kommen: "2026-08-12T10:45:00Z",
+      mittagessen: false,
+      bemerkung: null,
+    }));
+    expect(revalidatePath).toHaveBeenCalledWith("/zeiterfassung");
+  });
+
+  it("creates a whole-day Krankheit without times", async () => {
+    expect(await erfasseTagAction({ ...TAG, typ: "krankheit", paare: [] })).toEqual({ success: true, angelegt: 1 });
+    expect(erstelleZeiteintrag).toHaveBeenCalledWith("anna@x.ch", "2026-08-12", expect.objectContaining({ typ: "krankheit", kommen: null, gehen: null }));
+  });
+
+  it.each([
+    [{ datum: "2026-10-28" }, "Einträge in der Zukunft sind nicht möglich."],
+    [{ paare: [] }, "Mindestens ein Paar Kommen–Gehen erfassen."],
+    [{ paare: [{ kommen: "12:00", gehen: "08:00" }] }, "„Gehen“ muss nach „Kommen“ liegen."],
+    [{ paare: [{ kommen: "08:00", gehen: "12:00" }, { kommen: "11:00", gehen: "13:00" }] }, "Die erfassten Paare überschneiden sich."],
+    [{ paare: [{ kommen: "8:00", gehen: "12:00" }] }, "Bitte Uhrzeiten im Format HH:MM angeben."],
+  ])("rejects %o", async (aenderung, message) => {
+    expect(await erfasseTagAction({ ...TAG, ...aenderung })).toEqual({ success: false, message });
+    expect(erstelleZeiteintrag).not.toHaveBeenCalled();
+  });
+
+  it("rejects overlaps with existing entries of the day", async () => {
+    listZeiteintraege.mockResolvedValue([{ typ: "arbeitszeit", kommen: "2026-08-12T06:00:00.000Z", gehen: "2026-08-12T07:00:00Z" }]);
+
+    expect(await erfasseTagAction(TAG)).toEqual({
+      success: false,
+      message: "Ein Paar überschneidet sich mit einem bestehenden Eintrag dieses Tages.",
+    });
+  });
+
+  it("rejects a second Krankheit on the same day", async () => {
+    listZeiteintraege.mockResolvedValue([{ typ: "krankheit", kommen: null, gehen: null }]);
+    expect((await erfasseTagAction({ ...TAG, typ: "krankheit", paare: [] })).success).toBe(false);
+  });
+
+  it("does not create entries for unknown persons", async () => {
+    getPersonByEmail.mockResolvedValue(null);
+    expect(await erfasseTagAction(TAG)).toEqual({ success: false, message: "Diese Person kommt in der Zeiterfassung nicht vor." });
+  });
+
+  it("reports a partial save", async () => {
+    erstelleZeiteintrag.mockResolvedValueOnce("neu").mockRejectedValueOnce(new DataverseError("unavailable", "Weg."));
+
+    const result = await erfasseTagAction(TAG);
+
+    expect(result).toEqual({ success: false, message: "Nur 1 Eintrag/Einträge gespeichert, danach Fehler: Weg. Bitte den Tag prüfen." });
   });
 });

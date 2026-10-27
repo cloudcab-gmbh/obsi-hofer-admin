@@ -19,6 +19,7 @@ vi.mock("./records", () => ({
 
 import {
   erstelleArbeitsmodell,
+  erstelleZeiteintrag,
   getPersonByEmail,
   listArbeitsmodelle,
   listZeiteintraege,
@@ -204,5 +205,51 @@ describe("listZeiteintraege", () => {
       bemerkung: null,
     });
     expect(eintraege.map((e) => e.typ)).toEqual(["arbeitszeit", "krankheit", "unbekannt"]);
+  });
+});
+
+describe("erstelleZeiteintrag", () => {
+  it("fills the same fields as the capture app", async () => {
+    createRecord.mockResolvedValue({ id: "neu" });
+
+    await erstelleZeiteintrag("Anna@Example.ch", "2026-08-12", {
+      typ: "arbeitszeit",
+      kommen: "2026-08-12T05:30:00Z",
+      gehen: "2026-08-12T10:00:00Z",
+      mittagessen: true,
+      abendessen: false,
+      bemerkung: "Stempeln vergessen",
+    });
+
+    const [entity, daten] = createRecord.mock.calls[0];
+    expect(entity).toBe("bmvcc_timetrackingentries");
+    expect(daten).toMatchObject({
+      bmvcc_activitydatetimecode: "202608120730",
+      bmvcc_useremail: "anna@example.ch",
+      bmvcc_activitydate: "2026-08-11T22:00:00Z",
+      bmvcc_activitytype: 0,
+      bmvcc_kommen: "2026-08-12T05:30:00Z",
+      bmvcc_activitystarttime: "2026-08-12T05:30:00Z",
+      bmvcc_gehen: "2026-08-12T10:00:00Z",
+      bmvcc_checkouttime: "2026-08-12T10:00:00Z",
+      bmvcc_mittagessen: true,
+      bmvcc_essen: true,
+      bmvcc_abendessen: false,
+      bmvcc_remarks: "Stempeln vergessen",
+    });
+    expect(daten.bmvcc_timerecordid).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("uses 0000 as time code for whole-day entries", async () => {
+    createRecord.mockResolvedValue({ id: "neu" });
+    await erstelleZeiteintrag("anna@example.ch", "2026-08-12", {
+      typ: "krankheit",
+      kommen: null,
+      gehen: null,
+      mittagessen: false,
+      abendessen: false,
+      bemerkung: null,
+    });
+    expect(createRecord.mock.calls[0][1]).toMatchObject({ bmvcc_activitydatetimecode: "202608120000", bmvcc_activitytype: 2 });
   });
 });

@@ -1,6 +1,6 @@
 import { dataverseFetch } from "./client";
 import { createRecord, deleteRecord, getRecord, listAllRecords, listRecords, updateRecord, upsertRecordByKey } from "./records";
-import { alsSchweizerMitternacht, folgetag, formatKalenderdatum, zuSchweizerDatum } from "@/lib/zeiterfassung/datum";
+import { alsSchweizerMitternacht, folgetag, formatKalenderdatum, zuSchweizerDatum, zuSchweizerUhrzeit } from "@/lib/zeiterfassung/datum";
 import type { Arbeitstage, ArbeitsmodellVersion } from "@/lib/zeiterfassung/soll";
 import type { Eintragstyp, Zeiteintrag } from "@/lib/zeiterfassung/tagesauswertung";
 
@@ -222,6 +222,48 @@ export async function getZeiteintragFuerKorrektur(id: string): Promise<OffenerEi
  */
 export async function setzeGehen(id: string, gehen: string): Promise<void> {
   await updateRecord(ZEITEINTRAEGE_ENTITY, id, { bmvcc_gehen: gehen, bmvcc_checkouttime: gehen });
+}
+
+export interface NeuerZeiteintrag {
+  typ: Exclude<Eintragstyp, "unbekannt">;
+  /** Zeitpunkte (ISO, UTC); bei Krankheit/Komp. GLZ leer. */
+  kommen: string | null;
+  gehen: string | null;
+  mittagessen: boolean;
+  abendessen: boolean;
+  bemerkung: string | null;
+}
+
+const TYP_WERTE: Record<NeuerZeiteintrag["typ"], number> = { arbeitszeit: 0, "komp-glz": 1, krankheit: 2 };
+
+/** "JJJJMMTTHHMM" in Schweizer Zeit — wie die Erfassungs-App die Primärspalte füllt. */
+function aktivitaetsCode(datum: string, kommen: string | null): string {
+  const zeit = kommen ? zuSchweizerUhrzeit(kommen).replace(":", "") : "0000";
+  return `${datum.replace(/-/g, "")}${zeit}`;
+}
+
+/**
+ * Legt einen Zeiteintrag an, mit denselben Feldern wie die Erfassungs-App
+ * (Kommen/Arbeitsbeginn und Gehen/Checkout doppelt, Mittagessen doppelt,
+ * eigene Kennung). Totals rechnet der Power-Automate-Flow.
+ */
+export async function erstelleZeiteintrag(email: string, datum: string, eintrag: NeuerZeiteintrag): Promise<string> {
+  const { id } = await createRecord(ZEITEINTRAEGE_ENTITY, {
+    bmvcc_activitydatetimecode: aktivitaetsCode(datum, eintrag.kommen),
+    bmvcc_useremail: normalisiereEmail(email),
+    bmvcc_activitydate: alsSchweizerMitternacht(datum),
+    bmvcc_activitytype: TYP_WERTE[eintrag.typ],
+    bmvcc_kommen: eintrag.kommen,
+    bmvcc_activitystarttime: eintrag.kommen,
+    bmvcc_gehen: eintrag.gehen,
+    bmvcc_checkouttime: eintrag.gehen,
+    bmvcc_mittagessen: eintrag.mittagessen,
+    bmvcc_essen: eintrag.mittagessen,
+    bmvcc_abendessen: eintrag.abendessen,
+    bmvcc_remarks: eintrag.bemerkung,
+    bmvcc_timerecordid: crypto.randomUUID(),
+  });
+  return id;
 }
 
 export async function listPersonen(): Promise<ZeiterfassungPerson[]> {

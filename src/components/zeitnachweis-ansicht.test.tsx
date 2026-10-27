@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
-vi.mock("@/app/(protected)/zeiterfassung/actions", () => ({ trageGehenNachAction: vi.fn() }));
+vi.mock("@/app/(protected)/zeiterfassung/actions", () => ({ trageGehenNachAction: vi.fn(), erfasseTagAction: vi.fn() }));
 import { ZeitnachweisAnsicht } from "./zeitnachweis-ansicht";
 import { berechneZeitnachweis, type ZeitnachweisEingabe } from "@/lib/zeiterfassung/zeitnachweis";
 import type { Zeiteintrag } from "@/lib/zeiterfassung/tagesauswertung";
@@ -37,7 +37,7 @@ function eingabe(extra: Partial<ZeitnachweisEingabe> = {}): ZeitnachweisEingabe 
 }
 
 function zeigen(e: ZeitnachweisEingabe) {
-  render(<ZeitnachweisAnsicht zeitnachweis={berechneZeitnachweis(e)} personName="Anna" personHref="/zeiterfassung/personen/anna%40x.ch" />);
+  render(<ZeitnachweisAnsicht zeitnachweis={berechneZeitnachweis(e)} personName="Anna" personEmail="anna@x.ch" personHref="/zeiterfassung/personen/anna%40x.ch" />);
 }
 
 function zeile(datumPrefix: string) {

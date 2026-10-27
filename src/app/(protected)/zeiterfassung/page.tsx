@@ -81,7 +81,12 @@ export default async function ZeitnachweisPage({
           </CardContent>
         </Card>
       ) : zeitnachweis && person ? (
-        <ZeitnachweisAnsicht zeitnachweis={zeitnachweis} personName={person.anzeige} personHref={personHref(person.email)} />
+        <ZeitnachweisAnsicht
+          zeitnachweis={zeitnachweis}
+          personName={person.anzeige}
+          personEmail={person.email}
+          personHref={personHref(person.email)}
+        />
       ) : (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">

@@ -8,6 +8,7 @@ import { formatKalenderdatum, formatMonat, wochentagName } from "@/lib/zeiterfas
 import { formatGleitzeitTage, formatMinuten, formatMinutenMitVorzeichen } from "@/lib/zeiterfassung/format";
 import { cn } from "@/lib/utils";
 import { GehenNachtragen } from "@/components/gehen-nachtragen";
+import { TagErfassen } from "@/components/tag-erfassen";
 
 function Hinweis({ warnung = false, children }: { warnung?: boolean; children: React.ReactNode }) {
   const Icon = warnung ? AlertTriangle : Info;
@@ -75,10 +76,13 @@ function tageshinweise(t: Tageszeile, beginnArt: Zeitnachweis["beginnArt"]): { t
 export function ZeitnachweisAnsicht({
   zeitnachweis: z,
   personName,
+  personEmail,
   personHref,
 }: {
   zeitnachweis: Zeitnachweis;
   personName: string;
+  /** Für das Erfassen von Einträgen. */
+  personEmail: string;
   /** Link zur Pflege der Person (PROJ-14). */
   personHref: string;
 }) {
@@ -176,7 +180,16 @@ export function ZeitnachweisAnsicht({
                       )}
                     >
                       <TableCell className="whitespace-nowrap">
-                        <span className="tabular-nums">{formatKalenderdatum(t.datum).slice(0, 6)}</span>{" "}
+                        {/* Nutzerwunsch 2026-10-27: Klick auf den Tag erfasst einen Eintrag (bis heute). */}
+                        {t.zukunft ? (
+                          <span className="tabular-nums">{formatKalenderdatum(t.datum).slice(0, 6)}</span>
+                        ) : (
+                          <TagErfassen email={personEmail} datum={t.datum} personName={personName}>
+                            <span className="tabular-nums underline decoration-dotted underline-offset-4">
+                              {formatKalenderdatum(t.datum).slice(0, 6)}
+                            </span>
+                          </TagErfassen>
+                        )}{" "}
                         <span className="text-muted-foreground">{wochentagName(t.datum).slice(0, 2)}</span>
                       </TableCell>
                       <TableCell className="whitespace-nowrap tabular-nums">
