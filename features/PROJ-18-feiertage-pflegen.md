@@ -71,7 +71,7 @@ Heute berechnet das Tool jedes Jahr fest die 9 gesetzlichen Feiertage aus der bi
 ## Open Questions
 - [ ] Gehören der 1. Mai oder Fronleichnam bei OBSI Hofer dazu? — mit diesem Feature vom Freigeber selbst pflegbar
 - [ ] Soll der automatische Vorschlag später um weitere Tage erweitert werden (z.B. Heiligabend halb)? (vorerst: die 9 bisherigen)
-- [ ] Nutzer: Tabellen "Feiertagsjahr" und "Feiertag" mit Rechten in Dataverse anlegen (Spalten siehe Tech Design B)
+- [x] Nutzer: Tabellen und Rechte angelegt → verifiziert 2026-10-27 (Schema siehe Implementation Notes; interne Namen mit Tippfehler `feriertag` bewusst belassen)
 
 ## Decision Log
 
@@ -91,7 +91,8 @@ Heute berechnet das Tool jedes Jahr fest die 9 gesetzlichen Feiertage aus der bi
 | Nicht übernommene Jahre rechnen mit dem berechneten Vorschlag (bisherige Regel) | Keine Pflege nötig; Vergangenheit unverändert | 2026-10-27 |
 | Feiertagskalender wird einmal pro Seitenaufruf geladen und als Parameter an die Rechenregeln übergeben | Regeln bleiben rein und testbar; eine Quelle für Zeitnachweis, Ferien, Übersicht, PDF | 2026-10-27 |
 | Halber Feiertag als Ja/Nein; halbes Soll, Ferien zählen 0.5 und decken das Rest-Soll | Spec kennt nur ganz/halb; gleiche Logik wie halber Ferientag | 2026-10-27 |
-| Datum "Nur Datum", im Tool in Schweizer Zeit gerechnet | Gleiche Konvention wie die übrigen Datumsfelder (PROJ-14) | 2026-10-27 |
+| Datum "Nur Datum" zeitzonenunabhängig (vom Nutzer so angelegt) → ohne Umrechnung als JJJJ-MM-TT gelesen/geschrieben | Eindeutiger als "Benutzer lokal"; keine Zeitzonenlogik nötig | 2026-10-27 |
+| Zurücksetzen löscht zuerst die Feiertage, dann das Jahr | Löschweitergabe ist "Verknüpfung entfernen"; so bleiben keine verwaisten Feiertage | 2026-10-27 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
@@ -189,6 +190,22 @@ Keine neuen Pakete.
 1. Der Nutzer legt in Dataverse die Tabellen "Feiertagsjahr" und "Feiertag" mit Rechten an (Spalten siehe B).
 2. Schema lesen (nur lesend) und in den Implementation Notes festhalten.
 3. Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`, kein Deploy bis zur Freigabe.
+
+## Implementation Notes
+
+### Dataverse-Schema (vom Nutzer angelegt, gelesen 2026-10-27, nur lesend)
+**Interne Namen mit Tippfehler** (`feriertag` statt `feiertag`) — Nutzer-Entscheidung: so belassen, da interne Namen nicht änderbar sind; Anzeigenamen in Dataverse auf "Feiertag"/"Feiertagsjahr" korrigierbar.
+
+**Feiertagsjahr** — `bmvcc_feriertagsjahr`, Entity-Set `bmvcc_feriertagsjahrs`, Id `bmvcc_feriertagsjahrid`
+- `bmvcc_jahr` (Text, Primärspalte, Pflicht), alternativer Schlüssel `bmvcc_jahr` (aktiv)
+
+**Feiertag** — `bmvcc_feriertag`, Entity-Set `bmvcc_feriertags`, Id `bmvcc_feriertagid`
+- `bmvcc_name` (Text, Primärspalte, Pflicht)
+- `bmvcc_datum` (Datum, "Nur Datum", **zeitzonenunabhängig** → ohne Umrechnung als JJJJ-MM-TT)
+- `bmvcc_halbertag` (Ja/Nein)
+- `bmvcc_feiertagsjahr` (Verweis, Pflicht), Navigation `bmvcc_Feiertagsjahr`; Löschverhalten "Verknüpfung entfernen" statt "Alle weitergeben" → das Tool löscht beim Zurücksetzen zuerst die Feiertage, dann das Jahr
+
+**Rechte** ("# OBSI Hofer Admin"): auf beiden Tabellen Lesen, Erstellen, Schreiben, Löschen, Anfügen, Anfügen an (Organisation)
 
 ## QA Test Results
 _To be added by /qa_
