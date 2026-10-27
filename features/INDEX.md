@@ -29,7 +29,7 @@
 | PROJ-12 | Sync-Freigabe und -Verlauf pro Standort | Deployed | [Spec](../features/PROJ-12-sync-freigabe-und-verlauf-pro-standort.md) | 2026-10-08 |
 | PROJ-13 | Zeitnachweis pro Monat | Approved | [Spec](../features/PROJ-13-zeitnachweis-pro-monat.md) | 2026-10-26 |
 | PROJ-14 | Arbeitsmodell pro Person (Pensum, Arbeitstage, Gleitzeit-Startsaldo) | Approved | [Spec](../features/PROJ-14-arbeitsmodell-pro-person.md) | 2026-10-26 |
-| PROJ-15 | Ferien erfassen und Feriensaldo | In Progress | [Spec](../features/PROJ-15-ferien-erfassen-und-feriensaldo.md) | 2026-10-26 |
+| PROJ-15 | Ferien erfassen und Feriensaldo | Approved | [Spec](../features/PROJ-15-ferien-erfassen-und-feriensaldo.md) | 2026-10-26 |
 | PROJ-16 | Zeitnachweis als PDF | Roadmap | — | 2026-10-26 |
 
 <!-- Add features above this line -->

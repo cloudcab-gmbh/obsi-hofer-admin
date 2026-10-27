@@ -1,6 +1,6 @@
 # PROJ-15: Ferien erfassen und Feriensaldo
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-10-26
 **Last Updated:** 2026-10-27
 
@@ -284,7 +284,100 @@ Keine neuen Pakete.
 **Tests:** 40 neue Tests; gesamt 615 grün, `tsc` und ESLint sauber. Ein Test fand dabei einen Fehler (Saldo Vorjahr leer, wenn der Saldo am 1. Januar beginnt) — behoben.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-10-27
+**App URL:** http://localhost:3000 (Branch `zeiterfassung`, nur lokal)
+**Tester:** QA Engineer (AI) + Browser-Test durch den Nutzer (Testanleitung Punkte 1–6)
+
+### Acceptance Criteria Status
+
+#### Zugriff
+- [x] Bearbeiter: Ferien-Seite zeigt nur den Hinweis; Vorschau, Erfassen und Löschen lehnen serverseitig ab (`actions.test.ts`); ohne Login → `/login` (E2E)
+
+#### Erfassen
+- [x] Von–bis legt nur Tage mit Soll an, ohne Wochenenden, freie Tage und Feiertage. Die Vorschau zeigt vor dem Speichern die Anzahl Ferientage und was übersprungen wird (`planeFerien`, Nutzer-Test über Weihnachten).
+- [x] Künftige Ferien möglich.
+- [x] Halber Ferientag nur für einen Tag: 0.5 Tage, halbes Soll.
+- [x] Bestehende Ferien werden nicht doppelt angelegt; die Vorschau zeigt "bereits Ferien".
+- [x] Zeitraum ohne Ferientag wird abgelehnt; die Meldung nennt seit dem Nutzer-Test den Grund.
+- [x] Tage ohne Arbeitsmodell werden übersprungen und gemeldet.
+- [x] Zeitnachweis: Klick auf einen künftigen Tag bietet nur Ferien und Frei an.
+- [x] Frei: nur Kennzeichnung, ohne Rechenwirkung.
+
+#### Löschen
+- [x] Ferien und Frei lassen sich mit Bestätigung löschen, im Zeitnachweis pro Tag und auf der Ferien-Seite pro Zeitraum. Andere Typen nie, der Typ wird vor dem Löschen neu gelesen.
+
+#### Anspruch und Saldo
+- [x] Anspruch (Vorgabe 25) × Pensum, anteilig bei Eintritt, Austritt und Pensumswechsel, auf halbe Tage gerundet.
+- [x] Startsaldo am Tag nach dem Stichtag; Gutschrift am 1. Januar; Restferien ohne Verfall übertragen.
+- [x] Ohne Ferien-Startsaldo Beginn mit 0 (Stichtag bzw. erste Version).
+- [x] Negativer Saldo rot, Erfassen bleibt erlaubt.
+
+#### Zeitnachweis
+- [x] Ferientag: Soll 0, "Ferien"; halber Tag: halbes Soll, "½ Ferien".
+- [x] Kennzahlen "Ferien im Monat" (bezogen + geplant) und "Feriensaldo Monatsende".
+
+#### Ferien-Seite
+- [x] Jahresübersicht mit Saldo Vorjahr, Anspruch, bezogen, geplant und Saldo Ende Jahr.
+- [x] Zeiträume der gewählten Person mit Erfassen und Löschen.
+- [x] Personenseite: Ferienanspruch 0–50, Ferien-Startsaldo nur mit Stichtag.
+
+#### Fehler
+- [x] Meldung bei Fehlern; Teil-Speicherung wird gemeldet, ein zweiter Versuch ergänzt nur die fehlenden Tage.
+
+### Edge Cases Status
+- [x] Ferien über Feiertage (Weihnachten, Neujahr)
+- [x] Ferien an Tag ohne Soll: zählen nicht, Hinweis
+- [x] Krankheit während der Ferien: Krankheit überwiegt, Hinweis
+- [x] Ferien + Arbeitszeit, halber Tag + Arbeitszeit
+- [x] Pensumswechsel, Eintritt, Austritt (Anspruch anteilig); Teilzeit: Ferientage sind eigene Arbeitstage
+- [x] Ferien vor dem Stichtag: angezeigt, zählen nicht
+- [x] Doppelte Erfassung: ein Tag zählt höchstens einmal (siehe BUG-3)
+- [x] Anspruch nachträglich geändert: wirkt sofort (live gerechnet)
+- [x] Saldo beginnt am 1. Januar: "Saldo Vorjahr" = Startsaldo (Fehler beim Bauen gefunden und behoben)
+
+### Daten-Check (lesend, 2026-10-27, nur Zählungen)
+Testeinträge in Dataverse:
+- 18 Ferien, 1 Frei, 1 halber Tag;
+- alle mit Kommen = Tagesbeginn, ohne Gehen, Code `JJJJMMTT0000`;
+- der Flow ist bei allen gelaufen (Tagestotal gesetzt).
+
+### Security Audit Results
+- [x] Authentifizierung: `/zeiterfassung/ferien` hinter dem Login (E2E)
+- [x] Autorisierung: Freigeber-Prüfung auf Seite und allen Aktionen
+- [x] Löschrecht in Dataverse gilt für alle Einträge; das Tool löscht nur Ferien/Frei (Typ vor dem Löschen neu gelesen, Test "never deletes other types")
+- [x] Eingaben: IDs per Zod-GUID, Daten und Zeitraum (max. 1 Jahr) geprüft, Person muss in der Zeiterfassung vorkommen; E-Mail in OData-Filtern escaped
+- [x] Keine Personendaten in Logs oder Fehlermeldungen
+- [x] Gefundener Laufzeitfehler (Server-Seite rief Funktion aus Client-Datei auf) behoben; Regel als Merkpunkt gespeichert
+
+### Automatisierte Tests
+- [x] `npm test`: 51 Dateien, 615 Tests grün
+- [x] `npm run test:e2e`: 34/34 grün (neu: `tests/PROJ-15-ferien-erfassen-und-feriensaldo.spec.ts`)
+
+### Bugs Found
+
+#### BUG-1: Ganzer Ferientag lässt sich nicht direkt in einen halben ändern
+- **Severity:** Low
+- **Steps to Reproduce:** 1. Tag als Ferien erfassen 2. Im Zeitnachweis denselben Tag als halben Ferientag erfassen 3. Expected: Umstellung auf ½ 4. Actual: "Kein Ferientag zu erfassen — übersprungen: 1 bereits Ferien" (vom Nutzer gefunden); Umweg: Tag löschen, neu als halben Tag erfassen
+- **Priority:** Nice to have
+
+#### BUG-2: Ferien über den Jahreswechsel werden auf der Ferien-Seite pro Jahr getrennt
+- **Severity:** Low
+- **Steps to Reproduce:** 1. Ferien 21.12.2026–08.01.2027 erfassen 2. Ferien-Seite 2026 öffnen 3. Expected: ein Zeitraum 4. Actual: Zeitraum endet am 31.12.; "löschen" entfernt nur den Teil von 2026, der Rest steht unter 2027
+- **Priority:** Nice to have
+
+#### BUG-3: Gleichzeitiges Erfassen durch zwei Freigeber kann doppelte Ferien-Einträge erzeugen
+- **Severity:** Low
+- **Steps to Reproduce:** zwei Freigeber speichern gleichzeitig Ferien für denselben Tag
+- **Actual:** zwei Einträge; der Tag zählt trotzdem nur einmal und beide werden zusammen gelöscht — nur kosmetisch
+- **Priority:** Nice to have
+
+### Summary
+- **Acceptance Criteria:** alle erfüllt
+- **Bugs Found:** 3 total (0 critical, 0 high, 0 medium, 3 low)
+- **Security:** Pass
+- **Production Ready:** YES (fachlich) — Deploy erst nach Nutzer-Freigabe der Zeiterfassung
+- **Recommendation:** Low-Bugs nach Wunsch; weiter mit PROJ-16 (Zeitnachweis als PDF)
 
 ## Deployment
 _To be added by /deploy_

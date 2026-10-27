@@ -30,7 +30,7 @@ Anmeldung über das bestehende Microsoft-365-/Entra-ID-Konto (interner Firmen-Te
 | P1 | Sync-Freigabe und -Verlauf pro Standort | Deployed |
 | P1 | Zeitnachweis pro Monat (ersetzt die Excel-Auswertung der Zeiterfassung: Ist, Soll, Gleitzeit pro Person und Monat) | Approved |
 | P1 | Arbeitsmodell pro Person (Pensum, Arbeitstage, Gleitzeit-Startsaldo) | Approved |
-| P1 | Ferien erfassen und Feriensaldo | In Progress |
+| P1 | Ferien erfassen und Feriensaldo | Approved |
 | P2 | Zeitnachweis als PDF | Roadmap |
 
 ## Success Metrics
