@@ -32,7 +32,7 @@
 | PROJ-15 | Ferien erfassen und Feriensaldo | Approved | [Spec](../features/PROJ-15-ferien-erfassen-und-feriensaldo.md) | 2026-10-26 |
 | PROJ-16 | Zeitnachweis als PDF | Roadmap | — | 2026-10-26 |
 | PROJ-17 | Zeiterfassung-Übersicht (Dashboard) | In Progress | [Spec](../features/PROJ-17-zeiterfassung-uebersicht.md) | 2026-10-27 |
-| PROJ-18 | Feiertage im Tool pflegen | Planned | [Spec](../features/PROJ-18-feiertage-pflegen.md) | 2026-10-27 |
+| PROJ-18 | Feiertage im Tool pflegen | Architected | [Spec](../features/PROJ-18-feiertage-pflegen.md) | 2026-10-27 |
 
 <!-- Add features above this line -->
 
@@ -56,7 +56,7 @@
 - PROJ-15: Requires PROJ-1, PROJ-2, PROJ-13, PROJ-14 (Pensum für den Ferienanspruch) — Dataverse: Aktivitätstyp 3 = Ferien und 4 = Frei angelegt (2026-10-27); Felder für Ferienanspruch und Ferien-Startsaldo an der Person (Form in /architecture)
 - PROJ-16: Requires PROJ-13 (Berechnung), Muster: PDF-Export aus PROJ-7
 - PROJ-17: Requires PROJ-1, PROJ-13, PROJ-14, PROJ-15 (gleiche Rechenregeln) — nur lesend, keine Dataverse-Änderung
-- PROJ-18: Requires PROJ-1, PROJ-13; betrifft PROJ-15, PROJ-17 — Dataverse: Ablage für gepflegte Feiertage (Form in /architecture, vom Nutzer anzulegen)
+- PROJ-18: Requires PROJ-1, PROJ-13; betrifft PROJ-15, PROJ-17 — Dataverse: Tabellen "Feiertagsjahr" und "Feiertag" (vom Nutzer anzulegen, siehe Tech Design)
 
 ## Empfohlene Baureihenfolge
 1. PROJ-1 und PROJ-2 parallel (beide unabhängig, beide Grundlage für alles Weitere)

@@ -1,6 +1,6 @@
 # PROJ-18: Feiertage im Tool pflegen
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-10-27
 **Last Updated:** 2026-10-27
 
@@ -71,6 +71,7 @@ Heute berechnet das Tool jedes Jahr fest die 9 gesetzlichen Feiertage aus der bi
 ## Open Questions
 - [ ] Gehören der 1. Mai oder Fronleichnam bei OBSI Hofer dazu? — mit diesem Feature vom Freigeber selbst pflegbar
 - [ ] Soll der automatische Vorschlag später um weitere Tage erweitert werden (z.B. Heiligabend halb)? (vorerst: die 9 bisherigen)
+- [ ] Nutzer: Tabellen "Feiertagsjahr" und "Feiertag" mit Rechten in Dataverse anlegen (Spalten siehe Tech Design B)
 
 ## Decision Log
 
@@ -86,13 +87,108 @@ Heute berechnet das Tool jedes Jahr fest die 9 gesetzlichen Feiertage aus der bi
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
-| _wird in /architecture ergänzt_ | | |
+| Zwei Dataverse-Tabellen "Feiertagsjahr" (Jahr, alternativer Schlüssel) und "Feiertag" (Name, Datum, Halber Tag, Verweis mit Löschweitergabe) | Ein übernommenes Jahr bleibt gepflegt, auch leer; Zurücksetzen = ein Löschvorgang | 2026-10-27 |
+| Nicht übernommene Jahre rechnen mit dem berechneten Vorschlag (bisherige Regel) | Keine Pflege nötig; Vergangenheit unverändert | 2026-10-27 |
+| Feiertagskalender wird einmal pro Seitenaufruf geladen und als Parameter an die Rechenregeln übergeben | Regeln bleiben rein und testbar; eine Quelle für Zeitnachweis, Ferien, Übersicht, PDF | 2026-10-27 |
+| Halber Feiertag als Ja/Nein; halbes Soll, Ferien zählen 0.5 und decken das Rest-Soll | Spec kennt nur ganz/halb; gleiche Logik wie halber Ferientag | 2026-10-27 |
+| Datum "Nur Datum", im Tool in Schweizer Zeit gerechnet | Gleiche Konvention wie die übrigen Datumsfelder (PROJ-14) | 2026-10-27 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Ausgangslage
+- Die Feiertage stecken heute als feste Regel im Code: 9 Feiertage, bewegliche nach Ostern. Diese Regel wird an mehreren Stellen direkt aufgerufen:
+  - Zeitnachweis (Soll, Grund);
+  - Ferien (Ferientag, Vorschau, Zeiträume);
+  - Übersicht.
+- Halbe Feiertage kennt die Rechnung nicht.
+
+### A) Bausteine
+```
+Zeiterfassung (Unterseiten-Leiste): Übersicht · Zeitnachweis · Personen · Ferien · Feiertage (neu)
+
+/zeiterfassung/feiertage (nur Freigeber)
++-- Jahr wählen (Vor/Zurück, Standard: aktuelles Jahr; in der Adresse)
++-- Status: "automatischer Vorschlag" oder "gepflegt"
++-- Liste: Datum · Wochentag · Name · ganz/halb
++-- Vorschlag:  "Jahr übernehmen" (bei vergangenen Jahren mit Hinweis "rechnet bestehende Monate neu")
++-- Gepflegt:   "Feiertag hinzufügen" (Dialog: Datum, Name, halber Tag)
+|               pro Zeile "bearbeiten" (Name, ganz/halb) und "entfernen" (Bestätigung)
+|               "Auf Vorschlag zurücksetzen" (Bestätigung)
++-- Fehlermeldungen; Eingaben bleiben erhalten
+
+Server (Freigeber-Prüfung, Prüfung der Eingaben)
++-- Feiertage eines Jahres laden (gepflegt oder Vorschlag)
++-- Jahr übernehmen · Feiertag hinzufügen/ändern/entfernen · Jahr zurücksetzen
+
+Feiertagskalender (gemeinsame Regel, rein)
++-- "Welche Tage sind Feiertage, ganz oder halb?" für die Jahre eines Zeitraums:
+    gepflegte Jahre aus Dataverse, übrige Jahre nach dem automatischen Vorschlag
++-- Zeitnachweis, Ferien, Übersicht und später das PDF erhalten den Kalender einmal pro Seitenaufruf
+```
+
+### B) Datenmodell (in Worten)
+Zwei neue Dataverse-Tabellen, **vom Nutzer anzulegen**:
+
+**"Feiertagsjahr"** — ein Datensatz pro übernommenem Jahr:
+- Jahr (Primärspalte, Text, z.B. "2027"; alternativer Schlüssel, damit es jedes Jahr nur einmal gibt).
+- Vorhanden heisst: Das Jahr ist gepflegt. Das gilt auch, wenn alle Feiertage entfernt wurden.
+
+**"Feiertag"** — ein Datensatz pro Feiertag eines gepflegten Jahres:
+- Name (Primärspalte, Text, z.B. "Heiligabend")
+- Datum (Datum, "Nur Datum"; das Tool rechnet in Schweizer Zeit wie bei den übrigen Datumsfeldern)
+- Halber Tag (Ja/Nein, Standard Nein)
+- Feiertagsjahr (Verweis, Pflicht; Löschweitergabe "Alle weitergeben", damit das Zurücksetzen eines Jahres seine Feiertage mitlöscht)
+
+**Rechte für den App-Benutzer "# OBSI Hofer Admin":** auf beiden Tabellen Lesen, Erstellen, Schreiben, Löschen, Anfügen, Anfügen an.
+
+**Regeln:**
+- **Übernehmen:** Das Tool legt das Feiertagsjahr an und speichert die 9 Feiertage des Vorschlags als Datensätze.
+- **Höchstens ein Feiertag pro Datum:** vom Tool geprüft.
+- **Datum im gewählten Jahr:** Pflicht.
+- **Zurücksetzen:** Das Feiertagsjahr wird gelöscht; seine Feiertage löscht Dataverse mit.
+
+**Wirkung in der Rechnung:**
+- **Ganzer Feiertag:** Soll 0 (wie bisher).
+- **Halber Feiertag:** halbes Soll, Anzeige "½ Feiertag". Ferien an diesem Tag zählen 0.5 und decken das verbleibende halbe Soll.
+- Gilt gleich in Zeitnachweis, Ferien und Übersicht.
+
+### C) Technische Entscheidungen (Begründung)
+- **Dataverse-Tabellen statt Datei oder Code:**
+  - wie alle Daten des Tools (keine eigene Datenbank);
+  - für alle Freigeber gleich;
+  - Dataverse führt "geändert von/am".
+- **Eigene Tabelle "Feiertagsjahr":** Ein übernommenes Jahr bleibt gepflegt, auch wenn alle Feiertage entfernt sind. Das Zurücksetzen ist ein einziger Löschvorgang.
+- **Vorschlag weiterhin berechnet:** Nicht übernommene Jahre, Vergangenheit wie Zukunft, rechnen ohne Pflege wie bisher; die bestehende Regel bleibt der Vorschlag.
+- **Feiertagskalender als Parameter statt globale Regel:** Die Rechenregeln bleiben rein und testbar. Pro Seitenaufruf wird einmal geladen, nicht pro Tag. Zeitnachweis, Ferien und Übersicht nutzen denselben Kalender.
+- **Halber Feiertag als Ja/Nein** statt Stunden: Die Spec kennt nur ganz und halb, gleiche Logik wie beim halben Ferientag.
+- **Hinweis vor dem Übernehmen vergangener Jahre:** Das Übernehmen selbst ändert nichts an den Zahlen. Erst spätere Änderungen wirken rückwirkend; der Freigeber soll das wissen.
+
+### D) Abhängigkeiten (Pakete)
+Keine neuen Pakete.
+
+### E) Tests
+- **Kalender:**
+  - Vorschlag für nicht gepflegte Jahre, gepflegte Liste für gepflegte Jahre;
+  - Zeitraum über zwei Jahre, eines gepflegt und eines nicht;
+  - leeres gepflegtes Jahr.
+- **Rechnung:**
+  - halber Feiertag (Soll halbiert), halber Feiertag + Ferien (0.5, Rest-Soll 0), halber Feiertag + Krankheit;
+  - neuer Feiertag auf bestehendem Ferientag;
+  - Ferien-Vorschau überspringt gepflegte Feiertage.
+- **Aktionen:**
+  - Bearbeiter abgelehnt; Übernehmen legt Jahr und 9 Feiertage an;
+  - doppeltes Datum, Datum ausserhalb des Jahres und leerer Name abgelehnt;
+  - Zurücksetzen löscht das Jahr.
+- **Komponenten:** Status Vorschlag/gepflegt, Dialoge, Bestätigungen, Hinweis bei vergangenem Jahr.
+- **Manuell lokal:** 2027 übernehmen, Heiligabend halb ergänzen, Zeitnachweis Dezember prüfen, zurücksetzen.
+
+### F) Vorgehen
+1. Der Nutzer legt in Dataverse die Tabellen "Feiertagsjahr" und "Feiertag" mit Rechten an (Spalten siehe B).
+2. Schema lesen (nur lesend) und in den Implementation Notes festhalten.
+3. Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`, kein Deploy bis zur Freigabe.
 
 ## QA Test Results
 _To be added by /qa_
