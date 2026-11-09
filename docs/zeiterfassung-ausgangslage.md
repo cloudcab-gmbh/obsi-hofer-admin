@@ -6,7 +6,7 @@ Grundlage für `/write-spec` (neues Feature im Admin-Tool). Zusammengestellt aus
 
 | Blatt | Inhalt |
 | --- | --- |
-| `query`, `Tabelle_query` | Rohdaten, rund 1'425 Einträge, per Datenverbindung (`query.iqy`) aus einer **SharePoint-Liste** (frühere Erfassung, ein Datensatz pro Tag und Person) — abgelöst, nicht mehr relevant |
+| `query`, `Tabelle_query` | Rohdaten, rund 1'425 Einträge, per Datenverbindung (`query.iqy`) aus einer **SharePoint-Liste** (frühere Erfassung, ein Datensatz pro Tag und Person) — **Stand 2026-11-09: läuft weiter und ist die Quelle für Dataverse** (Erstbefüllung per Import PROJ-19, danach Flow des Nutzers); frühere Aussage "abgelöst, nicht mehr relevant" überholt |
 | `xxxx YY-26` | Monatsblatt pro Person: Check-in Vor- und Nachmittag, Pause, Feierabend, Ist, Soll, Differenz, Gleitzeit, Ferienbezug, Feriensaldo, Mittag, Bemerkung |
 | `Berechnungen Ferien, GLZ, Solls` | Hilfsberechnungen für Ferien, Gleitzeit (GLZ) und Sollzeiten |
 | `Tabelle1` | Hilfstabelle |

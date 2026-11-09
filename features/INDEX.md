@@ -33,10 +33,11 @@
 | PROJ-16 | Zeitnachweis als PDF | Deployed | [Spec](../features/PROJ-16-zeitnachweis-als-pdf.md) | 2026-10-26 |
 | PROJ-17 | Zeiterfassung-Übersicht (Dashboard) | Deployed | [Spec](../features/PROJ-17-zeiterfassung-uebersicht.md) | 2026-10-27 |
 | PROJ-18 | Feiertage im Tool pflegen | Deployed | [Spec](../features/PROJ-18-feiertage-pflegen.md) | 2026-10-27 |
+| PROJ-19 | Import der SharePoint-Zeiterfassung | Planned | [Spec](../features/PROJ-19-import-sharepoint-zeiterfassung.md) | 2026-11-09 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-19
+## Next Available ID: PROJ-20
 
 ## Dependencies (für /write-spec)
 - PROJ-1: None
@@ -57,6 +58,7 @@
 - PROJ-16: Requires PROJ-13 (Berechnung), Muster: PDF-Export aus PROJ-7
 - PROJ-17: Requires PROJ-1, PROJ-13, PROJ-14, PROJ-15 (gleiche Rechenregeln) — nur lesend, keine Dataverse-Änderung
 - PROJ-18: Requires PROJ-1, PROJ-13; betrifft PROJ-15, PROJ-17 — Dataverse: Tabellen "Feiertagsjahr" und "Feiertag" (vom Nutzer anzulegen, siehe Tech Design)
+- PROJ-19: Requires PROJ-2, PROJ-13; betrifft PROJ-14, PROJ-15, PROJ-17 — Dataverse: Erstellen und Löschen auf `bmvcc_timetrackingentry` (vorhanden, vor dem Lauf prüfen); extern: Tagestotal-Flow während des Imports aus, danach übernimmt ein Flow des Nutzers neue/geänderte SharePoint-Einträge
 
 ## Empfohlene Baureihenfolge
 1. PROJ-1 und PROJ-2 parallel (beide unabhängig, beide Grundlage für alles Weitere)
@@ -68,3 +70,4 @@
 7. PROJ-9 (PDF-Export digital signieren, P0) — als Nächstes; Phase 1 mit Test-Zertifikat sofort möglich, parallel Anbieter/Zertifikat für Phase 2 wählen
 8. PROJ-10 (Standort als Arbeitskontext, P1) — nur dieses Repo, sofort machbar; danach PROJ-11 und PROJ-12, sobald die Fragen zu Dataverse (Kontakt ↔ Standort) und zum Kundenportal-Sync geklärt sind
 9. Zeiterfassung: PROJ-14 (Arbeitsmodell) → PROJ-13 (Zeitnachweis) → PROJ-15 (Ferien) → PROJ-17 (Übersicht, vom Nutzer vorgezogen) → PROJ-16 (PDF). Nutzer-Vorgabe 2026-10-26: erst alles lokal testen, kein Deploy vorher
+10. PROJ-19 (Import der SharePoint-Zeiterfassung) — Erstbefüllung von Dataverse aus der weiterlaufenden SharePoint-Liste
