@@ -1,6 +1,6 @@
 # PROJ-14: Arbeitsmodell pro Person
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-10-26
 **Last Updated:** 2026-10-27
 
@@ -372,4 +372,4 @@ Wie bei PROJ-11 in einem Schritt gebaut (die Oberfläche braucht die Dataverse-A
 - **Recommendation:** Low-Bugs nach Wunsch beheben; weiter mit PROJ-13
 
 ## Deployment
-_To be added by /deploy_
+

@@ -1,6 +1,6 @@
 # PROJ-18: Feiertage im Tool pflegen
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-10-27
 **Last Updated:** 2026-10-27
 
@@ -285,4 +285,4 @@ Hinweise: Die internen Tabellennamen tragen einen Tippfehler (`bmvcc_feriertagâ€
 - **Production Ready:** YES (fachlich) â€” Deploy erst nach Nutzer-Freigabe der Zeiterfassung
 
 ## Deployment
-_To be added by /deploy_
+

@@ -1,6 +1,6 @@
 # PROJ-17: Zeiterfassung-Übersicht (Dashboard)
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-10-27
 **Last Updated:** 2026-10-27
 
@@ -272,4 +272,4 @@ Bauen auf dem Branch `zeiterfassung`, nur lokal testen — kein Push auf `main`,
 - **Production Ready:** YES nach Regel (kein Critical/High) — Empfehlung: BUG-1 vor dem Deploy beheben
 
 ## Deployment
-_To be added by /deploy_
+

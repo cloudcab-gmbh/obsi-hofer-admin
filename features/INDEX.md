@@ -27,12 +27,12 @@
 | PROJ-10 | Standort als Arbeitskontext | Deployed | [Spec](../features/PROJ-10-standort-als-arbeitskontext.md) | 2026-10-08 |
 | PROJ-11 | Kundenportal-Zugang pro Standort | Deployed | [Spec](../features/PROJ-11-kundenportal-zugang-pro-standort.md) | 2026-10-08 |
 | PROJ-12 | Sync-Freigabe und -Verlauf pro Standort | Deployed | [Spec](../features/PROJ-12-sync-freigabe-und-verlauf-pro-standort.md) | 2026-10-08 |
-| PROJ-13 | Zeitnachweis pro Monat | Approved | [Spec](../features/PROJ-13-zeitnachweis-pro-monat.md) | 2026-10-26 |
-| PROJ-14 | Arbeitsmodell pro Person (Pensum, Arbeitstage, Gleitzeit-Startsaldo) | Approved | [Spec](../features/PROJ-14-arbeitsmodell-pro-person.md) | 2026-10-26 |
-| PROJ-15 | Ferien erfassen und Feriensaldo | Approved | [Spec](../features/PROJ-15-ferien-erfassen-und-feriensaldo.md) | 2026-10-26 |
-| PROJ-16 | Zeitnachweis als PDF | Approved | [Spec](../features/PROJ-16-zeitnachweis-als-pdf.md) | 2026-10-26 |
-| PROJ-17 | Zeiterfassung-Übersicht (Dashboard) | Approved | [Spec](../features/PROJ-17-zeiterfassung-uebersicht.md) | 2026-10-27 |
-| PROJ-18 | Feiertage im Tool pflegen | Approved | [Spec](../features/PROJ-18-feiertage-pflegen.md) | 2026-10-27 |
+| PROJ-13 | Zeitnachweis pro Monat | Deployed | [Spec](../features/PROJ-13-zeitnachweis-pro-monat.md) | 2026-10-26 |
+| PROJ-14 | Arbeitsmodell pro Person (Pensum, Arbeitstage, Gleitzeit-Startsaldo) | Deployed | [Spec](../features/PROJ-14-arbeitsmodell-pro-person.md) | 2026-10-26 |
+| PROJ-15 | Ferien erfassen und Feriensaldo | Deployed | [Spec](../features/PROJ-15-ferien-erfassen-und-feriensaldo.md) | 2026-10-26 |
+| PROJ-16 | Zeitnachweis als PDF | Deployed | [Spec](../features/PROJ-16-zeitnachweis-als-pdf.md) | 2026-10-26 |
+| PROJ-17 | Zeiterfassung-Übersicht (Dashboard) | Deployed | [Spec](../features/PROJ-17-zeiterfassung-uebersicht.md) | 2026-10-27 |
+| PROJ-18 | Feiertage im Tool pflegen | Deployed | [Spec](../features/PROJ-18-feiertage-pflegen.md) | 2026-10-27 |
 
 <!-- Add features above this line -->
 

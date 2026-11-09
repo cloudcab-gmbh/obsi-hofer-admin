@@ -2,8 +2,8 @@
 
 Alle für Nutzer relevanten Änderungen am Admin-Tool. Neueste Version zuerst. Versionen entsprechen den Git-Tags `vX.Y.Z-PROJ-N`.
 
-## [Unveröffentlicht] – Branch `zeiterfassung` · PROJ-13 bis PROJ-18 Zeiterfassung
-Noch nicht in Production — wird beim Deploy zur nächsten Version. Nur für Freigeber.
+## [1.13.0] – 2026-11-09 · PROJ-13 bis PROJ-18 Zeiterfassung
+Nur für Freigeber.
 ### Neu
 - Menüpunkt „Zeiterfassung“ mit den Reitern Übersicht, Zeitnachweis, Personen, Ferien und Feiertage.
 - Personen (PROJ-14):

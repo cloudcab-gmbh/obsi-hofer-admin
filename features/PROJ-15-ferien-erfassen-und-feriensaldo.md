@@ -1,6 +1,6 @@
 # PROJ-15: Ferien erfassen und Feriensaldo
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-10-26
 **Last Updated:** 2026-10-27
 
@@ -383,4 +383,4 @@ Testeinträge in Dataverse:
 - **Recommendation:** Low-Bugs nach Wunsch; weiter mit PROJ-16 (Zeitnachweis als PDF)
 
 ## Deployment
-_To be added by /deploy_
+

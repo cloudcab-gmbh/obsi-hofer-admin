@@ -1,6 +1,6 @@
 # PROJ-16: Zeitnachweis als PDF
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-10-26
 **Last Updated:** 2026-10-27
 
@@ -246,4 +246,4 @@ Hinweis (kein Bug, laut Spec gewollt): Unplausible Paare (über 14 h oder Gehen 
 - **Production Ready:** YES (fachlich) — Deploy erst nach Nutzer-Freigabe der Zeiterfassung
 
 ## Deployment
-_To be added by /deploy_
+
