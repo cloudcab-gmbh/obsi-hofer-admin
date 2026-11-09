@@ -34,7 +34,7 @@ Anmeldung über das bestehende Microsoft-365-/Entra-ID-Konto (interner Firmen-Te
 | P2 | Zeitnachweis als PDF | Deployed |
 | P1 | Zeiterfassung-Übersicht (Dashboard: Gleitzeit, Ist/Soll, Abwesenheiten, Ferien aller Mitarbeitenden, mit Grafiken) | Deployed |
 | P1 | Feiertage im Tool pflegen (Vorschlag pro Jahr, betriebliche und halbe Feiertage) | Deployed |
-| P1 | Import der SharePoint-Zeiterfassung (Erstbefüllung von Dataverse aus der weiterlaufenden SharePoint-Liste) | Planned |
+| P1 | Import der SharePoint-Zeiterfassung (Erstbefüllung von Dataverse aus der weiterlaufenden SharePoint-Liste) | Architected |
 
 ## Success Metrics
 - Keine direkte Dateneingabe mehr in Dataverse/Dynamics nötig für Geräte/Prüfberichte

@@ -33,7 +33,7 @@
 | PROJ-16 | Zeitnachweis als PDF | Deployed | [Spec](../features/PROJ-16-zeitnachweis-als-pdf.md) | 2026-10-26 |
 | PROJ-17 | Zeiterfassung-Übersicht (Dashboard) | Deployed | [Spec](../features/PROJ-17-zeiterfassung-uebersicht.md) | 2026-10-27 |
 | PROJ-18 | Feiertage im Tool pflegen | Deployed | [Spec](../features/PROJ-18-feiertage-pflegen.md) | 2026-10-27 |
-| PROJ-19 | Import der SharePoint-Zeiterfassung | Planned | [Spec](../features/PROJ-19-import-sharepoint-zeiterfassung.md) | 2026-11-09 |
+| PROJ-19 | Import der SharePoint-Zeiterfassung | Architected | [Spec](../features/PROJ-19-import-sharepoint-zeiterfassung.md) | 2026-11-09 |
 
 <!-- Add features above this line -->
 

@@ -1,6 +1,6 @@
 # PROJ-19: Import der SharePoint-Zeiterfassung
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-11-09
 **Last Updated:** 2026-11-09
 
@@ -97,7 +97,7 @@ Trockenlauf-Analyse vom 2026-11-09: 1'451 Zeilen, 9 Personen, Juli 2023 bis 09.1
 
 ## Open Questions
 - [x] Wie führt der neue Flow geänderte SharePoint-Zeilen nach? → Der Flow des Nutzers löst bei "Element erstellt oder geändert" aus und übernimmt die Zeile nach derselben Abbildung, Schlüssel `bmvcc_recordid` (Nutzer, 2026-11-09)
-- [ ] **Gelöschte** SharePoint-Zeilen: Der Auslöser "erstellt oder geändert" erfasst kein Löschen — die Einträge bleiben in Dataverse stehen, bis sie im Zeitnachweis gelöscht werden. Reicht das?
+- [x] **Gelöschte** SharePoint-Zeilen? → Ein weiterer Flow des Nutzers löscht die zugehörigen Einträge in Dataverse (über `bmvcc_recordid`) (Nutzer, 2026-11-09)
 - [x] Welche Seite ist massgeblich, solange die Liste weiterläuft? → **SharePoint** (Nutzer, 2026-11-09). Korrekturen gehören in die Liste; Korrekturen im Zeitnachweis (PROJ-13) können beim nächsten Ändern der Zeile vom Flow überschrieben werden
 - [ ] Sollen die Korrektur-Funktionen im Zeitnachweis (Gehen nachtragen, Arbeitszeit erfassen/löschen) deshalb ausgeblendet oder mit einem Hinweis versehen werden? → später mit `/refine PROJ-13` klären
 - [x] Wann wird der Tagestotal-Flow wieder eingeschaltet? → sobald der Import fertig ist (Nutzer, 2026-11-09). Die importierten Einträge erhalten keine Totals (Flow war aus); das Tool rechnet das Ist selbst, ein Abgleich-Hinweis erscheint nur bei vorhandenem Total
@@ -125,12 +125,70 @@ Trockenlauf-Analyse vom 2026-11-09: 1'451 Zeilen, 9 Personen, Juli 2023 bis 09.1
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Kommandozeilen-Skript im Repo (Ordner `scripts/`), ausgeführt mit `tsx` | Nutzt die bestehende Dataverse-Anbindung und Zeitlogik ohne Kopie; keine Oberfläche, nichts auf Vercel | 2026-11-09 |
+| Abbildungsregeln als eigenes, reines Modul mit Unit-Tests | Regeln (Pause, Platzhalter, Problemzeilen) sind der heikle Teil und dienen als Referenz für den Flow des Nutzers | 2026-11-09 |
+| Trockenlauf ist der Standardmodus; Löschen nur mit ausdrücklichem Modus "Erstbefüllung" | Löschen ist nicht umkehrbar | 2026-11-09 |
+| Erstbefüllung verweigert, sobald ein Eintrag eine SharePoint-ID trägt | Verhindert, dass ein zweiter Lauf importierte oder vom Flow erstellte echte Einträge löscht | 2026-11-09 |
+| `bmvcc_recordid` (Ganzzahl, bisher leer) = SharePoint-ID; beide Einträge einer Zeile tragen dieselbe ID | Vorhandene Spalte, keine Schemaänderung; Schlüssel für Ergänzen und für den Flow (ersetzen/löschen pro Zeile) | 2026-11-09 |
+| Eigene neue Kennung (`bmvcc_timerecordid`) pro Eintrag statt `zeitrecid` aus der Liste | Zwei Einträge pro Zeile bräuchten zwei Kennungen; gleich wie beim Erfassen im Zeitnachweis | 2026-11-09 |
+| Bericht mit Personendaten neben der CSV statt im Repo | Repo ist öffentlich | 2026-11-09 |
+| Einzelne Schreibfehler brechen den Lauf nicht ab, Wiederholung bei Drosselung | Rund 2'700 Schreibvorgänge; Lücken holt "Ergänzen" nach | 2026-11-09 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Überblick
+Kein neuer Bildschirm und keine Änderung an Vercel: Der Import ist ein **Kommandozeilen-Skript im Repo**, das der Entwickler lokal startet. Es nutzt dieselbe Dataverse-Anbindung (PROJ-2) und dieselben Zeit-Hilfsfunktionen wie das Tool (Schweizer Zeit, Sommer-/Winterzeit), damit importierte Einträge genau so aussehen wie im Zeitnachweis erfasste.
+
+```
+Import-Skript (lokal, Zugangsdaten aus .env.local)
++-- 1. CSV einlesen (Pfad als Argument, Datei ausserhalb des Repos)
++-- 2. Zeilen prüfen und abbilden  ── reine Regeln, ohne Dataverse, mit Unit-Tests
+|      +-- gültig mit Pause   → 2 Einträge
+|      +-- gültig ohne Pause  → 1 Eintrag
+|      +-- Problemzeile       → weggelassen, mit Grund
++-- 3. Dataverse lesen: zu löschende Einträge zählen, bereits importierte SharePoint-IDs
++-- 4. Bericht (Konsole + Datei neben der CSV)
++-- 5. nur mit ausdrücklichem Modus: löschen und/oder erstellen
+```
+
+### Drei Modi
+| Modus | Liest | Löscht | Erstellt | Wann |
+|---|---|---|---|---|
+| **Trockenlauf** (Standard) | CSV + Dataverse | nichts | nichts | immer zuerst; Bericht zur Freigabe |
+| **Erstbefüllung** | CSV + Dataverse | alle Arbeitszeit/Krankheit/Komp. GLZ | alle gültigen Zeilen | einmal, nach Freigabe |
+| **Ergänzen** | CSV + Dataverse | nichts | nur Zeilen, deren SharePoint-ID fehlt | nach Abbruch oder bis der Flow läuft |
+
+**Sicherung gegen versehentliches Löschen:** Die Erstbefüllung verweigert den Start, sobald irgendein Eintrag bereits eine SharePoint-ID trägt (also schon importiert wurde oder der Flow des Nutzers läuft). Dann ist nur noch "Ergänzen" möglich. Zusätzlich muss der Modus beim Start ausdrücklich angegeben werden.
+
+### Datenmodell (keine Schemaänderung)
+Jede gültige Zeile wird zu 1–2 Zeiteinträgen in der bestehenden Tabelle `bmvcc_timetrackingentry`, mit denselben Feldern wie beim Erfassen im Zeitnachweis (PROJ-13):
+- Person (E-Mail aus "Title", klein geschrieben), Aktivitätsdatum, Typ Arbeitszeit
+- Kommen/Arbeitsbeginn und Gehen/Checkout (Schweizer Ortszeit → UTC)
+- Mittagessen (beide Felder) und Bemerkung nur auf dem ersten Eintrag
+- Primärspalte JJJJMMTTHHMM des Kommens, neue eigene Kennung pro Eintrag
+- **Neu genutzt:** `bmvcc_recordid` (Ganzzahl, bisher überall leer — geprüft 2026-11-09) = SharePoint-ID der Zeile. Beide Einträge einer Zeile tragen dieselbe ID; so findet auch der Flow des Nutzers alle Einträge einer Zeile
+
+Stand Dataverse 2026-11-09 (gelesen): 152 Arbeitszeit, 1 Komp. GLZ, 2 Krankheit → **155 werden gelöscht**; 34 Ferien und 1 Frei bleiben.
+
+### Bericht
+- Konsole: Zusammenfassung (Zeilen, Einträge pro Person, zu löschende Einträge pro Typ, Problemzeilen pro Grund)
+- Datei neben der CSV (also ausserhalb des Repos): jede weggelassene Zeile mit SharePoint-ID, Person, Datum, Grund — als Liste zum Nachtragen
+
+### Ablauf beim Erstellen
+- Einträge werden in kleinen Gruppen nacheinander geschrieben; bei Drosselung durch Dataverse wartet das Skript und versucht es erneut
+- Fehler bei einzelnen Zeilen brechen den Lauf nicht ab, sondern werden am Schluss aufgelistet; "Ergänzen" holt sie nach
+- Rund 2'700 Einträge: einige Minuten Laufzeit
+
+### Wiederverwendung
+- Dataverse-Anbindung, Liste aller Einträge mit Nachladen, Erstellen/Löschen (PROJ-2, PROJ-13)
+- Umrechnung Schweizer Datum + Uhrzeit → Zeitpunkt (PROJ-13)
+- Erstellen eines Zeiteintrags (PROJ-13) — wird um die optionale SharePoint-ID ergänzt, sonst unverändert
+
+### Abhängigkeiten
+Keine neuen Pakete: Das Skript läuft mit dem bereits vorhandenen `tsx`; die Zugangsdaten lädt Node direkt aus `.env.local`.
 
 ## QA Test Results
 _To be added by /qa_
