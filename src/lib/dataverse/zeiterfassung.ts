@@ -247,6 +247,24 @@ export async function setzeHalberTag(id: string, halberTag: boolean): Promise<vo
   await updateRecord(ZEITEINTRAEGE_ENTITY, id, { [HALBER_TAG_SPALTE]: halberTag });
 }
 
+/** PROJ-19: Kurzangaben aller Zeiteinträge — für den Import (Löschen, bereits importierte SharePoint-IDs). */
+export interface ZeiteintragKurz {
+  id: string;
+  typ: Eintragstyp;
+  sharepointId: number | null;
+}
+
+export async function listAlleZeiteintraegeKurz(): Promise<ZeiteintragKurz[]> {
+  const records = await listAllRecords(ZEITEINTRAEGE_ENTITY, {
+    select: ["bmvcc_timetrackingentryid", "bmvcc_activitytype", "bmvcc_recordid"],
+  });
+  return records.map((r) => ({
+    id: r.bmvcc_timetrackingentryid as string,
+    typ: EINTRAGSTYPEN[r.bmvcc_activitytype as number] ?? "unbekannt",
+    sharepointId: zahlOderNull(r.bmvcc_recordid),
+  }));
+}
+
 /** Löscht einen Zeiteintrag (die Aktion prüft vorher den Typ). */
 export async function loescheZeiteintrag(id: string): Promise<void> {
   await deleteRecord(ZEITEINTRAEGE_ENTITY, id);
@@ -304,6 +322,8 @@ export interface NeuerZeiteintrag {
   bemerkung: string | null;
   /** PROJ-15: halber Ferientag. */
   halberTag?: boolean;
+  /** PROJ-19: ID der SharePoint-Zeile (`bmvcc_recordid`), nur beim Import. */
+  sharepointId?: number;
 }
 
 const TYP_WERTE: Record<NeuerZeiteintrag["typ"], number> = { arbeitszeit: 0, "komp-glz": 1, krankheit: 2, ferien: 3, frei: 4 };
@@ -335,6 +355,7 @@ export async function erstelleZeiteintrag(email: string, datum: string, eintrag:
     bmvcc_remarks: eintrag.bemerkung,
     bmvcc_timerecordid: crypto.randomUUID(),
     [HALBER_TAG_SPALTE]: eintrag.halberTag ?? false,
+    ...(eintrag.sharepointId !== undefined ? { bmvcc_recordid: eintrag.sharepointId } : {}),
   });
   return id;
 }
