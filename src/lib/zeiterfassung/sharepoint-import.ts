@@ -108,6 +108,9 @@ function zeitpunkt(wert: string): { datum: string; iso: string; ms: number } | n
 
 const MAX_SPANNE_MS = 14 * 60 * 60000;
 
+/** Herkunftsvermerk in der Bemerkung des ersten Eintrags eines Tages (Nutzerwunsch 2026-11-09). */
+export const HERKUNFT = "aus SharePoint";
+
 /** Bildet eine Zeile ab oder nennt den Grund, warum sie weggelassen wird. */
 export function bildeZeileAb(zeile: SharePointZeile, ausgeschlossen: ReadonlySet<string> = new Set()): Abbildung {
   const email = zeile.Title.toLowerCase();
@@ -137,7 +140,7 @@ export function bildeZeileAb(zeile: SharePointZeile, ausgeschlossen: ReadonlySet
   };
   const ersterEintrag = {
     mittagessen: zeile.Mittagessen.toLowerCase() === "true",
-    bemerkung: zeile.Bemerkung || null,
+    bemerkung: zeile.Bemerkung ? `${zeile.Bemerkung} · ${HERKUNFT}` : HERKUNFT,
   };
   const folgeEintrag = { mittagessen: false, bemerkung: null };
 

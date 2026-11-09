@@ -58,12 +58,17 @@ describe("bildeZeileAb", () => {
     expect(r.ok && r.eintraege[0].kommen).toBe("2026-07-01T05:00:00Z");
   });
 
-  it("schreibt E-Mail klein und Bemerkung nur auf den ersten Eintrag", () => {
+  it("schreibt E-Mail klein und Bemerkung mit Herkunft nur auf den ersten Eintrag", () => {
     const r = bildeZeileAb(zeile({ Title: "Max.Muster@OBSI-Hofer.ch", Bemerkung: "Kunde X" }));
     expect(r.ok && r.eintraege.map((x) => [x.email, x.bemerkung])).toEqual([
-      ["max.muster@obsi-hofer.ch", "Kunde X"],
+      ["max.muster@obsi-hofer.ch", "Kunde X · aus SharePoint"],
       ["max.muster@obsi-hofer.ch", null],
     ]);
+  });
+
+  it("ohne Bemerkung steht nur die Herkunft", () => {
+    const r = bildeZeileAb(zeile({ PStart: "", PEnde: "", AZNetto: "9,00" }));
+    expect(r.ok && r.eintraege[0].bemerkung).toBe("aus SharePoint");
   });
 
   it.each([

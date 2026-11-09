@@ -199,6 +199,7 @@ Keine neuen Pakete: Das Skript läuft mit dem bereits vorhandenen `tsx`; die Zug
 - **Trockenlauf 2026-11-09** (`--ohne=` für die ausgeschlossene Person): 1'451 Zeilen → 1'223 importierbar = 2'368 Einträge; 228 weggelassen (178 ausgeschlossene Person, 18 AEnde ≤ AStart, 17 ohne AEnde, 10 nur AZNetto, 2 Pause unplausibel, 1 Krankheit, 1 Komp. GLZ, 1 leer); 19 Hinweise. Dataverse: 155 zu löschen (152 Arbeitszeit, 1 Komp. GLZ, 2 Krankheit), 35 bleiben (34 Ferien, 1 Frei), 0 mit SharePoint-ID
 
 - **Erstbefüllung ausgeführt 2026-11-09** (Nutzer-Freigabe, Tagestotal-Flow aus): 155 Einträge gelöscht, 2'368 erstellt, 0 Fehler. Kontrolle danach: 2'368 Arbeitszeit-Einträge, alle mit SharePoint-ID, keine unvollständige Zeile; 34 Ferien und 1 Frei unverändert
+- **Herkunftsvermerk (Nutzerwunsch 2026-11-09):** Die Bemerkung des ersten Eintrags eines Tages lautet "aus SharePoint" bzw. "<Bemerkung> · aus SharePoint" (nur erster Eintrag, sonst zeigt der Zeitnachweis den Text doppelt). Neuer Modus `nachfuehren` setzt bei importierten Einträgen die Bemerkung auf den Wert der Abbildung (Zuordnung SharePoint-ID + Kommen); am 2026-11-09 bei 1'223 Einträgen ausgeführt, 0 Fehler, Kontrolle danach 0 abweichend
 
 ## QA Test Results
 _To be added by /qa_

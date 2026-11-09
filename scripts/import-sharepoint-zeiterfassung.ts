@@ -7,6 +7,8 @@
  * - erstbefuellung: löscht alle Einträge Arbeitszeit/Komp. GLZ/Krankheit und importiert;
  *   verweigert, sobald ein Eintrag schon eine SharePoint-ID trägt
  * - ergaenzen: löscht nichts, importiert nur Zeilen, deren SharePoint-ID fehlt oder unvollständig ist
+ * - nachfuehren: löscht und erstellt nichts, setzt bei bereits importierten Einträgen die Bemerkung
+ *   auf den Wert der Abbildung (z.B. Herkunftsvermerk "aus SharePoint")
  *
  * Der Bericht (Personendaten) wird neben der CSV abgelegt, nie im Repo.
  */
@@ -17,12 +19,13 @@ import {
   erstelleZeiteintrag,
   listAlleZeiteintraegeKurz,
   loescheZeiteintrag,
+  setzeBemerkung,
   type ZeiteintragKurz,
 } from "@/lib/dataverse/zeiterfassung";
 import { leseSharePointCsv, planeImport, type ImportEintrag } from "@/lib/zeiterfassung/sharepoint-import";
 
-type Modus = "trockenlauf" | "erstbefuellung" | "ergaenzen";
-const MODI: Modus[] = ["trockenlauf", "erstbefuellung", "ergaenzen"];
+type Modus = "trockenlauf" | "erstbefuellung" | "ergaenzen" | "nachfuehren";
+const MODI: Modus[] = ["trockenlauf", "erstbefuellung", "ergaenzen", "nachfuehren"];
 const ZU_LOESCHENDE_TYPEN = new Set<ZeiteintragKurz["typ"]>(["arbeitszeit", "komp-glz", "krankheit"]);
 const PARALLEL = 4;
 
@@ -150,8 +153,29 @@ async function main() {
   writeFileSync(berichtPfad, "﻿" + berichtZeilen.join("\r\n") + "\r\n", "utf8");
   console.log(`\nBericht: ${berichtPfad}`);
 
+  // Bereits importierte Einträge, deren Bemerkung von der Abbildung abweicht (Zuordnung: SharePoint-ID + Kommen)
+  const nachzufuehren: { id: string; bemerkung: string | null }[] = [];
+  for (const e of plan.eintraege) {
+    const treffer = mitSharepointId.find(
+      (d) => d.sharepointId === e.sharepointId && d.kommen !== null && Date.parse(d.kommen) === Date.parse(e.kommen)
+    );
+    if (treffer && treffer.bemerkung !== e.bemerkung) nachzufuehren.push({ id: treffer.id, bemerkung: e.bemerkung });
+  }
+  if (mitSharepointId.length > 0) console.log(`  Bemerkung abweichend: ${nachzufuehren.length} (→ --modus=nachfuehren)`);
+
   if (modus === "trockenlauf") {
     console.log("\nTrockenlauf — in Dataverse wurde nichts geändert.");
+    return;
+  }
+
+  if (modus === "nachfuehren") {
+    console.log(`\nFühre bei ${nachzufuehren.length} Einträgen die Bemerkung nach …`);
+    const fehler = await arbeiteAb("nachgeführt", nachzufuehren, (e) => setzeBemerkung(e.id, e.bemerkung));
+    console.log(`\nFertig: ${nachzufuehren.length - fehler.length} nachgeführt, ${fehler.length} Fehler.`);
+    if (fehler.length > 0) {
+      for (const f of fehler.slice(0, 20)) console.error(`  ${f.element.id}: ${f.fehler}`);
+      process.exitCode = 1;
+    }
     return;
   }
 

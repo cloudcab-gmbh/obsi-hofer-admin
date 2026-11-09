@@ -252,17 +252,26 @@ export interface ZeiteintragKurz {
   id: string;
   typ: Eintragstyp;
   sharepointId: number | null;
+  kommen: string | null;
+  bemerkung: string | null;
 }
 
 export async function listAlleZeiteintraegeKurz(): Promise<ZeiteintragKurz[]> {
   const records = await listAllRecords(ZEITEINTRAEGE_ENTITY, {
-    select: ["bmvcc_timetrackingentryid", "bmvcc_activitytype", "bmvcc_recordid"],
+    select: ["bmvcc_timetrackingentryid", "bmvcc_activitytype", "bmvcc_recordid", "bmvcc_kommen", "bmvcc_remarks"],
   });
   return records.map((r) => ({
     id: r.bmvcc_timetrackingentryid as string,
     typ: EINTRAGSTYPEN[r.bmvcc_activitytype as number] ?? "unbekannt",
     sharepointId: zahlOderNull(r.bmvcc_recordid),
+    kommen: textOderNull(r.bmvcc_kommen),
+    bemerkung: textOderNull(r.bmvcc_remarks),
   }));
+}
+
+/** PROJ-19: Bemerkung eines Eintrags setzen (Modus "nachfuehren" des Imports). */
+export async function setzeBemerkung(id: string, bemerkung: string | null): Promise<void> {
+  await updateRecord(ZEITEINTRAEGE_ENTITY, id, { bmvcc_remarks: bemerkung });
 }
 
 /** Löscht einen Zeiteintrag (die Aktion prüft vorher den Typ). */
