@@ -1,6 +1,6 @@
 # PROJ-19: Import der SharePoint-Zeiterfassung
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-11-09
 **Last Updated:** 2026-11-09
 
@@ -202,7 +202,100 @@ Keine neuen Pakete: Das Skript läuft mit dem bereits vorhandenen `tsx`; die Zug
 - **Herkunftsvermerk (Nutzerwunsch 2026-11-09):** Die Bemerkung des ersten Eintrags eines Tages lautet "aus SharePoint" bzw. "<Bemerkung> · aus SharePoint" (nur erster Eintrag, sonst zeigt der Zeitnachweis den Text doppelt). Neuer Modus `nachfuehren` setzt bei importierten Einträgen die Bemerkung auf den Wert der Abbildung (Zuordnung SharePoint-ID + Kommen); am 2026-11-09 bei 1'223 Einträgen ausgeführt, 0 Fehler, Kontrolle danach 0 abweichend
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-11-10
+**Gegenstand:** Kommandozeilen-Skript (keine Oberfläche) — Browser-, Responsive- und Cross-Browser-Tests entfallen
+**Tester:** QA Engineer (AI)
+
+### Vorgehen
+- Unit-Tests der Abbildungsregeln (31) und gesamte Suite: 716/716 grün; Lint und Typprüfung ohne Fehler
+- E2E-Regression (Playwright, alle Projekte inkl. Zeiterfassung): 40/40 grün
+- Erneuter Trockenlauf gegen Dataverse (nur lesend): Stand unverändert seit dem Import — 2'368 Arbeitszeit-Einträge, alle mit SharePoint-ID, 34 Ferien + 1 Frei, 0 abweichende Bemerkungen
+- Datenanalyse der CSV (lokal, ohne Ausgabe von Personendaten): AktivitaetsDatum = Datum von AStart bei allen importierten Zeilen; Mittagessen nur "True"/"False"; keine doppelten SharePoint-IDs; keine Tage mit zwei gültigen Zeilen; 0 überlappende Paare; 1 Zeile mit AEnde am Folgetag; 58 Zeilen in Wochen der Zeitumstellung (Umrechnung über die bestehende, getestete Funktion)
+- Code-Review des Skripts (Modi, Sicherungen, Wiederholung bei 429/5xx)
+
+### Acceptance Criteria Status
+
+**Trockenlauf und Bericht**
+- [x] Trockenlauf schreibt nichts in Dataverse, liest nur den Bestand; Bericht entsteht
+- [ ] Bericht-Inhalt: alles vorhanden **ausser** "pro Person Anzahl Zeilen" — die Konsole zeigt pro Person Einträge und Zeitraum, nicht die Anzahl Zeilen (BUG-4)
+- [x] Bericht liegt neben der CSV (ausserhalb des Repos); keine CSV/kein Bericht im Repo
+
+**Abbildung einer Zeile**
+- [x] Gültige Pause → zwei Einträge AStart→PStart, PEnde→AEnde (Unit-Test, 2'368 Einträge aus 1'223 Zeilen)
+- [x] Ohne Pause (leer, gleich, Platzhalter 00:00/01:00) → ein Eintrag
+- [x] Pause endet bei AEnde → ein Eintrag AStart→PStart
+- [x] Felder wie Erfassungs-App, Mittagessen/Bemerkung nur auf erstem Eintrag, `bmvcc_recordid` = SharePoint-ID (beide Einträge)
+- [x] Schweizer Ortszeit inkl. Sommer-/Winterzeit (Unit-Tests UTC+1/UTC+2)
+- [x] Typ leer = Arbeitszeit
+- [x] AZNetto-Abweichung nur Hinweis; Uhrzeiten massgeblich
+- [x] Spanne > 14 h wird importiert (Hinweis)
+
+**Weggelassene Zeilen**
+- [x] Ausgeschlossene Person wird nicht importiert — nur wenn `--ohne=` angegeben ist (siehe BUG-1)
+- [x] Problemzeilen mit Grund im Bericht (alle Gründe als Unit-Test)
+- [x] Zwei Zeilen am selben Tag: nur die gültige wird importiert
+
+**Löschen und Import**
+- [x] Erstbefüllung löscht Arbeitszeit/Krankheit/Komp. GLZ und importiert (Lauf 2026-11-09: 155 gelöscht, 2'368 erstellt, 0 Fehler)
+- [x] Ferien/Frei bleiben (34 + 1 unverändert)
+- [x] Unbekannte Typen bleiben und werden gezählt (Code-Review; heute keine vorhanden)
+- [x] Abschlussmeldung mit Anzahl gelöscht/erstellt/Fehler; erstellt = Trockenlauf
+
+**Ergänzender Lauf** (Code-Review, nicht gegen Dataverse ausgeführt — es gibt keine fehlenden Zeilen)
+- [x] Löscht nichts, importiert nur Zeilen mit fehlender SharePoint-ID
+- [x] Unvollständige Zeilen werden ersetzt, keine Duplikate
+
+**Ergebnis im Tool**
+- [x] Zeitnachweis zeigt die Paare, Ist = AEnde − AStart − Pause (Sichtprüfung Nutzer 2026-11-09; bei allen importierten Zeilen ohne AZNetto-Hinweis stimmt die Summe der Paare auf 1 Minute mit AZNetto überein)
+- [x] Tage am/vor dem Stichtag zählen nicht in die Gleitzeit (bestehende Regel PROJ-13, unverändert)
+
+### Edge Cases Status
+- [x] Mehrere Zeilen am selben Tag, Pause vor AStart, Pause 0 Minuten, AEnde am Folgetag, Zeitumstellung — Unit-Tests und Datenanalyse
+- [x] Person ohne Arbeitsmodell / ausgetretene Personen — werden importiert (keine Sonderbehandlung nötig)
+- [x] Dataverse nicht erreichbar / Löschfehler — Erstbefüllung bricht vor dem Erstellen ab und meldet die Fehler
+- [x] Andere Spaltenreihenfolge, BOM, fehlende Pflichtspalte — Unit-Tests
+- [x] Dezimalkomma bei AZNetto — Unit-Test
+
+### Security Audit Results
+- [x] Kein Endpunkt, keine Oberfläche: das Skript läuft nur lokal mit den Zugangsdaten aus `.env.local`, nichts auf Vercel
+- [x] Keine CSV, kein Bericht und keine Zugangsdaten im Repo
+- [x] Erstbefüllung verweigert, sobald ein Eintrag eine SharePoint-ID trägt (Code-Review; der Trockenlauf bestätigt 2'368 solche Einträge → ein zweiter Löschlauf ist heute ausgeschlossen)
+- [x] Schreibender Modus muss ausdrücklich angegeben werden; Standard ist der Trockenlauf
+- [ ] Personendaten im Repo: Mitarbeiter-E-Mail im Unit-Test und in der Spec (BUG-2)
+
+### Bugs Found
+
+#### BUG-1: Ergänzen ohne `--ohne=` importiert die ausgeschlossene Person
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. `npm run import:sharepoint -- <csv> --modus=ergaenzen` ohne `--ohne=` starten
+  2. Expected: Die beim Erstimport ausgeschlossene Person bleibt draussen
+  3. Actual: Alle ihre gültigen Zeilen fehlen in Dataverse und werden importiert — heute 332 Einträge
+- **Hinweis:** Der Ausschluss wird nirgends gespeichert; Löschen pro Person gibt es im Tool nicht. Vorschlag: Ergänzen zeigt Personen, die noch keinen importierten Eintrag haben, und verlangt eine Bestätigung — oder bricht ab
+- **Priority:** Fix vor einem weiteren Ergänzen-Lauf
+
+#### BUG-2: Echte Mitarbeiter-E-Mail im öffentlichen Repo
+- **Severity:** Low
+- **Steps to Reproduce:** `sharepoint-import.test.ts` (Test "lässt ausgeschlossene Personen weg") sowie Spec (Out of Scope, Akzeptanzkriterium, Decision Log) nennen die ausgeschlossene Person mit Namen bzw. E-Mail. Das widerspricht der Implementierungs-Entscheidung, die Person deshalb per Argument zu übergeben
+- **Priority:** Fix vor dem Push (Branch noch nicht gepusht) — Test mit fiktiver Adresse, Spec neutral formulieren ("eine ausgetretene Person")
+
+#### BUG-3: Bericht nennt nach dem Import noch "wird bei Erstbefüllung gelöscht"
+- **Severity:** Low
+- **Steps to Reproduce:** Trockenlauf nach dem Import → "arbeitszeit 2368 → wird bei Erstbefüllung gelöscht", obwohl die Erstbefüllung verweigert würde. Zudem fehlt `nachfuehren` in der Aufrufzeile im Kopfkommentar des Skripts
+- **Priority:** Nice to have
+
+#### BUG-4: Bericht ohne Anzahl Zeilen pro Person
+- **Severity:** Low
+- **Steps to Reproduce:** Trockenlauf → "Einträge pro Person" zeigt Einträge und Zeitraum; das Akzeptanzkriterium verlangt auch die Anzahl Zeilen
+- **Priority:** Nice to have
+
+### Summary
+- **Acceptance Criteria:** 21/22 erfüllt, 1 teilweise (BUG-4)
+- **Bugs Found:** 4 total (0 critical, 0 high, 1 medium, 3 low)
+- **Security:** bestanden, eine Datenschutz-Unschönheit (BUG-2)
+- **Production Ready:** YES — der Import ist ausgeführt und korrekt; vor einem weiteren `ergaenzen`-Lauf BUG-1 beheben, vor dem Push BUG-2
+- **Recommendation:** BUG-1 und BUG-2 beheben, dann pushen/mergen
 
 ## Deployment
 _To be added by /deploy_
