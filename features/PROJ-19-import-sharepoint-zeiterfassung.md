@@ -281,6 +281,7 @@ Keine neuen Pakete: Das Skript läuft mit dem bereits vorhandenen `tsx`; die Zug
 - **Severity:** Low
 - **Steps to Reproduce:** `sharepoint-import.test.ts` (Test "lässt ausgeschlossene Personen weg") sowie Spec (Out of Scope, Akzeptanzkriterium, Decision Log) nennen die ausgeschlossene Person mit Namen bzw. E-Mail. Das widerspricht der Implementierungs-Entscheidung, die Person deshalb per Argument zu übergeben
 - **Priority:** Fix vor dem Push (Branch noch nicht gepusht) — Test mit fiktiver Adresse, Spec neutral formulieren ("eine ausgetretene Person")
+- **Status:** Behoben 2026-11-10 — Test mit fiktiver Adresse, Spec neutral formuliert; die noch nicht gepushten Commits wurden vor dem ersten Push umgeschrieben, der Name steht nirgends in der Git-Historie
 
 #### BUG-3: Bericht nennt nach dem Import noch "wird bei Erstbefüllung gelöscht"
 - **Severity:** Low

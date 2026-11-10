@@ -2,7 +2,14 @@
 
 Alle für Nutzer relevanten Änderungen am Admin-Tool. Neueste Version zuerst. Versionen entsprechen den Git-Tags `vX.Y.Z-PROJ-N`.
 
-## [1.13.0] – 2026-11-09 · PROJ-13 bis PROJ-18 Zeiterfassung
+## [Unveröffentlicht] – Branch proj-19-sharepoint-import · PROJ-19 Import der SharePoint-Zeiterfassung
+Nur für den Entwickler (lokales Skript, keine Änderung in der Oberfläche).
+### Neu
+- Import-Skript übernimmt die SharePoint-Liste „Zeiterfassung“ aus einem CSV-Export nach Dataverse: zuerst ein Trockenlauf mit Bericht, dann Erstbefüllung, Ergänzen oder Nachführen der Bemerkung.
+- Ein Tag mit Pause wird zu zwei Einträgen (Beginn bis Pause, Pause bis Ende). Endet der Tag mit dem Pausenstart, entsteht ein Eintrag bis zum Pausenstart. Unvollständige Zeilen werden weggelassen und im Bericht aufgeführt.
+- Importierte Einträge tragen die SharePoint-ID und im ersten Eintrag des Tages die Bemerkung „aus SharePoint“. Der Zeitnachweis zeigt ab jetzt die echten Zeiten aus SharePoint.
+
+ – 2026-11-09 · PROJ-13 bis PROJ-18 Zeiterfassung
 Nur für Freigeber.
 ### Neu
 - Menüpunkt „Zeiterfassung“ mit den Reitern Übersicht, Zeitnachweis, Personen, Ferien und Feiertage.
