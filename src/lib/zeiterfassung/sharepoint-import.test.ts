@@ -87,6 +87,20 @@ describe("bildeZeileAb", () => {
     expect(r.ok && r.eintraege.map((x) => [x.kommen, x.gehen])).toEqual([["2026-11-05T06:00:00Z", "2026-11-05T11:00:00Z"]]);
   });
 
+  it.each([
+    ["PEnde Platzhalter 00:00", "05.11.2026 00:00"],
+    ["PEnde leer", ""],
+  ])("Tag endet mit Pausenstart (AEnde 00:00, %s) → ein Eintrag AStart→PStart", (_, PEnde) => {
+    const r = bildeZeileAb(zeile({ AStart: "05.11.2026 07:10", AEnde: "05.11.2026 00:00", PStart: "05.11.2026 12:04", PEnde, AZNetto: "4,90" }));
+    expect(r.ok && r.eintraege.map((x) => [x.kommen, x.gehen, x.bemerkung])).toEqual([["2026-11-05T06:10:00Z", "2026-11-05T11:04:00Z", "aus SharePoint"]]);
+    expect(r.ok && r.hinweise).toEqual([]);
+  });
+
+  it("AEnde 00:00 mit abgeschlossener Pause bleibt offen (Ende nach der Pause fehlt)", () => {
+    const r = bildeZeileAb(zeile({ AStart: "05.11.2026 06:30", AEnde: "05.11.2026 00:00", PStart: "05.11.2026 11:52", PEnde: "05.11.2026 12:29" }));
+    expect(r).toEqual({ ok: false, grund: "AEnde vor oder gleich AStart" });
+  });
+
   it("AEnde am Folgetag wird übernommen", () => {
     const r = bildeZeileAb(zeile({ AStart: "05.11.2026 16:00", AEnde: "06.11.2026 00:00", PStart: "", PEnde: "", AZNetto: "8,00" }));
     expect(r.ok && r.eintraege[0].gehen).toBe("2026-11-05T23:00:00Z");

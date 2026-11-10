@@ -129,10 +129,13 @@ export function bildeZeileAb(zeile: SharePointZeile, ausgeschlossen: ReadonlySet
   if (!a && !e) return { ok: false, grund: "nur AZNetto, keine Uhrzeiten" };
   if (!a) return { ok: false, grund: "kein AStart" };
   if (!e) return { ok: false, grund: "kein AEnde (offen)" };
-  if (e.ms <= a.ms) return { ok: false, grund: "AEnde vor oder gleich AStart" };
 
   const ps = zeitpunkt(zeile.PStart);
   const pe = zeitpunkt(zeile.PEnde);
+  // Tag endet mit dem Pausenstart: die Stempel-App setzt AEnde und PEnde auf einen
+  // Platzhalter (00:00/01:00 ≤ AStart) und rechnet AZNetto = PStart − AStart.
+  const endeBeiPausenstart = e.ms <= a.ms && !!ps && ps.ms > a.ms && (!pe || pe.ms <= a.ms);
+  if (e.ms <= a.ms && !endeBeiPausenstart) return { ok: false, grund: "AEnde vor oder gleich AStart" };
   const basis = {
     email,
     datum: a.datum,
@@ -146,7 +149,9 @@ export function bildeZeileAb(zeile: SharePointZeile, ausgeschlossen: ReadonlySet
 
   let eintraege: ImportEintrag[];
   const keinePause = !ps || !pe || ps.ms === pe.ms || (ps.ms <= a.ms && pe.ms <= a.ms);
-  if (keinePause) {
+  if (endeBeiPausenstart) {
+    eintraege = [{ ...basis, ...ersterEintrag, kommen: a.iso, gehen: ps!.iso }];
+  } else if (keinePause) {
     eintraege = [{ ...basis, ...ersterEintrag, kommen: a.iso, gehen: e.iso }];
   } else if (a.ms < ps.ms && ps.ms < pe.ms && pe.ms < e.ms) {
     eintraege = [
@@ -160,7 +165,8 @@ export function bildeZeileAb(zeile: SharePointZeile, ausgeschlossen: ReadonlySet
   }
 
   const hinweise: string[] = [];
-  if (e.ms - a.ms > MAX_SPANNE_MS) hinweise.push("Spanne über 14 h");
+  const ende = Date.parse(eintraege[eintraege.length - 1].gehen);
+  if (ende - a.ms > MAX_SPANNE_MS) hinweise.push("Spanne über 14 h");
   const nettoMinuten = eintraege.reduce((summe, x) => summe + (Date.parse(x.gehen) - Date.parse(x.kommen)) / 60000, 0);
   const azNetto = Number.parseFloat(zeile.AZNetto.replace(",", "."));
   if (Number.isFinite(azNetto) && Math.abs(azNetto * 60 - nettoMinuten) > 1) {

@@ -81,6 +81,7 @@ Trockenlauf-Analyse vom 2026-11-09: 1'451 Zeilen, 9 Personen, Juli 2023 bis 09.1
 ## Edge Cases
 - **Mehrere Zeilen am selben Tag** (2× in den Daten, je eine Zeile ohne AEnde): die Problemzeile entfällt, die gültige wird importiert. Wären beide gültig, würden beide importiert; der Zeitnachweis legt überschneidende Paare zusammen und warnt
 - **Pause beginnt vor AStart** (Platzhalter 00:00/01:00): gilt als "keine Pause"
+- **Tag endet mit dem Pausenstart** (AEnde und PEnde Platzhalter 00:00/01:00, PStart nach AStart; die Stempel-App rechnet AZNetto = PStart − AStart): ein Eintrag AStart → PStart. Ist PEnde dagegen gestempelt, fehlt das Ende nach der Pause → weiterhin weggelassen (ergänzt 2026-11-10)
 - **Pause gleich lang wie 0 Minuten** (PStart = PEnde): gilt als "keine Pause"
 - **AEnde am Folgetag** (z.B. bis 00:00 des Folgetags): wird als Folgetag übernommen, sofern AEnde nach AStart liegt
 - **Zeitumstellung** (letzter Sonntag im März/Oktober): Uhrzeiten werden mit der am jeweiligen Datum gültigen Schweizer Zeit umgerechnet
@@ -200,6 +201,7 @@ Keine neuen Pakete: Das Skript läuft mit dem bereits vorhandenen `tsx`; die Zug
 
 - **Erstbefüllung ausgeführt 2026-11-09** (Nutzer-Freigabe, Tagestotal-Flow aus): 155 Einträge gelöscht, 2'368 erstellt, 0 Fehler. Kontrolle danach: 2'368 Arbeitszeit-Einträge, alle mit SharePoint-ID, keine unvollständige Zeile; 34 Ferien und 1 Frei unverändert
 - **Herkunftsvermerk (Nutzerwunsch 2026-11-09):** Die Bemerkung des ersten Eintrags eines Tages lautet "aus SharePoint" bzw. "<Bemerkung> · aus SharePoint" (nur erster Eintrag, sonst zeigt der Zeitnachweis den Text doppelt). Neuer Modus `nachfuehren` setzt bei importierten Einträgen die Bemerkung auf den Wert der Abbildung (Zuordnung SharePoint-ID + Kommen); am 2026-11-09 bei 1'223 Einträgen ausgeführt, 0 Fehler, Kontrolle danach 0 abweichend
+- **Tag endet mit dem Pausenstart (Nutzerhinweis 2026-11-10, SharePoint-ID 1567):** Steht AEnde auf einem Platzhalter (≤ AStart), PStart nach AStart und PEnde leer oder Platzhalter, entsteht ein Eintrag AStart → PStart (AZNetto stimmt). Trockenlauf danach: 1'224 Zeilen importierbar (+1 aus der CSV), 17 statt 18 mit "AEnde vor oder gleich AStart". Der Flow des Nutzers wendet dieselbe Regel an (Fall `bisPause`)
 
 ## QA Test Results
 
