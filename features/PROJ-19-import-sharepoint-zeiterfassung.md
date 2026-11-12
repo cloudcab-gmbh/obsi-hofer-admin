@@ -306,4 +306,4 @@ Keine neuen Pakete: Das Skript läuft mit dem bereits vorhandenen `tsx`; die Zug
 - Keine Änderung in der Oberfläche und keine neuen Umgebungsvariablen: Das Import-Skript läuft nur lokal (`npm run import:sharepoint`)
 - Vorprüfung: Lint ohne Meldungen, 719 Unit-Tests grün, Produktions-Build ok
 - Datenstand vor dem Deploy: Erstbefüllung 2026-11-09 (2'368 Einträge), seither übernimmt der tägliche Power-Automate-Flow des Nutzers (03:00 Uhr) neue und geänderte SharePoint-Zeilen nach denselben Regeln. Kontrolle der Läufe vom 11. und 12.11.: 1'231 SharePoint-Zeilen, 2'382 Arbeitszeit-Einträge, alle mit SharePoint-ID, keine Abweichung von den Regeln
-- Offen: BUG-1 (Modus `ergaenzen` ohne `--ohne=`) — nur relevant bei einem weiteren Ergänzen-Lauf; SharePoint-Zeile 241 (Tag endet mit Pausenstart) bewusst nicht nachgeholt
+- Abschluss (Nutzer-Entscheid 2026-11-12): BUG-1 wird nicht behoben — das Skript wird nicht mehr ausgeführt, neue Zeilen übernimmt der Flow. SharePoint-Zeile 241 (Tag endet mit Pausenstart) bleibt weggelassen. Ferien-Testeinträge von Robert bereinigt. Branch `proj-19-sharepoint-import` und lokale Sicherungen gelöscht
