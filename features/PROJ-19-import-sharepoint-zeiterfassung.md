@@ -1,8 +1,8 @@
 # PROJ-19: Import der SharePoint-Zeiterfassung
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-11-09
-**Last Updated:** 2026-11-09
+**Last Updated:** 2026-11-12
 
 ## Dependencies
 - Requires: PROJ-2 (Dataverse-Web-API-Anbindung) — schreibt und löscht Zeiteinträge
@@ -301,4 +301,9 @@ Keine neuen Pakete: Das Skript läuft mit dem bereits vorhandenen `tsx`; die Zug
 - **Recommendation:** BUG-1 und BUG-2 beheben, dann pushen/mergen
 
 ## Deployment
-_To be added by /deploy_
+**Deployed:** 2026-11-12 — Merge nach `main` (Vercel deployt automatisch), Tag `v1.14.0-PROJ-19`
+
+- Keine Änderung in der Oberfläche und keine neuen Umgebungsvariablen: Das Import-Skript läuft nur lokal (`npm run import:sharepoint`)
+- Vorprüfung: Lint ohne Meldungen, 719 Unit-Tests grün, Produktions-Build ok
+- Datenstand vor dem Deploy: Erstbefüllung 2026-11-09 (2'368 Einträge), seither übernimmt der tägliche Power-Automate-Flow des Nutzers (03:00 Uhr) neue und geänderte SharePoint-Zeilen nach denselben Regeln. Kontrolle der Läufe vom 11. und 12.11.: 1'231 SharePoint-Zeilen, 2'382 Arbeitszeit-Einträge, alle mit SharePoint-ID, keine Abweichung von den Regeln
+- Offen: BUG-1 (Modus `ergaenzen` ohne `--ohne=`) — nur relevant bei einem weiteren Ergänzen-Lauf; SharePoint-Zeile 241 (Tag endet mit Pausenstart) bewusst nicht nachgeholt
