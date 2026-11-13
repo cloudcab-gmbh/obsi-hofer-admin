@@ -379,5 +379,7 @@ Wie PROJ-14 in einem Schritt gebaut (nur lesend, keine Dataverse-Änderungen).
 
 **Nachtest 2026-10-27 (Erweiterungen nach der QA):** "Gehen nachtragen" und "Einträge für einen Tag erfassen" vom Nutzer im Browser geprüft — Arbeitszeit und ganztägige Einträge werden mit korrektem Typ angelegt, der Flow läuft nach der Korrektur (Kommen = Tagesbeginn) durch. 575 Unit-Tests grün. Status wieder Approved
 
+**Anpassung 2026-11-13 (Nutzerwunsch, v1.14.1):** Spalte „Zeiten“ zeigt höchstens zwei Einträge pro Zeile, weitere darunter (bündig, Löschen-× und „nachtragen“ beim Eintrag). Das PDF (PROJ-16) bleibt vorläufig einzeilig
+
 ## Deployment
 

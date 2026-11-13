@@ -203,11 +203,11 @@ export function ZeitnachweisAnsicht({
                         <span className="text-muted-foreground">{wochentagName(t.datum).slice(0, 2)}</span>
                       </TableCell>
                       <TableCell className="whitespace-nowrap tabular-nums">
-                        {t.auswertung.paare.length === 0
-                          ? ""
-                          : t.auswertung.paare.map((p, i) => (
+                        {/* Nutzerwunsch 2026-11-13: höchstens zwei Einträge pro Zeile, weitere darunter. */}
+                        <div className="grid grid-cols-[auto_auto] justify-start gap-y-0.5">
+                          {t.auswertung.paare.map((p, i) => (
                               <span key={p.eintragId} className={cn(p.unplausibel && "text-destructive line-through")}>
-                                {i > 0 && ", "}
+                                {i % 2 === 1 && ", "}
                                 {p.kommen}–{p.gehen ?? "…"}
                                 {p.folgetag && " (+1)"}
                                 {/* Nutzerwunsch 2026-10-27: einzelnen Eintrag löschen. */}
@@ -229,6 +229,7 @@ export function ZeitnachweisAnsicht({
                                 )}
                               </span>
                             ))}
+                        </div>
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {grund && (

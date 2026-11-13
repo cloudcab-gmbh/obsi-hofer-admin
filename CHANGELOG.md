@@ -2,6 +2,10 @@
 
 Alle für Nutzer relevanten Änderungen am Admin-Tool. Neueste Version zuerst. Versionen entsprechen den Git-Tags `vX.Y.Z-PROJ-N`.
 
+## [1.14.1] – 2026-11-13 · PROJ-13 Zeitnachweis pro Monat
+### Geändert
+- Zeitnachweis: In der Spalte „Zeiten“ stehen höchstens zwei Einträge nebeneinander, weitere Einträge desselben Tages folgen in einer neuen Zeile. Das PDF bleibt unverändert.
+
 ## [1.14.0] – 2026-11-12 · PROJ-19 Import der SharePoint-Zeiterfassung
 Nur für den Entwickler (lokales Skript, keine Änderung in der Oberfläche).
 ### Neu
