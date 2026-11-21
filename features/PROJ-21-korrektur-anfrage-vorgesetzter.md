@@ -1,6 +1,6 @@
 # PROJ-21: Korrektur-Anfrage an den Vorgesetzten
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -27,7 +27,7 @@ PROJ-20 zeigt Mitarbeitenden ihren Zeitnachweis nur zum Lesen, mit dem Hinweis, 
 
 ## Out of Scope
 - Strukturierte Eingabe neuer Zeiten (Kommen/Gehen-Felder) — nur Freitext; korrigiert wird von Hand
-- Automatisches Übernehmen der Korrektur in SharePoint oder Dataverse — korrigiert wird weiterhin in SharePoint, die Änderung kommt mit dem nächtlichen Flow
+- Automatisches Übernehmen der Korrektur in SharePoint oder Dataverse — korrigiert wird von Hand direkt in Dataverse, über den Zeitnachweis im Tool (PROJ-13, Nutzer-Entscheid 2026-11-21; vorher: in SharePoint)
 - Mehrere Tage in einer Anfrage — pro Tag eine Anfrage
 - Anfragen für Tage älter als der vorherige Monat oder für künftige Tage
 - Zurückziehen oder Bearbeiten einer gesendeten Anfrage durch den Mitarbeitenden
@@ -56,7 +56,7 @@ PROJ-20 zeigt Mitarbeitenden ihren Zeitnachweis nur zum Lesen, mit dem Hinweis, 
 **Status im Zeitnachweis**
 - [ ] Angenommen zu einem Tag gibt es eine Anfrage, dann zeigt „Mein Zeitnachweis“ beim Tag „Korrektur angefragt (offen)“ bzw. „Korrektur erledigt“
 - [ ] Angenommen zu einem Tag gibt es mehrere Anfragen, dann zeigt der Tag den Status der neuesten; eine weitere Anfrage zum selben Tag ist jederzeit möglich
-- [ ] Angenommen eine Anfrage ist erledigt, dann bleiben die bisherigen Zeiten bis zum nächsten nächtlichen Flow unverändert sichtbar (kein Widerspruch: „erledigt“ heisst korrigiert in SharePoint)
+- [ ] Angenommen eine Anfrage ist erledigt, dann zeigt „Mein Zeitnachweis“ die korrigierten Zeiten sofort („erledigt“ heisst korrigiert in Dataverse über den Zeitnachweis im Tool)
 
 **Freigeber**
 - [ ] Angenommen ein Freigeber öffnet den Zeitnachweis einer Person (PROJ-13), dann steht bei Tagen mit Anfragen in „Bemerkung / Hinweise“ jede Anfrage mit Datum der Anfrage, Status und Nachricht, z.B. „Korrektur angefragt 21.11. (offen): Gehen war 17:30 statt 16:30“
@@ -217,7 +217,91 @@ Keine neuen Pakete (Dialog, Textarea, Badge sind als shadcn-Bausteine vorhanden)
 - 803 Unit-Tests grün; keine neuen Pakete oder Umgebungsvariablen
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-11-21
+**App URL:** http://localhost:3000 (Branch `proj-20-mein-zeitnachweis`, noch nicht deployt)
+**Tester:** QA Engineer (AI) — Code-Review, Unit-/E2E-Tests; Bedienung im Browser und Flow durch den Nutzer
+
+**Automatisierte Tests:** 803 Unit-Tests grün (davon PROJ-21: Regeln `korrektur.test.ts`, Dataverse-Zugriff `korrekturanfragen.test.ts`, Server-Aktion `actions.test.ts`, Ansicht `zeitnachweis-ansicht.test.tsx`), Lint und Typprüfung ohne Fehler, 23 E2E-Tests grün (Chromium). Kein eigener E2E-Test für PROJ-21: Alle Wege brauchen eine Entra-Anmeldung; der Zugriffsschutz von `/mein-zeitnachweis` ist in den PROJ-20-E2E-Tests abgedeckt.
+
+### Acceptance Criteria Status
+
+**Anfrage stellen**
+- [x] AC-1 Knopf oben statt SharePoint-Hinweis, Link pro Tag bis heute (Ansicht-Test + Nutzer lokal)
+- [x] AC-2 ältere Monate: kein Knopf, keine Links, Hinweis „Für ältere Monate …“
+- [x] AC-3 Dialog aus der Tageszeile mit festem Datum, bisherigen Zeiten, Feld „Nachricht“
+- [x] AC-4 Knopf oben: Datumsfeld mit min/max = erlaubte Tage des Monats; Server prüft zusätzlich
+- [x] AC-5 leer / über 1'000 Zeichen → Meldung, nichts gespeichert (Browser und Server)
+- [x] AC-6 gespeichert mit Person aus der Anmeldung, Datum, Nachricht, bisherigen Zeiten vom Server, Status offen; Meldung „Anfrage gesendet – Dein Vorgesetzter erhält sie in Teams.“ (gegen Dataverse geprüft)
+- [x] AC-7 Speicherfehler → Meldung ohne Details, Dialog bleibt offen, Nachricht bleibt
+- [x] AC-8 ohne Rolle, Datum ausserhalb der Frist, ausserhalb der sichtbaren Monate oder mit Injektion → abgelehnt; die Aktion nimmt keine Person entgegen
+
+**Status im Zeitnachweis**
+- [x] AC-9 „Korrektur angefragt (offen)“ / „Korrektur erledigt“
+- [x] AC-10 mehrere Anfragen: neueste zählt, weitere Anfrage jederzeit möglich
+- [ ] AC-11 „erledigt“ = korrigiert in Dataverse über den Zeitnachweis im Tool → **BUG-1**: Im Tool lassen sich falsche Arbeitszeiten nicht korrigieren
+
+**Freigeber**
+- [x] AC-12 alle Anfragen mit Anfragedatum (Schweizer Zeit), Status, Nachricht als Text
+- [x] AC-13 kein Ändern/Löschen im Tool (keine Knöpfe; App-Benutzer hat nur Lesen + Erstellen)
+- [x] AC-14 PDF unverändert, lädt keine Anfragen
+
+**Flow (Abnahme durch den Nutzer)**
+- [ ] AC-15 bis AC-17 (Karte an Manager, Fallback an Gruppen, „Erledigt“ → Status + Nachricht): Flow im Aufbau; Manager-Ermittlung und Fallback-Verzweigung laufen, Karte und „Erledigt“ noch nicht vollständig abgenommen
+
+### Edge Cases Status
+- [x] Tag ohne Einträge → „keine Einträge“ (Test)
+- [x] Heutiger Tag anfragbar, morgen nicht (Test)
+- [x] Monatswechsel: Frist = Vormonat bis heute (Tests zu `anfrageZeitraum`)
+- [x] Mehrere Anfragen pro Tag (Test)
+- [x] Doppelklick: Senden-Knopf während des Sendens gesperrt, Dialog lässt sich dann nicht schliessen
+- [x] Flow fällt aus: Anfrage bleibt offen gespeichert, Tool unabhängig
+- [x] Zeilenumbrüche/Sonderzeichen/HTML: als reiner Text angezeigt (Test mit `<b>`)
+- [x] Person mit Rolle Mitarbeiter und Freigeber: stellt Anfragen über „Mein Zeitnachweis“
+
+### Security Audit Results
+- [x] Authentifizierung: `/mein-zeitnachweis` ohne Sitzung → `/login` (E2E)
+- [x] Autorisierung: Person nur aus der Anmeldung; Rolle Mitarbeiter in der Server-Aktion geprüft; fremde Personen nicht anfragbar
+- [x] Frist serverseitig (dieselbe reine Regel wie die Anzeige), Monate ausserhalb des sichtbaren Bereichs abgelehnt
+- [x] OData-Injektion: Datum streng geprüft, E-Mail im Filter maskiert (Test mit `'`)
+- [x] XSS im Tool: Nachricht nur als React-Text, kein `dangerouslySetInnerHTML`
+- [x] Bisherige Zeiten und Link auf dem Server berechnet, nicht aus dem Browser
+- [x] Fehlermeldungen ohne Personendaten, kein Logging von Inhalten
+- [x] Minimalrechte: App-Benutzer nur Lesen + Erstellen; Status setzt nur der Flow
+- [ ] Rate-Limiting: keines → BUG-3 (Low)
+- [ ] Teams-Karte: Nachricht wird als Markdown dargestellt → BUG-2 (Low)
+
+### Bugs Found
+
+#### BUG-1: Falsche Arbeitszeiten lassen sich im Tool nicht korrigieren
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Mitarbeiter fragt an: „Gehen war 17:30 statt 16:30“
+  2. Manager öffnet in Teams „Zeitnachweis öffnen“ (Freigeber-Ansicht, PROJ-13)
+  3. Expected: bestehende Arbeitszeit ändern oder löschen
+  4. Actual: Das Tool kann nur Einträge **hinzufügen** („Tag erfassen“), bei offenen Paaren **„Gehen“ nachtragen** und **Abwesenheiten löschen**. Arbeitszeit-Einträge sind weder änderbar noch löschbar. Hinzufügen ergibt eine Überschneidung („Einträge überschneiden sich“). Der Dialog sagt aber seit heute „Er korrigiert die Zeiten direkt im Zeitnachweis; die Änderung erscheint hier sofort.“
+- **Workaround:** Korrektur direkt in der Dataverse-Tabelle (Power Apps) oder in SharePoint
+- **Zusätzlich:** Ändert die Person den SharePoint-Eintrag später, überschreibt der tägliche SharePoint-Flow eine Korrektur in Dataverse
+- **Priority:** Vor dem Deploy entscheiden: (a) Text in Dialog/Karte auf den tatsächlichen Weg anpassen (klein) oder (b) Arbeitszeiten im Zeitnachweis für Freigeber änderbar/löschbar machen (eigenes Feature, erfordert Ändern/Löschen-Rechte auf `bmvcc_timetrackingentry`)
+
+#### BUG-2: Nachricht wird in der Teams-Karte als Markdown dargestellt
+- **Severity:** Low
+- **Steps to Reproduce:** Nachricht `[hier klicken](https://example.com)` oder `**fett**` senden → in der Teams-Karte erscheint ein Link bzw. Fettschrift. Name und bisherige Zeiten werden im Flow ungeschützt ins Karten-JSON eingesetzt (ein `"` im Namen würde die Karte brechen; praktisch nicht zu erwarten)
+- **Risiko:** gering — nur angemeldete interne Mitarbeitende, Absender in der Karte sichtbar
+- **Priority:** Nice to have (Flow-seitig, nicht im Repo)
+
+#### BUG-3: Kein Limit für Anfragen
+- **Severity:** Low
+- **Steps to Reproduce:** Viele Anfragen hintereinander senden → jede erzeugt eine Teams-Karte beim Manager
+- **Risiko:** gering — nur angemeldete Mitarbeitende, jede Anfrage mit Person nachvollziehbar gespeichert
+- **Priority:** Nice to have
+
+### Summary
+- **Acceptance Criteria:** 13/14 im Tool bestanden (AC-11 → BUG-1); Flow-Kriterien AC-15–17 durch den Nutzer abzunehmen
+- **Bugs Found:** 3 total (0 critical, 0 high, 1 medium, 2 low)
+- **Security:** Pass (zwei Low-Hinweise)
+- **Production Ready:** NOCH NICHT — keine Critical/High, aber BUG-1 (Weg der Korrektur) entscheiden und Flow fertig abnehmen
+- **Recommendation:** BUG-1 entscheiden, Flow end-to-end testen, danach PROJ-20 und PROJ-21 gemeinsam deployen
 
 ## Deployment
 _To be added by /deploy_

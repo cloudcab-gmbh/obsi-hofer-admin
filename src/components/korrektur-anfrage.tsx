@@ -125,8 +125,8 @@ export function KorrekturAnfrage({
             <DialogHeader>
               <DialogTitle>Korrektur anfragen</DialogTitle>
               <DialogDescription>
-                Die Anfrage geht an deinen Vorgesetzten. Korrigiert wird in der SharePoint-Zeiterfassung; die Änderung
-                erscheint hier am nächsten Morgen.
+                Die Anfrage geht an deinen Vorgesetzten. Er korrigiert die Zeiten direkt im Zeitnachweis; die Änderung
+                erscheint hier sofort.
               </DialogDescription>
             </DialogHeader>
             {festesDatum ? (
