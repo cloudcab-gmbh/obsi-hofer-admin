@@ -1,6 +1,6 @@
 # PROJ-21: Korrektur-Anfrage an den Vorgesetzten
 
-## Status: In Review
+## Status: Approved
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -239,7 +239,7 @@ Keine neuen Pakete (Dialog, Textarea, Badge sind als shadcn-Bausteine vorhanden)
 **Status im Zeitnachweis**
 - [x] AC-9 „Korrektur angefragt (offen)“ / „Korrektur erledigt“
 - [x] AC-10 mehrere Anfragen: neueste zählt, weitere Anfrage jederzeit möglich
-- [ ] AC-11 „erledigt“ = korrigiert in Dataverse über den Zeitnachweis im Tool → **BUG-1**: Im Tool lassen sich falsche Arbeitszeiten nicht korrigieren
+- [x] AC-11 „erledigt“ = korrigiert in Dataverse — bis PROJ-22 direkt in der Tabelle (BUG-1 → PROJ-22, Dialogtext neutral)
 
 **Freigeber**
 - [x] AC-12 alle Anfragen mit Anfragedatum (Schweizer Zeit), Status, Nachricht als Text
@@ -247,7 +247,7 @@ Keine neuen Pakete (Dialog, Textarea, Badge sind als shadcn-Bausteine vorhanden)
 - [x] AC-14 PDF unverändert, lädt keine Anfragen
 
 **Flow (Abnahme durch den Nutzer)**
-- [ ] AC-15 bis AC-17 (Karte an Manager, Fallback an Gruppen, „Erledigt“ → Status + Nachricht): Flow im Aufbau; Manager-Ermittlung und Fallback-Verzweigung laufen, Karte und „Erledigt“ noch nicht vollständig abgenommen
+- [x] AC-15 bis AC-17 (Karte an Manager, Fallback an Gruppen, „Erledigt“ → Status + Nachricht): vom Nutzer end-to-end abgenommen 2026-11-21 („Flow ok“); Karte verweist bis PROJ-22 auf die Korrektur direkt in Dataverse
 
 ### Edge Cases Status
 - [x] Tag ohne Einträge → „keine Einträge“ (Test)
@@ -283,6 +283,7 @@ Keine neuen Pakete (Dialog, Textarea, Badge sind als shadcn-Bausteine vorhanden)
 - **Workaround:** Korrektur direkt in der Dataverse-Tabelle (Power Apps) oder in SharePoint
 - **Zusätzlich:** Ändert die Person den SharePoint-Eintrag später, überschreibt der tägliche SharePoint-Flow eine Korrektur in Dataverse
 - **Priority:** Vor dem Deploy entscheiden: (a) Text in Dialog/Karte auf den tatsächlichen Weg anpassen (klein) oder (b) Arbeitszeiten im Zeitnachweis für Freigeber änderbar/löschbar machen (eigenes Feature, erfordert Ändern/Löschen-Rechte auf `bmvcc_timetrackingentry`)
+- **Entscheid (Nutzer, 2026-11-21):** beides — Dialogtext neutral („Sobald er die Zeiten korrigiert hat, erscheinen sie hier.“), Karte verweist auf Dataverse; Ändern/Löschen im Tool als eigenes Feature **PROJ-22**, nach dem Go-live von PROJ-20/21. Für PROJ-21 erledigt
 
 #### BUG-2: Nachricht wird in der Teams-Karte als Markdown dargestellt
 - **Severity:** Low
@@ -297,11 +298,11 @@ Keine neuen Pakete (Dialog, Textarea, Badge sind als shadcn-Bausteine vorhanden)
 - **Priority:** Nice to have
 
 ### Summary
-- **Acceptance Criteria:** 13/14 im Tool bestanden (AC-11 → BUG-1); Flow-Kriterien AC-15–17 durch den Nutzer abzunehmen
-- **Bugs Found:** 3 total (0 critical, 0 high, 1 medium, 2 low)
+- **Acceptance Criteria:** 17/17 bestanden (AC-11 mit Korrektur in Dataverse bis PROJ-22; Flow vom Nutzer abgenommen)
+- **Bugs Found:** 3 total (0 critical, 0 high, 1 medium → PROJ-22, 2 low offen)
 - **Security:** Pass (zwei Low-Hinweise)
-- **Production Ready:** NOCH NICHT — keine Critical/High, aber BUG-1 (Weg der Korrektur) entscheiden und Flow fertig abnehmen
-- **Recommendation:** BUG-1 entscheiden, Flow end-to-end testen, danach PROJ-20 und PROJ-21 gemeinsam deployen
+- **Production Ready:** YES
+- **Recommendation:** PROJ-20 und PROJ-21 gemeinsam deployen; Test mit einem Konto nur mit Rolle Mitarbeiter und auf dem Handy direkt nach dem Deploy
 
 ## Deployment
 _To be added by /deploy_

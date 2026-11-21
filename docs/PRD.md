@@ -37,7 +37,7 @@ Anmeldung über das bestehende Microsoft-365-/Entra-ID-Konto (interner Firmen-Te
 | P1 | Feiertage im Tool pflegen (Vorschlag pro Jahr, betriebliche und halbe Feiertage) | Deployed |
 | P1 | Import der SharePoint-Zeiterfassung (Erstbefüllung von Dataverse aus der weiterlaufenden SharePoint-Liste) | Deployed |
 | P1 | Eigener Zeitnachweis für Mitarbeitende (nur lesen, mit PDF; Zugang über Rolle „Mitarbeiter“) | Approved |
-| P1 | Korrektur-Anfrage an den Vorgesetzten (aus „Mein Zeitnachweis“, Zustellung per Teams über Power Automate) | In Review |
+| P1 | Korrektur-Anfrage an den Vorgesetzten (aus „Mein Zeitnachweis“, Zustellung per Teams über Power Automate) | Approved |
 | P1 | Arbeitszeiten im Zeitnachweis ändern und löschen (Freigeber; Korrekturen vor dem SharePoint-Flow geschützt) | Planned |
 
 ## Success Metrics
