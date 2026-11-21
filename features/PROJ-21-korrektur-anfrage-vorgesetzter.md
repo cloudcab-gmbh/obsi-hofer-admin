@@ -209,6 +209,13 @@ Keine neuen Pakete (Dialog, Textarea, Badge sind als shadcn-Bausteine vorhanden)
 - **Laden:** `ladeAnfragenDesMonats` (`korrektur-laden.ts`) — ein Fehler zeigt nur „Korrektur-Anfragen konnten nicht geladen werden.“, der Zeitnachweis bleibt
 - **Mitgebaut (Backend-Teil):** Dataverse-Zugriff `src/lib/dataverse/korrekturanfragen.ts` (Lesen pro Person/Zeitraum, Anlegen mit Status offen) und Server-Aktion `sendeKorrekturAnfrageAction(datum, nachricht)` — Person aus der Anmeldung, Frist und bisherige Zeiten auf dem Server, Link = `AUTH_URL` (sonst Vercel-Produktionsadresse) + Zeitnachweis der Person im Monat. Tests der Aktion folgen in /backend
 
+## Implementation Notes (Backend, 2026-11-21)
+- **Tests der Server-Aktion** `sendeKorrekturAnfrageAction`: gespeichert mit Person aus der Anmeldung, auf dem Server berechneten bisherigen Zeiten und Link; Vormonat erlaubt; älter als Vormonat, Zukunft und Monate ausserhalb der sichtbaren Monate abgelehnt; ohne Rolle/E-Mail abgelehnt ohne Laden; Nachricht leer/zu lang, ungültiges Datum und Datum mit Filter-Injektion abgelehnt; ohne Zeitnachweis abgelehnt; Speicherfehler ohne Details
+- **Tests des Dataverse-Zugriffs:** Filter mit klein geschriebener, maskierter E-Mail und Datumsbereich; Status-Zuordnung (unbekannt → offen); Zeilen ohne Datum werden übersprungen; Anlegen mit allen Spalten, auf die Spaltenlängen gekürzt, Status offen
+- **Gegen Dataverse geprüft (2026-11-21):** Lesen mit dem Filter funktioniert; eine echte Anfrage des Nutzers (Tag 08.11.) ist mit allen Spalten korrekt gespeichert (Titel, E-Mail, Name, Nachricht mit Zeilenumbrüchen, „06:03–19:45 · frei“, Link, Status offen)
+- **Link:** lokal `http://localhost:3000/…` (aus `AUTH_URL`); auf Vercel `AUTH_URL`, sonst die Produktionsadresse (`VERCEL_PROJECT_PRODUCTION_URL`)
+- 803 Unit-Tests grün; keine neuen Pakete oder Umgebungsvariablen
+
 ## QA Test Results
 _To be added by /qa_
 
