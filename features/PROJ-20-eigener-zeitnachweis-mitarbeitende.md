@@ -1,6 +1,6 @@
 # PROJ-20: Eigener Zeitnachweis für Mitarbeitende
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -97,6 +97,7 @@ Heute kommt nur ins Tool, wer die Rolle Bearbeiter oder Freigeber hat; alle ande
 ## Open Questions
 - [ ] Wer legt die App-Rolle „Mitarbeiter“ in Entra ID an und weist sie zu, und ab wann? (Nutzer, vor dem Deploy)
 - [ ] Wie erfahren die Mitarbeitenden vom neuen Zugang (Mail mit Link, Teams)? Nicht Teil des Features, aber vor dem Go-live zu klären
+- [ ] Liefert das Microsoft-Konto aller Mitarbeitenden eine E-Mail, die der E-Mail in der SharePoint-Liste entspricht (`vorname.name@obsi-hofer.ch`)? Vor dem Go-live mit einem Testkonto prüfen
 
 ## Decision Log
 
@@ -119,13 +120,89 @@ Heute kommt nur ins Tool, wer die Rolle Bearbeiter oder Freigeber hat; alle ande
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
-| _To be added by /architecture_ | | |
+| Eigene Seite „Mein Zeitnachweis“ statt Personen-Parameter auf der Freigeber-Seite | Die Seite kennt nur die angemeldete Person; ein Fehler in der Rollenprüfung kann so keine fremden Daten zeigen | 2026-11-21 |
+| Person aus der Anmeldung (E-Mail aus dem Microsoft-Konto, sonst Anmeldename), nie aus der Anfrage | Schutz vor Manipulation der Adresse oder der PDF-Anfrage | 2026-11-21 |
+| Eigene PDF-Aktion ohne E-Mail-Parameter | Die bestehende Freigeber-Aktion nimmt eine beliebige E-Mail entgegen; für Mitarbeitende darf das nicht möglich sein | 2026-11-21 |
+| Zwei Schutzschichten: Umleitung beim Seitenaufruf und Rollenprüfung in jeder Aktion | Aktionen lassen sich unabhängig von der Seite aufrufen; Geräte-, Prüfbericht- und Firmenwahl-Aktionen prüften bisher nur die Anmeldung | 2026-11-21 |
+| Bestehende Zeitnachweis-Ansicht mit Nur-Lesen-Modus statt zweiter Ansicht | Gleiche Werte und Hinweise für Freigeber und Mitarbeitende, eine Stelle zum Pflegen (inkl. Handy-Anpassung) | 2026-11-21 |
+| Erlaubte Monate aus dem bestehenden Beginn der Auswertung (Stichtag/Arbeitsmodell) und dem Austritt | Keine zweite Regel; deckt sich mit der Berechnung des Zeitnachweises | 2026-11-21 |
+| Rolle „Mitarbeiter“ als Entra-App-Rolle, keine eigene Benutzerverwaltung | Gleich wie PROJ-1; keine eigene Datenbank (PRD) | 2026-11-21 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Überblick
+Kein neues Datenmodell und keine neue Tabelle in Dataverse: Der eigene Zeitnachweis nutzt dieselbe Berechnung und dieselbe Ansicht wie der Zeitnachweis für Freigeber (PROJ-13) und dasselbe PDF (PROJ-16). Neu sind eine eigene Seite „Mein Zeitnachweis“, die dritte Rolle „Mitarbeiter“ im Zugriffsschutz und eine Nur-Lesen-Variante der bestehenden Ansicht.
+
+### Seitenstruktur
+```
+Mein Zeitnachweis  (neue Seite, eigene Adresse, z.B. /mein-zeitnachweis)
++-- Titel „Mein Zeitnachweis“ mit Namen der Person
++-- Fester Hinweis „Korrekturen bitte in der SharePoint-Zeiterfassung …“
++-- Monats-Auswahl (Pfeile + Kalender, begrenzt auf erlaubte Monate)
++-- „PDF herunterladen“ (immer der eigene Zeitnachweis)
++-- Zeitnachweis-Ansicht (bestehende Komponente, Nur-Lesen-Variante)
+|   +-- Kennzahlen (auf dem Handy zwei pro Zeile)
+|   +-- Tabelle Tag für Tag (auf dem Handy seitlich wischbar, Datum und Zeiten bleiben links stehen)
++-- Sonderfall-Meldungen statt Zeitnachweis
+    +-- „Für dich wird kein Zeitnachweis geführt“ (nicht auswerten)
+    +-- „Für dein Konto (…) wurden keine Zeiteinträge gefunden …“
+    +-- „Arbeitsmodell noch nicht erfasst …“ (zusätzlich zum aktuellen Monat)
+    +-- Fehlermeldung, wenn Dataverse nicht erreichbar ist
+
+Kopfzeile / Menü (bestehend, angepasst)
++-- Geräte, Prüfberichte      → nur Bearbeiter und Freigeber (wie bisher)
++-- Freigabe, Zeiterfassung    → nur Freigeber (wie bisher)
++-- Mein Zeitnachweis          → neu, für alle mit Rolle Mitarbeiter
+```
+
+### Wie die Person bestimmt wird
+- Die Seite nimmt **keine Person aus der Adresse** entgegen. Wer der Zeitnachweis gehört, ergibt sich ausschliesslich aus der Anmeldung: Beim Login übernimmt das Tool die E-Mail aus dem Microsoft-Konto (Feld „E-Mail“, sonst der Anmeldename) in die Sitzung.
+- Diese E-Mail wird klein geschrieben mit den Zeiteinträgen und den Personen-Stammdaten (PROJ-14) abgeglichen.
+- Auch der PDF-Download bekommt **keine E-Mail vom Browser**, sondern erzeugt immer das PDF der angemeldeten Person. Damit lässt sich durch Ändern der Adresse oder der Anfrage nie ein fremder Zeitnachweis abrufen.
+
+### Rollen und Zugriffsschutz
+| Rolle(n) | Darf ins Tool | Startseite nach dem Login | Sichtbar |
+|---|---|---|---|
+| nur Mitarbeiter | ja (neu) | Mein Zeitnachweis | nur Mein Zeitnachweis |
+| Bearbeiter (+ evtl. Mitarbeiter) | ja | Start wie bisher | Geräte, Prüfberichte (+ Mein Zeitnachweis) |
+| Freigeber (+ evtl. Mitarbeiter) | ja | Start wie bisher | alles wie bisher (+ Mein Zeitnachweis) |
+| keine dieser Rollen | nein | Kein Zugang | — |
+
+- **Erste Schutzschicht (Zugriffsprüfung beim Seitenaufruf):** Wer nur die Rolle Mitarbeiter hat, wird von jeder anderen Seite (Start, Geräte, Prüfberichte, Sync-Freigabe, Zeiterfassung) auf „Mein Zeitnachweis“ umgeleitet.
+- **Zweite Schutzschicht (jede Aktion prüft selbst):** Heute prüfen die Aktionen für Geräte, Prüfberichte und die Firmen-/Standortwahl nur, ob jemand angemeldet ist — bisher genügte das, weil nur Bearbeiter und Freigeber hineinkamen. Mit der neuen Rolle könnten Mitarbeitende diese Aktionen sonst technisch aufrufen. Deshalb prüfen diese Aktionen künftig ausdrücklich „Bearbeiter oder Freigeber“. Die Aktionen der Zeiterfassung und der Sync-Freigabe prüfen bereits „nur Freigeber“ und bleiben unverändert.
+- „Mein Zeitnachweis“ erscheint im Menü nur mit Rolle Mitarbeiter; ein Freigeber ohne diese Rolle sieht ihn nicht (Spec).
+
+### Nur-Lesen-Variante der Ansicht
+Die bestehende Zeitnachweis-Ansicht erhält einen Modus „Mitarbeiteransicht“:
+- ohne Personen-Auswahl, ohne „Gehen nachtragen“, „Einträge erfassen“, Löschen-× und „löschen“ bei Ferien
+- ohne den Vermerk „aus SharePoint“ in der Bemerkung (eine eigene Bemerkung davor bleibt) und ohne den Abgleich mit dem Monatstotal der App
+- ohne Link auf die Personen-Seite (PROJ-14)
+- Tageshinweise, Kennzahlen, Summen und Werte bleiben identisch zur Freigeber-Ansicht — eine Berechnung für beide
+
+### Erlaubte Monate
+- Untergrenze: Monat des Beginns der Auswertung (Startsaldo-Stichtag, sonst Beginn des Arbeitsmodells) — genau der Wert, mit dem der Zeitnachweis heute schon rechnet
+- Obergrenze: aktueller Monat, bei erfasstem Austritt höchstens der Austrittsmonat
+- Ein Monat ausserhalb (aus Adresse oder Kalender) wird auf den nächstgelegenen erlaubten Monat gesetzt; ohne Beginn nur der aktuelle Monat
+- Die Monatswahl merkt sich das Tool wie heute pro Sitzung, getrennt von der Auswahl des Freigebers
+
+### Datenmodell
+Keine neuen Daten. Gelesen wird wie bisher:
+- Zeiteinträge der Person (nur ihre eigene E-Mail, nur der benötigte Zeitraum)
+- Personen-Stammdaten (Arbeitsmodell, Startsaldo, Stichtag, Austritt, „nicht auswerten“, Ferienanspruch) aus PROJ-14
+- Feiertage aus PROJ-18
+
+Neu in der Sitzung (nicht gespeichert): die E-Mail aus dem Microsoft-Konto.
+
+### Einrichtung in Entra ID (Nutzer)
+- In der App-Registrierung eine dritte App-Rolle **„Mitarbeiter“** (Wert `mitarbeiter`) anlegen, analog zu Bearbeiter und Freigeber
+- Die Rolle den Mitarbeitenden zuweisen (auch Bearbeitern und Freigebern, die ihren eigenen Zeitnachweis sehen sollen)
+- Keine neuen Umgebungsvariablen, keine neuen Dataverse-Rechte (der App-Benutzer liest die Zeiteinträge bereits)
+
+### Abhängigkeiten
+Keine neuen Pakete.
 
 ## QA Test Results
 _To be added by /qa_
