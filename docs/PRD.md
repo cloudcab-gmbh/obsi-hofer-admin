@@ -7,6 +7,7 @@ Internes Admin-Tool für OBSI Hofer GmbH, mit dem mehrere Mitarbeitende Geräte-
 Mehrere interne Mitarbeitende der OBSI Hofer GmbH, in zwei Rollen:
 - **Bearbeiter:** erfassen/pflegen Geräte und Prüfberichte
 - **Freigeber/Admin:** zusätzlich berechtigt, den Sync pro Firma auszulösen und (ab PROJ-13) die Zeiterfassung aller Mitarbeitenden auszuwerten
+- **Mitarbeiter** (ab PROJ-20): sehen nur ihren eigenen Zeitnachweis (nur lesen, mit PDF); Rollen sind kombinierbar
 
 Ab PROJ-13 verarbeitet das Tool auch Arbeitszeiten aller Mitarbeitenden (Personendaten); sie bleiben Freigebern vorbehalten.
 
@@ -35,6 +36,7 @@ Anmeldung über das bestehende Microsoft-365-/Entra-ID-Konto (interner Firmen-Te
 | P1 | Zeiterfassung-Übersicht (Dashboard: Gleitzeit, Ist/Soll, Abwesenheiten, Ferien aller Mitarbeitenden, mit Grafiken) | Deployed |
 | P1 | Feiertage im Tool pflegen (Vorschlag pro Jahr, betriebliche und halbe Feiertage) | Deployed |
 | P1 | Import der SharePoint-Zeiterfassung (Erstbefüllung von Dataverse aus der weiterlaufenden SharePoint-Liste) | Deployed |
+| P1 | Eigener Zeitnachweis für Mitarbeitende (nur lesen, mit PDF; Zugang über Rolle „Mitarbeiter“) | Planned |
 
 ## Success Metrics
 - Keine direkte Dateneingabe mehr in Dataverse/Dynamics nötig für Geräte/Prüfberichte
