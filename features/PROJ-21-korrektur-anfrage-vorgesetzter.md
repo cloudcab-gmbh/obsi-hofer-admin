@@ -1,6 +1,6 @@
 # PROJ-21: Korrektur-Anfrage an den Vorgesetzten
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -10,7 +10,8 @@
 - Betrifft: PROJ-16 (PDF bleibt unverändert)
 - **Extern (Nutzer):**
   - Neue Tabelle für Korrektur-Anfragen in Dataverse anlegen (Form in /architecture) und Rechte für den App-Benutzer erteilen
-  - Power-Automate-Flow: bei neuer Anfrage den Manager aus Entra ID ermitteln und ihm eine Teams-Nachricht mit Karte schicken (Knopf „Erledigt“); ohne Manager an die Freigeber; bei „Erledigt“ den Status setzen und den Mitarbeitenden in Teams benachrichtigen
+  - Power-Automate-Flow: bei neuer Anfrage den Manager aus Entra ID ermitteln und ihm eine Teams-Nachricht mit Karte schicken (Knopf „Erledigt“); ohne Manager an Freigeber und Bearbeiter (Entra-Gruppen); bei „Erledigt“ den Status setzen und den Mitarbeitenden in Teams benachrichtigen
+  - Entra-Gruppen „Admin-Tool Freigeber“ und „Admin-Tool Bearbeiter“ anlegen und die App-Rollen den Gruppen zuweisen
 - **Go-live:** PROJ-20 geht erst zusammen mit PROJ-21 live (Nutzer-Entscheid 2026-11-21)
 
 ## Ausgangslage
@@ -64,7 +65,7 @@ PROJ-20 zeigt Mitarbeitenden ihren Zeitnachweis nur zum Lesen, mit dem Hinweis, 
 
 **Flow (Nutzer, Abnahme im Zusammenspiel)**
 - [ ] Angenommen eine Anfrage wird gespeichert, dann erhält der in Entra ID hinterlegte Manager der Person eine Teams-Nachricht mit Name, Datum, bisherigen Zeiten, Nachricht, einem Link auf den Zeitnachweis der Person (Monat der Anfrage) und dem Knopf „Erledigt“
-- [ ] Angenommen für die Person ist kein Manager hinterlegt, dann geht die Teams-Nachricht an die Freigeber
+- [ ] Angenommen für die Person ist kein Manager hinterlegt, dann geht die Teams-Nachricht an alle Mitglieder der Gruppen Freigeber und Bearbeiter
 - [ ] Angenommen der Manager klickt „Erledigt“, dann wird der Status der Anfrage auf „erledigt“ gesetzt und der Mitarbeitende erhält eine Teams-Nachricht
 
 ## Edge Cases
@@ -86,7 +87,10 @@ PROJ-20 zeigt Mitarbeitenden ihren Zeitnachweis nur zum Lesen, mit dem Hinweis, 
 ## Open Questions
 - [ ] Ist in Entra ID für alle Mitarbeitenden ein Manager hinterlegt? (Nutzer, vor dem Go-live prüfen)
 - [ ] Reicht die bestehende Power-Automate-/Dataverse-Lizenz für den Flow mit Dataverse-Trigger, „Office 365 Users – Manager abrufen“ und Teams-Karte mit Antwort („Adaptive Karte posten und auf Antwort warten“)? (Nutzer)
-- [ ] Wartet der Flow auf den Klick „Erledigt“ (Flow-Laufzeit bis 30 Tage) oder wird die Antwort anders verarbeitet? → in /architecture klären
+- [x] Wartet der Flow auf den Klick „Erledigt“? → Ja, „Adaptive Karte posten und auf Antwort warten“, höchstens 30 Tage; danach bleibt die Anfrage offen (Tech Design C)
+- [x] Empfänger ohne Manager? → Mitglieder der Entra-Gruppen „Admin-Tool Freigeber“ und „Admin-Tool Bearbeiter“; App-Rollen werden diesen Gruppen zugewiesen (Nutzer-Entscheid 2026-11-21)
+- [ ] Entra-Gruppen anlegen und die App-Rollen Freigeber/Bearbeiter den Gruppen zuweisen (setzt Entra ID P1 voraus) (Nutzer)
+- [ ] Dataverse-Tabelle „Korrektur-Anfrage“ anlegen und dem App-Benutzer Erstellen + Lesen erteilen (Nutzer, vor /backend)
 
 ## Decision Log
 
@@ -94,7 +98,7 @@ PROJ-20 zeigt Mitarbeitenden ihren Zeitnachweis nur zum Lesen, mit dem Hinweis, 
 | Decision | Rationale | Date |
 |----------|-----------|------|
 | Empfänger = Manager aus Entra ID | Manager ist beim Benutzer bereits gepflegt; keine zusätzliche Pflege im Tool (Nutzer-Entscheid) | 2026-11-21 |
-| Ohne Manager an die Freigeber | Keine Anfrage darf verloren gehen | 2026-11-21 |
+| Ohne Manager an Freigeber und Bearbeiter | Keine Anfrage darf verloren gehen; alle Personen mit Rolle im Tool (Nutzer-Entscheid) | 2026-11-21 |
 | Zustellung per Teams über Power Automate (Flow-Bot), das Tool speichert nur die Anfrage in Dataverse | Wenig Aufwand, Manager braucht das Tool nicht, Empfänger/Text im Flow anpassbar, Anfragen nachvollziehbar (Nutzer-Entscheid „Weg A“ statt eigenem Teams-Bot oder Kanal-Webhook) | 2026-11-21 |
 | Eine Anfrage pro Tag mit Freitext (Pflicht, max. 1'000 Zeichen), Link pro Tag plus Knopf oben | Deckt Zeiten, Abwesenheiten und fehlende Tage ab; korrigiert wird ohnehin von Hand (Nutzer-Entscheid) | 2026-11-21 |
 | Bisherige Zeiten des Tages werden automatisch mitgeschickt | Manager sieht ohne Tool, was heute erfasst ist | 2026-11-21 |
@@ -107,13 +111,93 @@ PROJ-20 zeigt Mitarbeitenden ihren Zeitnachweis nur zum Lesen, mit dem Hinweis, 
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
-| _To be added by /architecture_ | | |
+| Dataverse-Tabelle als Schnittstelle zwischen Tool und Flow | Tool braucht keine Teams-/Graph-Rechte; Flow reagiert auf neue Zeilen; Anfragen bleiben nachvollziehbar | 2026-11-21 |
+| Manager-Ermittlung und Fallback auf Freigeber im Flow (Office 365 Users) | Keine Entra-Berechtigung für die App; Empfängerregeln ohne Code-Änderung anpassbar | 2026-11-21 |
+| Teams „Adaptive Karte posten und auf Antwort warten“, Status nur vom Flow gesetzt | „Erledigt“ direkt in Teams; Status an einer Stelle; App-Benutzer braucht kein Änderungsrecht | 2026-11-21 |
+| App-Benutzer nur Erstellen + Lesen auf der neuen Tabelle | Minimalrechte; Mitarbeitende können Anfragen weder ändern noch löschen | 2026-11-21 |
+| Bisherige Zeiten und Link werden auf dem Server berechnet und gespeichert | Nicht vom Browser manipulierbar; Teams-Karte enthält alles ohne Tool-Zugriff | 2026-11-21 |
+| Datum als „Nur Datum“, zeitzonenunabhängig | Wie Feiertage (PROJ-18); keine Zeitzonenlogik | 2026-11-21 |
+| Fristregel als reine Funktion mit Tests, gemeinsam für Anzeige und Prüfung | Knopf/Links und Server-Prüfung können nicht auseinanderlaufen | 2026-11-21 |
+| Fehler beim Lesen der Anfragen blockiert den Zeitnachweis nicht | Anfragen sind Zusatzinformation; Zeitnachweis bleibt nutzbar | 2026-11-21 |
+| Wartezeit des Flows max. 30 Tage, danach bleibt „offen“ | Grenze von Power Automate; passt zur Frist von zwei Monaten | 2026-11-21 |
+| Fallback-Empfänger über Entra-Gruppen statt Rollen-Zuweisungen pro Person | Rollen-Zuweisungen sind im Flow nur über Graph (Premium-Connector) lesbar; Gruppen mit Standard-Connector, Pflege nur in Entra (Nutzer-Entscheid) | 2026-11-21 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Überblick
+Das Tool **speichert** Anfragen und **zeigt** ihren Status. Das **Zustellen** in Teams und das **Erledigen** übernimmt ein Power-Automate-Flow des Nutzers. Verbindungsstück ist eine neue Dataverse-Tabelle „Korrektur-Anfrage“: Das Tool legt Zeilen an und liest sie, der Flow reagiert auf neue Zeilen und setzt den Status. Das Tool spricht weder mit Teams noch mit Entra ID (Manager) — keine neuen Berechtigungen für die App ausser auf die neue Tabelle.
+
+```
+Mitarbeitender ──(Dialog)──> Tool ──(neue Zeile, Status offen)──> Dataverse „Korrektur-Anfrage“
+                                                                        │
+                                       Flow des Nutzers: „Zeile hinzugefügt“
+                                       ├─ Manager aus Entra ID holen (ohne Manager: Freigeber)
+                                       ├─ Teams-Karte an Manager, wartet auf „Erledigt“
+                                       └─ bei „Erledigt“: Status erledigt + Teams-Nachricht an Mitarbeitenden
+Tool liest Status ◄─────────────────────────────────────────────────────┘ (Mein Zeitnachweis, Zeitnachweis Freigeber)
+```
+
+### A) Bausteine (Oberfläche)
+```
+Mein Zeitnachweis (PROJ-20, angepasst)
++-- Knopf „Korrektur anfragen“ (statt Hinweis auf SharePoint; nur aktueller/vorheriger Monat)
+|   oder Hinweis „Für ältere Monate bitte direkt an deinen Vorgesetzten wenden.“
++-- Zeitnachweis-Ansicht (nur lesen)
+|   +-- pro Tag (bis heute, aktueller/vorheriger Monat): Link „Korrektur anfragen“
+|   +-- pro Tag mit Anfrage: „Korrektur angefragt (offen)“ / „Korrektur erledigt“ (neueste)
++-- Dialog „Korrektur anfragen“ (bestehende Dialog-Bausteine)
+    +-- Datum (vorausgefüllt aus der Zeile; vom Knopf aus wählbar)
+    +-- Bisherige Zeiten des Tages (zur Kontrolle, nur Anzeige)
+    +-- Nachricht (Pflicht, max. 1'000 Zeichen, Zeichenzähler)
+    +-- Senden (gesperrt während des Sendens) / Abbrechen
+    +-- Fehlermeldung im Dialog, Nachricht bleibt erhalten
+
+Zeitnachweis für Freigeber (PROJ-13, angepasst)
++-- Spalte „Bemerkung / Hinweise“: alle Anfragen des Tages mit Anfragedatum, Status und Nachricht (nur lesen)
+```
+
+### B) Datenmodell
+Neue Dataverse-Tabelle **„Korrektur-Anfrage“**, **vom Nutzer anzulegen** (interne Namen in /backend abgleichen, wie bei PROJ-18):
+
+| Spalte | Art | Inhalt / wer schreibt |
+|---|---|---|
+| Titel (Primärspalte) | Text | z.B. „Korrektur 05.11.2026 · Anna Muster“ — Tool |
+| Mitarbeiter-E-Mail | Text (320) | Anmelde-E-Mail, klein — Tool; der Flow sucht damit den Manager |
+| Mitarbeiter-Name | Text | Anzeigename für die Teams-Karte — Tool |
+| Datum | Nur Datum (zeitzonenunabhängig) | betroffener Tag — Tool |
+| Nachricht | Mehrzeiliger Text (1'000) | Text des Mitarbeitenden — Tool |
+| Bisherige Zeiten | Text | z.B. „07:30–12:00, 12:30–17:00“ oder „keine Einträge“, dazu die Art des Tages wie „Ferien“ — Tool, **auf dem Server berechnet**, nicht vom Browser übernommen |
+| Link | Text (URL) | Zeitnachweis der Person im Tool für den Monat der Anfrage (Freigeber-Ansicht) — Tool |
+| Status | Auswahl: offen (0), erledigt (1); Standard offen | Tool setzt offen, **nur der Flow** setzt erledigt |
+| Erledigt am | Datum/Uhrzeit | Flow |
+| Erledigt von | Text | Name aus der Teams-Antwort — Flow |
+| Erstellt am | Systemspalte | Zeitpunkt der Anfrage (Anzeige „angefragt 21.11.“) |
+
+Rechte des App-Benutzers (Tool): **Erstellen und Lesen** auf der Tabelle — kein Ändern, kein Löschen. Der Flow läuft mit der Verbindung des Nutzers (Lesen und Ändern).
+
+### C) Flow des Nutzers (Vorschlag, wird nicht im Repo gebaut)
+1. Trigger: Dataverse „Wenn eine Zeile hinzugefügt wird“ auf „Korrektur-Anfrage“
+2. „Office 365 Users – Manager abrufen (V2)“ mit der Mitarbeiter-E-Mail
+3. Schlägt das fehl (kein Manager): Empfänger = Mitglieder der Entra-Gruppen „Admin-Tool Freigeber“ und „Admin-Tool Bearbeiter“ („Microsoft Entra ID – Gruppenmitglieder abrufen“, ohne Doppelte); die App-Rollen werden diesen Gruppen zugewiesen statt einzelnen Personen
+4. Teams „Adaptive Karte an Benutzer posten und auf Antwort warten“ (Flow-Bot, Chat) mit Name, Datum, bisherigen Zeiten, Nachricht, Link und Knopf „Erledigt“
+5. Nach der Antwort: Zeile aktualisieren (Status erledigt, Erledigt am, Erledigt von) und Teams-Nachricht an den Mitarbeitenden (Flow-Bot)
+- **Grenze:** Ein Flow wartet höchstens 30 Tage auf die Antwort. Danach bleibt die Anfrage „offen“ und muss bei Bedarf neu gestellt werden — passt zur Frist „aktueller und vorheriger Monat“
+- Mehrere Empfänger (Fallback): „Erledigt“ gilt mit der ersten Antwort (Karte an jeden einzeln mit paralleler Verzweigung oder an einen Gruppenchat) — Detail im Flow
+- Bearbeiter sehen keine Zeitnachweise im Tool: Die Karte enthält deshalb alle Angaben (Name, Datum, bisherige Zeiten, Nachricht), der Link ist nur für Freigeber nützlich
+
+### D) Ablauf im Tool
+- **Senden (Server-Aktion):** prüft Rolle Mitarbeiter, nimmt die Person aus der Anmeldung, prüft Datum (aktueller oder vorheriger Monat, bis heute, innerhalb der sichtbaren Monate aus PROJ-20) und Nachricht (1–1'000 Zeichen), berechnet die bisherigen Zeiten des Tages mit derselben Rechnung wie der Zeitnachweis und legt die Zeile an. Bestehende Anfragen werden nie geändert
+- **Anzeigen:** Beim Laden des Zeitnachweises (Mitarbeiter und Freigeber) werden die Anfragen der Person für den Monat gelesen (Filter E-Mail + Datumsbereich) und pro Tag zugeordnet. Mitarbeitende sehen den Status der neuesten Anfrage, Freigeber alle Anfragen mit Text
+- **Wenn das Lesen der Anfragen fehlschlägt:** Der Zeitnachweis erscheint trotzdem, mit dem Hinweis „Korrektur-Anfragen konnten nicht geladen werden“ — die Anfragen sind Zusatz, nicht Kern
+- **Frist:** Die erlaubten Tage für Anfragen sind eine reine Regel (aktueller/vorheriger Monat, bis heute, Schnittmenge mit den sichtbaren Monaten) mit Unit-Tests; dieselbe Regel steuert Knopf, Links und die Prüfung beim Senden
+- **Anzeige der Nachricht** immer als reiner Text (kein HTML); Zeilenumbrüche bleiben erhalten
+- **PDF** (PROJ-16): unverändert, lädt keine Anfragen
+
+### E) Abhängigkeiten
+Keine neuen Pakete (Dialog, Textarea, Badge sind als shadcn-Bausteine vorhanden). Keine neuen Umgebungsvariablen.
 
 ## QA Test Results
 _To be added by /qa_
