@@ -1,6 +1,6 @@
 # PROJ-20: Eigener Zeitnachweis für Mitarbeitende
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -324,4 +324,7 @@ Keine neuen Pakete.
 - **Recommendation:** Deploy nach Test mit einem Nur-Mitarbeiter-Konto; BUG-1 optional vorher, BUG-2 separat beheben
 
 ## Deployment
-_To be added by /deploy_
+- **Deployed:** 2026-11-21, zusammen mit PROJ-21 (Version 1.15.0, Tag `v1.15.0-PROJ-20`)
+- **Production URL:** https://obsi-hofer-admin.vercel.app/mein-zeitnachweis
+- **Extern:** App-Rolle „Mitarbeiter“ in Entra ID angelegt; Zuweisung an die Mitarbeitenden durch den Nutzer
+- **Nach dem Deploy:** neu anmelden (E-Mail kommt neu in die Sitzung); Test mit einem Konto nur mit Rolle Mitarbeiter und auf dem Handy (Nutzer)

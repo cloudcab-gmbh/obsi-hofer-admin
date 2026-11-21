@@ -1,6 +1,6 @@
 # PROJ-21: Korrektur-Anfrage an den Vorgesetzten
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -305,4 +305,7 @@ Keine neuen Pakete (Dialog, Textarea, Badge sind als shadcn-Bausteine vorhanden)
 - **Recommendation:** PROJ-20 und PROJ-21 gemeinsam deployen; Test mit einem Konto nur mit Rolle Mitarbeiter und auf dem Handy direkt nach dem Deploy
 
 ## Deployment
-_To be added by /deploy_
+- **Deployed:** 2026-11-21, zusammen mit PROJ-20 (Version 1.15.0, Tag `v1.15.0-PROJ-20`)
+- **Production URL:** https://obsi-hofer-admin.vercel.app/mein-zeitnachweis
+- **Extern:** Power-Automate-Flow des Nutzers aktiv; Karte verweist bis PROJ-22 auf die Korrektur direkt in Dataverse
+- **Nach dem Deploy:** Test mit einem Konto nur mit Rolle Mitarbeiter und auf dem Handy (Nutzer); Link in der Teams-Karte zeigt auf die Produktionsadresse

@@ -2,6 +2,15 @@
 
 Alle für Nutzer relevanten Änderungen am Admin-Tool. Neueste Version zuerst. Versionen entsprechen den Git-Tags `vX.Y.Z-PROJ-N`.
 
+## [1.15.0] – 2026-11-21 · PROJ-20 und PROJ-21 Mein Zeitnachweis mit Korrektur-Anfrage
+Für Mitarbeitende mit der neuen Rolle „Mitarbeiter“.
+### Neu
+- „Mein Zeitnachweis“: Mitarbeitende sehen ihren eigenen Zeitnachweis Monat für Monat (nur lesen) und laden ihn als PDF herunter, auch auf dem Handy. Wer nur die Rolle Mitarbeiter hat, sieht ausschliesslich diese Seite.
+- „Korrektur anfragen“: Für Tage im aktuellen und im vorherigen Monat schicken Mitarbeitende ihrem Vorgesetzten eine Korrektur-Anfrage. Er erhält sie in Teams und markiert sie dort als erledigt; ohne hinterlegten Vorgesetzten geht sie an Freigeber und Bearbeiter.
+- Beim Tag steht „Korrektur angefragt (offen)“ bzw. „Korrektur erledigt“. Freigeber sehen im Zeitnachweis der Person alle Anfragen mit Text.
+### Geändert
+- Geräte, Prüfberichte und die Firmenauswahl stehen nur noch Bearbeitern und Freigebern zur Verfügung.
+
 ## [1.14.1] – 2026-11-13 · PROJ-13 Zeitnachweis pro Monat
 ### Geändert
 - Zeitnachweis: In der Spalte „Zeiten“ stehen höchstens zwei Einträge nebeneinander, weitere Einträge desselben Tages folgen in einer neuen Zeile. Das PDF bleibt unverändert.
