@@ -1,6 +1,6 @@
 # PROJ-20: Eigener Zeitnachweis für Mitarbeitende
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -203,6 +203,16 @@ Neu in der Sitzung (nicht gespeichert): die E-Mail aus dem Microsoft-Konto.
 
 ### Abhängigkeiten
 Keine neuen Pakete.
+
+## Implementation Notes (Frontend, 2026-11-21)
+- **Seite** `/mein-zeitnachweis`: Person nur aus der Anmeldung (`src/lib/auth/mitarbeiter.ts`), Monat aus `?monat=`, auf die erlaubten Monate begrenzt. Meldungen für: keine Rolle, keine E-Mail im Konto, keine Zeiteinträge, „nicht auswerten“, Ladefehler. Fester Hinweis zu Korrekturen in SharePoint
+- **Laden:** `ladeEigenenZeitnachweis` in `zeitnachweis-laden.ts` (unterscheidet unbekannt / nicht auswerten / ok, nutzt denselben Rechenweg wie Seite und PDF der Freigeber); Regeln für erlaubte Monate und den Herkunftsvermerk als reine Funktionen in `src/lib/zeiterfassung/mein-zeitnachweis.ts` mit Unit-Tests; `auswertungsBeginn` aus `zeitnachweis.ts` exportiert
+- **Ansicht:** `ZeitnachweisAnsicht` mit `nurLesen` — ohne Tag erfassen, Löschen, Nachtragen; offene Tage mit Verweis auf SharePoint statt Links; ohne „aus SharePoint“, Tagestotal- und Monatstotal-Abgleich; ohne Arbeitsmodell der Hinweis an die Personalverantwortung. Zusätzlich blendet die Mitarbeiteransicht den App-Tagestotal-Abgleich aus (wie den Monatstotal-Abgleich, technischer Hinweis)
+- **Handy (beide Ansichten):** unter 768 px bleiben Datum und Zeiten beim seitlichen Wischen stehen; Kennzahlen zwei pro Zeile (bestand schon)
+- **Monatswahl:** `MeinZeitnachweisMonat` mit Grenzen (Pfeile/Kalender deaktiviert ausserhalb); die Monatswahl wird nicht pro Sitzung gemerkt, sie steht nur in der Adresse (einfacher, Startmonat ist immer der aktuelle)
+- **PDF:** `erzeugeEigenesZeitnachweisPdfAction(monat)` ohne E-Mail-Parameter; „Erstellt von“ = angemeldete Person
+- **Menü:** „Mein Zeitnachweis“ mit Rolle Mitarbeiter; Geräte, Prüfberichte und Firmenwahl nur für Bearbeiter/Freigeber
+- **Noch offen (Backend):** Proxy (Rolle Mitarbeiter zulassen, Nur-Mitarbeiter auf `/mein-zeitnachweis` umleiten, Startseite), E-Mail aus dem Konto mit Fallback auf den Anmeldenamen in der Sitzung, Rollenprüfung in den Aktionen für Geräte, Prüfberichte und Firmen-/Standortwahl
 
 ## QA Test Results
 _To be added by /qa_

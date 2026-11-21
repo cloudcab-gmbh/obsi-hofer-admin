@@ -12,16 +12,25 @@ import { MobileNav, type NavLink } from "@/components/mobile-nav";
 export async function AppHeader() {
   const session = await auth();
   const istFreigeber = session?.user?.roles?.includes("freigeber") ?? false;
+  const roles = session?.user?.roles ?? [];
+  // PROJ-20: Rollen addieren sich; nur Mitarbeiter sehen weder Geräte noch Firma.
+  const istBearbeiterOderFreigeber = roles.includes("bearbeiter") || istFreigeber;
+  const istMitarbeiter = roles.includes("mitarbeiter");
   // PROJ-10: "Firma · Standort" (bei nur einem Standort nur die Firma).
-  const kontext = await ladeArbeitskontext().catch(() => null);
+  const kontext = istBearbeiterOderFreigeber ? await ladeArbeitskontext().catch(() => null) : null;
   const bezeichnung = kontext ? kontextBezeichnung(kontext) : null;
 
   const links: NavLink[] = [
-    { href: "/geraete", label: "Geräte" },
-    { href: "/pruefberichte", label: "Prüfberichte" },
+    ...(istBearbeiterOderFreigeber
+      ? [
+          { href: "/geraete", label: "Geräte" },
+          { href: "/pruefberichte", label: "Prüfberichte" },
+        ]
+      : []),
     ...(istFreigeber ? [{ href: "/sync-freigabe", label: "Freigabe" }] : []),
     // PROJ-14: Pensen und Salden sind vertraulich — nur Freigeber.
     ...(istFreigeber ? [{ href: "/zeiterfassung", label: "Zeiterfassung" }] : []),
+    ...(istMitarbeiter ? [{ href: "/mein-zeitnachweis", label: "Mein Zeitnachweis" }] : []),
   ];
 
   // Unterhalb von lg: nur Logo, Dark-Mode-Schalter und Menü-Button (MobileNav);
@@ -35,13 +44,15 @@ export async function AppHeader() {
       </div>
       <nav className="hidden min-w-0 items-center gap-4 text-sm lg:flex">
         {/* Nutzerwunsch 2026-10-08: aktuelle Firma vor den Menüpunkten, fett. */}
-        <Link
-          href="/start"
-          className="max-w-72 truncate font-semibold text-foreground hover:underline underline-offset-2"
-          title={bezeichnung ?? undefined}
-        >
-          Firma: {bezeichnung ?? "keine ausgewählt"}
-        </Link>
+        {istBearbeiterOderFreigeber && (
+          <Link
+            href="/start"
+            className="max-w-72 truncate font-semibold text-foreground hover:underline underline-offset-2"
+            title={bezeichnung ?? undefined}
+          >
+            Firma: {bezeichnung ?? "keine ausgewählt"}
+          </Link>
+        )}
         {links.map((link) => (
           <Link key={link.href} href={link.href} className="shrink-0 text-muted-foreground hover:text-foreground">
             {link.label}
@@ -59,7 +70,7 @@ export async function AppHeader() {
         </form>
         <ThemeToggle />
         <div className="lg:hidden">
-          <MobileNav links={links} firmaName={bezeichnung} userName={session?.user?.name ?? null} />
+          <MobileNav links={links} firmaName={bezeichnung} userName={session?.user?.name ?? null} mitFirma={istBearbeiterOderFreigeber} />
         </div>
       </div>
     </header>

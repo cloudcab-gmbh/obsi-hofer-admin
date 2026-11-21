@@ -4,9 +4,13 @@ import { useState, useTransition } from "react";
 import { FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { erzeugeZeitnachweisPdfAction } from "@/app/(protected)/zeiterfassung/actions";
+import { erzeugeEigenesZeitnachweisPdfAction } from "@/app/(protected)/mein-zeitnachweis/actions";
 
-/** PROJ-16: Zeitnachweis der gewählten Person und des Monats als PDF herunterladen. */
-export function ZeitnachweisPdfKnopf({ email, monat }: { email: string; monat: string }) {
+/**
+ * PROJ-16: Zeitnachweis der gewählten Person und des Monats als PDF herunterladen.
+ * PROJ-20: ohne `email` das PDF der angemeldeten Person („Mein Zeitnachweis“).
+ */
+export function ZeitnachweisPdfKnopf({ email, monat }: { email?: string; monat: string }) {
   const [fehler, setFehler] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -14,7 +18,7 @@ export function ZeitnachweisPdfKnopf({ email, monat }: { email: string; monat: s
     setFehler(null);
     startTransition(async () => {
       try {
-        const result = await erzeugeZeitnachweisPdfAction(email, monat);
+        const result = email ? await erzeugeZeitnachweisPdfAction(email, monat) : await erzeugeEigenesZeitnachweisPdfAction(monat);
         if (!result.success) {
           setFehler(result.message);
           return;

@@ -237,6 +237,15 @@ export function berechneZeitnachweis(e: ZeitnachweisEingabe): Zeitnachweis {
   };
 }
 
+/** PROJ-20: Beginn der Auswertung (Tag nach dem Startsaldo-Stichtag, sonst erstes Arbeitsmodell), `null` ohne beides. */
+export function auswertungsBeginn(person: {
+  startsaldoStunden: number | null;
+  stichtag: string | null;
+  versionen: readonly ArbeitsmodellVersion[];
+}): string | null {
+  return bestimmeBeginn({ ...person, monat: "2000-01", heute: "2000-01-01", eintraege: [], austrittAm: null }).tag;
+}
+
 /** Erster Tag, ab dem Einträge geladen werden müssen (Beginn von Gleitzeit bzw. Feriensaldo, sonst Monatsbeginn). */
 export function ladebeginn(
   monat: string,

@@ -27,10 +27,13 @@ export function MobileNav({
   links,
   firmaName,
   userName,
+  mitFirma = true,
 }: {
   links: NavLink[];
   firmaName: string | null;
   userName: string | null;
+  /** PROJ-20: Firmenwahl nur für Bearbeiter und Freigeber. */
+  mitFirma?: boolean;
 }) {
   return (
     <Sheet>
@@ -55,14 +58,16 @@ export function MobileNav({
           ))}
         </nav>
 
-        <div className="border-t pt-4">
-          <p className="px-2 text-xs text-muted-foreground">Firma</p>
-          <SheetClose asChild>
-            <Link href="/start" className="block rounded-md px-2 py-2 text-sm hover:bg-muted">
-              {firmaName ?? "keine ausgewählt"} <span className="text-muted-foreground">· wechseln</span>
-            </Link>
-          </SheetClose>
-        </div>
+        {mitFirma && (
+          <div className="border-t pt-4">
+            <p className="px-2 text-xs text-muted-foreground">Firma</p>
+            <SheetClose asChild>
+              <Link href="/start" className="block rounded-md px-2 py-2 text-sm hover:bg-muted">
+                {firmaName ?? "keine ausgewählt"} <span className="text-muted-foreground">· wechseln</span>
+              </Link>
+            </SheetClose>
+          </div>
+        )}
 
         <form action={signOutEverywhere} className="mt-auto">
           <Button type="submit" variant="outline" className="w-full">

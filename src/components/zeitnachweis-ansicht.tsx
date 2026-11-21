@@ -11,6 +11,7 @@ import { grundText } from "@/lib/zeiterfassung/anzeige";
 import { GehenNachtragen } from "@/components/gehen-nachtragen";
 import { TagErfassen } from "@/components/tag-erfassen";
 import { AbwesenheitLoeschen } from "@/components/abwesenheit-loeschen";
+import { ohneHerkunftsvermerk } from "@/lib/zeiterfassung/mein-zeitnachweis";
 
 function Hinweis({ warnung = false, children }: { warnung?: boolean; children: React.ReactNode }) {
   const Icon = warnung ? AlertTriangle : Info;
@@ -26,6 +27,11 @@ function Hinweis({ warnung = false, children }: { warnung?: boolean; children: R
     </p>
   );
 }
+
+// PROJ-20: Spalten, die auf dem Handy beim seitlichen Wischen stehen bleiben
+// (feste Breite für das Datum, damit die Zeiten direkt daneben haften).
+const DATUM_SPALTE = "max-md:sticky max-md:left-0 max-md:z-[1] max-md:w-[5.5rem] max-md:min-w-[5.5rem]";
+const ZEITEN_SPALTE = "max-md:sticky max-md:left-[5.5rem] max-md:z-[1] max-md:border-r";
 
 function formatTage(tage: number): string {
   return `${tage} ${tage === 1 ? "Tag" : "Tage"}`;
@@ -48,7 +54,7 @@ function loeschbar(t: Tageszeile): string[] {
   return t.auswertung.abwesenheiten.map((a) => a.eintragId);
 }
 
-function tageshinweise(t: Tageszeile, beginnArt: Zeitnachweis["beginnArt"]): { text: string; warnung: boolean }[] {
+function tageshinweise(t: Tageszeile, beginnArt: Zeitnachweis["beginnArt"], nurLesen: boolean): { text: string; warnung: boolean }[] {
   const a = t.auswertung;
   const liste: { text: string; warnung: boolean }[] = [];
   if (a.offen) liste.push({ text: "offen – Gehen fehlt", warnung: t.offenWarnung });
@@ -58,7 +64,8 @@ function tageshinweise(t: Tageszeile, beginnArt: Zeitnachweis["beginnArt"]): { t
   if (t.krankheitInFerien) liste.push({ text: "Krankheit während der Ferien — kein Ferientag", warnung: false });
   if (a.unbekannt) liste.push({ text: "Eintrag mit unbekanntem Typ — zählt nicht", warnung: true });
   if (t.ferienOhneSoll) liste.push({ text: "Ferien an einem Tag ohne Soll — zählt nicht", warnung: true });
-  if (t.flowAbweichung && a.flowTagestotal !== null) {
+  // PROJ-20: Abgleich mit dem Tagestotal der App ist ein technischer Hinweis für Freigeber.
+  if (!nurLesen && t.flowAbweichung && a.flowTagestotal !== null) {
     liste.push({
       text: `Tagestotal laut App ${formatMinuten(a.flowTagestotal)} statt ${formatMinuten(a.arbeitszeitMinuten)}`,
       warnung: false,
@@ -75,6 +82,7 @@ export function ZeitnachweisAnsicht({
   personName,
   personEmail,
   personHref,
+  nurLesen = false,
 }: {
   zeitnachweis: Zeitnachweis;
   personName: string;
@@ -82,13 +90,22 @@ export function ZeitnachweisAnsicht({
   personEmail: string;
   /** Link zur Pflege der Person (PROJ-14). */
   personHref: string;
+  /**
+   * PROJ-20: Mitarbeiteransicht — ohne Erfassen, Nachtragen und Löschen, ohne
+   * Link auf die Personen-Seite, ohne technische Abgleiche und ohne den Vermerk
+   * „aus SharePoint“.
+   */
+  nurLesen?: boolean;
 }) {
   const gleitzeitTitel = z.laufenderMonat ? "Gleitzeit Stand heute" : "Gleitzeit Monatsende";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="space-y-2">
-        {z.ohneArbeitsmodell && (
+        {z.ohneArbeitsmodell && nurLesen && (
+          <Hinweis warnung>Arbeitsmodell noch nicht erfasst – bitte an die Personalverantwortung wenden.</Hinweis>
+        )}
+        {z.ohneArbeitsmodell && !nurLesen && (
           <Hinweis warnung>
             Für {personName} ist kein Arbeitsmodell erfasst —{" "}
             {/* QA BUG-1: mit Startsaldo läuft die Gleitzeit trotzdem (Ist ohne Soll). */}
@@ -108,7 +125,16 @@ export function ZeitnachweisAnsicht({
           </Hinweis>
         )}
         {z.keineEintraege && <Hinweis>Keine Zeiteinträge in diesem Monat.</Hinweis>}
-        {z.offeneTage > 0 && (
+        {z.offeneTage > 0 && nurLesen && (
+          <Hinweis warnung>
+            {z.offeneTage === 1 ? "An 1 Tag fehlt" : `An ${z.offeneTage} Tagen fehlt`} ein „Gehen“ — diese Einträge zählen
+            nicht ins Ist. Bitte in der SharePoint-Zeiterfassung ergänzen:{" "}
+            {z.offeneEintraege
+              .map((o) => `${wochentagName(o.datum).slice(0, 2)} ${formatKalenderdatum(o.datum).slice(0, 6)} ${o.kommen}`)
+              .join(", ")}
+          </Hinweis>
+        )}
+        {z.offeneTage > 0 && !nurLesen && (
           <Hinweis warnung>
             {z.offeneTage === 1 ? "An 1 Tag fehlt" : `An ${z.offeneTage} Tagen fehlt`} ein „Gehen“ — diese Einträge zählen
             nicht ins Ist. Zum Nachtragen anklicken:{" "}
@@ -122,7 +148,7 @@ export function ZeitnachweisAnsicht({
             ))}
           </Hinweis>
         )}
-        {z.flowMonatsAbweichung && z.flowMonatstotal !== null && (
+        {!nurLesen && z.flowMonatsAbweichung && z.flowMonatstotal !== null && (
           <Hinweis>
             Monatstotal laut App {formatMinuten(z.flowMonatstotal)}, berechnete Arbeitszeit{" "}
             {formatMinuten(z.arbeitszeitMonatMinuten)}. Massgeblich ist die Berechnung aus Kommen/Gehen.
@@ -169,8 +195,9 @@ export function ZeitnachweisAnsicht({
             <Table containerClassName="h-full">
               <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_hsl(var(--border))]">
                 <TableRow>
-                  <TableHead>Datum</TableHead>
-                  <TableHead>Zeiten</TableHead>
+                  {/* PROJ-20: Auf dem Handy bleiben Datum und Zeiten beim seitlichen Wischen stehen. */}
+                  <TableHead className={cn(DATUM_SPALTE, "max-md:bg-card")}>Datum</TableHead>
+                  <TableHead className={cn(ZEITEN_SPALTE, "max-md:bg-card")}>Zeiten</TableHead>
                   <TableHead>Art</TableHead>
                   <TableHead className="text-right">Ist</TableHead>
                   <TableHead className="text-right">Soll</TableHead>
@@ -182,27 +209,37 @@ export function ZeitnachweisAnsicht({
               </TableHeader>
               <TableBody>
                 {z.tage.map((t) => {
-                  const hinweise = tageshinweise(t, z.beginnArt);
+                  const hinweise = tageshinweise(t, z.beginnArt, nurLesen);
+                  const bemerkungen = nurLesen
+                    ? t.auswertung.bemerkungen.map(ohneHerkunftsvermerk).filter((b): b is string => b !== null)
+                    : t.auswertung.bemerkungen;
+                  const grau = t.grund?.art === "frei" || t.grund?.art === "feiertag";
+                  // Deckender Hintergrund für die stehenbleibenden Spalten (Handy).
+                  const stehendBg = grau ? "max-md:bg-muted" : "max-md:bg-card";
                   const essen = [t.auswertung.mittagessen && "Mittag", t.auswertung.abendessen && "Abend"].filter(Boolean);
                   const grund = grundText(t);
                   return (
                     <TableRow
                       key={t.datum}
                       className={cn(
-                        (t.grund?.art === "frei" || t.grund?.art === "feiertag") && "bg-muted/40",
+                        grau && "bg-muted/40",
                         (t.zukunft || t.vorBeginn) && "text-muted-foreground"
                       )}
                     >
-                      <TableCell className="whitespace-nowrap">
-                        {/* Klick auf den Tag erfasst einen Eintrag; an künftigen Tagen nur Ferien und Frei (PROJ-15). */}
-                        <TagErfassen email={personEmail} datum={t.datum} personName={personName} nurAbwesenheit={t.zukunft}>
-                          <span className="tabular-nums underline decoration-dotted underline-offset-4">
-                            {formatKalenderdatum(t.datum).slice(0, 6)}
-                          </span>
-                        </TagErfassen>{" "}
+                      <TableCell className={cn("whitespace-nowrap", DATUM_SPALTE, stehendBg)}>
+                        {nurLesen ? (
+                          <span className="tabular-nums">{formatKalenderdatum(t.datum).slice(0, 6)}</span>
+                        ) : (
+                          /* Klick auf den Tag erfasst einen Eintrag; an künftigen Tagen nur Ferien und Frei (PROJ-15). */
+                          <TagErfassen email={personEmail} datum={t.datum} personName={personName} nurAbwesenheit={t.zukunft}>
+                            <span className="tabular-nums underline decoration-dotted underline-offset-4">
+                              {formatKalenderdatum(t.datum).slice(0, 6)}
+                            </span>
+                          </TagErfassen>
+                        )}{" "}
                         <span className="text-muted-foreground">{wochentagName(t.datum).slice(0, 2)}</span>
                       </TableCell>
-                      <TableCell className="whitespace-nowrap tabular-nums">
+                      <TableCell className={cn("whitespace-nowrap tabular-nums", ZEITEN_SPALTE, stehendBg)}>
                         {/* Nutzerwunsch 2026-11-13: höchstens zwei Einträge pro Zeile, weitere darunter. */}
                         <div className="grid grid-cols-[auto_auto] justify-start gap-y-0.5">
                           {t.auswertung.paare.map((p, i) => (
@@ -211,15 +248,17 @@ export function ZeitnachweisAnsicht({
                                 {p.kommen}–{p.gehen ?? "…"}
                                 {p.folgetag && " (+1)"}
                                 {/* Nutzerwunsch 2026-10-27: einzelnen Eintrag löschen. */}
-                                <span className="ml-1 inline-flex align-middle">
-                                  <AbwesenheitLoeschen
-                                    eintragIds={[p.eintragId]}
-                                    beschreibung={`Der Eintrag ${p.kommen}–${p.gehen ?? "(offen)"} vom ${formatKalenderdatum(t.datum)}`}
-                                    label={<X className="h-3 w-3" aria-hidden />}
-                                    ariaLabel={`Eintrag ${p.kommen}–${p.gehen ?? "offen"} löschen`}
-                                  />
-                                </span>
-                                {p.gehen === null && !t.zukunft && (
+                                {!nurLesen && (
+                                  <span className="ml-1 inline-flex align-middle">
+                                    <AbwesenheitLoeschen
+                                      eintragIds={[p.eintragId]}
+                                      beschreibung={`Der Eintrag ${p.kommen}–${p.gehen ?? "(offen)"} vom ${formatKalenderdatum(t.datum)}`}
+                                      label={<X className="h-3 w-3" aria-hidden />}
+                                      ariaLabel={`Eintrag ${p.kommen}–${p.gehen ?? "offen"} löschen`}
+                                    />
+                                  </span>
+                                )}
+                                {!nurLesen && p.gehen === null && !t.zukunft && (
                                   <>
                                     {" "}
                                     <GehenNachtragen eintragId={p.eintragId} datum={t.datum} kommen={p.kommen} personName={personName}>
@@ -247,7 +286,7 @@ export function ZeitnachweisAnsicht({
                             Frei
                           </Badge>
                         )}
-                        {loeschbar(t).length > 0 && (
+                        {!nurLesen && loeschbar(t).length > 0 && (
                           <>
                             {" "}
                             <AbwesenheitLoeschen
@@ -276,7 +315,7 @@ export function ZeitnachweisAnsicht({
                       </TableCell>
                       <TableCell className="whitespace-nowrap">{essen.join(", ")}</TableCell>
                       <TableCell className="min-w-48 text-sm">
-                        {t.auswertung.bemerkungen.length > 0 && <div>{t.auswertung.bemerkungen.join(" · ")}</div>}
+                        {bemerkungen.length > 0 && <div>{bemerkungen.join(" · ")}</div>}
                         {hinweise.map((h) => (
                           <div
                             key={h.text}

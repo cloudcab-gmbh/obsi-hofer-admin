@@ -160,4 +160,57 @@ describe("ZeitnachweisAnsicht", () => {
     expect(screen.getByText("Ferien im Monat").parentElement).toHaveTextContent("1 Tag+ 0.5 Tage geplant");
     expect(screen.getByText("Feriensaldo Monatsende").nextSibling).toHaveTextContent("5.5 Tage");
   });
+
+  describe("nurLesen (PROJ-20, Mitarbeiteransicht)", () => {
+    function lesen(e: ZeitnachweisEingabe) {
+      render(
+        <ZeitnachweisAnsicht zeitnachweis={berechneZeitnachweis(e)} personName="Anna" personEmail="anna@x.ch" personHref="/x" nurLesen />
+      );
+    }
+
+    it("offers no editing: no Tag erfassen, no delete, no nachtragen", () => {
+      lesen(
+        eingabe({
+          eintraege: [
+            arbeit("2026-11-02", "06:30", "11:00"),
+            arbeit("2026-11-03", "06:30", null),
+            { ...arbeit("2026-11-04", "00:00", null), id: "ferien", typ: "ferien" },
+          ],
+        })
+      );
+
+      expect(screen.queryAllByRole("button")).toHaveLength(0);
+      expect(zeile("02.11.")).toHaveTextContent("07:30–12:00");
+      // Hinweis bleibt, aber mit Verweis auf SharePoint statt Links
+      expect(screen.getByText(/Bitte in der SharePoint-Zeiterfassung ergänzen: Di 03.11. 07:30/)).toBeInTheDocument();
+      expect(zeile("03.11.")).toHaveTextContent("offen – Gehen fehlt");
+    });
+
+    it("hides the 'aus SharePoint' remark but keeps the own remark", () => {
+      lesen(
+        eingabe({
+          eintraege: [
+            arbeit("2026-11-02", "06:30", "11:00", { bemerkung: "aus SharePoint" }),
+            arbeit("2026-11-03", "06:30", "11:00", { bemerkung: "Kunde X · aus SharePoint" }),
+          ],
+        })
+      );
+
+      expect(zeile("02.11.")).not.toHaveTextContent("SharePoint");
+      expect(zeile("03.11.")).toHaveTextContent("Kunde X");
+      expect(zeile("03.11.")).not.toHaveTextContent("aus SharePoint");
+    });
+
+    it("hides the technical Flow comparisons", () => {
+      lesen(eingabe({ eintraege: [arbeit("2026-11-02", "07:00", "11:00", { tagestotal: 200, monatstotal: 200 })] }));
+      expect(zeile("02.11.")).not.toHaveTextContent("Tagestotal laut App");
+      expect(screen.queryByText(/Monatstotal laut App/)).not.toBeInTheDocument();
+    });
+
+    it("asks to contact HR instead of linking to the person without an Arbeitsmodell", () => {
+      lesen(eingabe({ versionen: [], startsaldoStunden: null, stichtag: null }));
+      expect(screen.queryByRole("link")).not.toBeInTheDocument();
+      expect(screen.getByText("Arbeitsmodell noch nicht erfasst – bitte an die Personalverantwortung wenden.")).toBeInTheDocument();
+    });
+  });
 });
