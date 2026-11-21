@@ -1,6 +1,6 @@
 # PROJ-20: Eigener Zeitnachweis für Mitarbeitende
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -222,7 +222,106 @@ Keine neuen Pakete.
 - **Keine** neuen Umgebungsvariablen, Pakete oder Dataverse-Rechte
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-11-21
+**App URL:** http://localhost:3000 (Branch `proj-20-mein-zeitnachweis`)
+**Tester:** QA Engineer (AI)
+
+### Vorgehen
+- Unit-Tests: 762/762 grün (neu für PROJ-20: erlaubte Monate, Herkunftsvermerk, Nur-Lesen-Ansicht, Proxy mit Rolle Mitarbeiter, Rollenprüfung in Geräte-/Prüfbericht-/Firmenwahl-Aktionen, eigenes PDF); Typprüfung und Lint ohne Fehler
+- E2E (Playwright): 46/46 grün, davon 3 neu (`tests/PROJ-20-eigener-zeitnachweis-mitarbeitende.spec.ts`: `/mein-zeitnachweis` ohne Sitzung → `/login`, auch mit `?monat=` und `?person=`)
+- Code-Review aller Zugriffswege (Seiten, Server Actions, PDF) aus Sicht eines Angreifers mit Rolle Mitarbeiter
+- Sondierung gegen den Dev-Server ohne Sitzung (siehe BUG-2)
+- Browser: Nutzer hat „Mein Zeitnachweis“ mit eigenem Konto (Freigeber + Mitarbeiter) geprüft („sieht gut aus“, leere Spalte „Bemerkung / Hinweise“ ist korrekt, weil nur der Vermerk „aus SharePoint“ vorhanden ist)
+- **Nicht durch QA im Browser geprüft** (Login nicht automatisierbar): Konto mit *nur* Rolle Mitarbeiter, Handy-Ansicht auf einem echten Gerät, Firefox/Safari — siehe „Vor dem Go-live“
+
+### Acceptance Criteria Status
+
+**Zugang und Rollen** — Proxy-Unit-Tests + Code-Review
+- [x] Nur Mitarbeiter → nach dem Login direkt `/mein-zeitnachweis` (aktueller Monat)
+- [x] Keine bekannte Rolle → „Kein Zugang“ (auch beim Aufruf von `/mein-zeitnachweis`)
+- [x] Nur Mitarbeiter → jede andere Seite (Start, Geräte inkl. Detail, Prüfberichte, Sync, Zeiterfassung inkl. Zeitnachweis) leitet auf `/mein-zeitnachweis` um
+- [x] Nur Mitarbeiter → Menü nur „Mein Zeitnachweis“ und Abmelden (Firma/Firmenwechsel ausgeblendet, auch im Handy-Menü)
+- [x] Bearbeiter + Mitarbeiter → Geräte/Prüfberichte wie bisher plus „Mein Zeitnachweis“, Start `/start`
+- [x] Bearbeiter ohne Mitarbeiter → kein Zeitnachweis
+- [x] Freigeber → Zeiterfassung unverändert; „Mein Zeitnachweis“ nur mit zusätzlicher Rolle Mitarbeiter (vom Nutzer im Browser bestätigt)
+
+**Nur eigene Daten**
+- [x] Einträge nur zur Anmelde-E-Mail (klein geschrieben, aus `email`, sonst `preferred_username`/`upn`)
+- [x] `?person=` wird ignoriert; das eigene PDF nimmt keine E-Mail entgegen; das PDF der Freigeber prüft weiterhin „nur Freigeber“
+- [x] Keine Personen-Auswahl in „Mein Zeitnachweis“
+
+**Inhalt (nur lesen)**
+- [x] Gleiche Kennzahlen und Tageswerte wie für Freigeber (eine Berechnung)
+- [x] Kein Tag erfassen, kein Nachtragen, kein Löschen (Unit-Test: keine Schaltflächen in der Ansicht)
+- [x] PDF des eigenen Zeitnachweises (Unit-Test der Aktion: immer eigene Person, Monat begrenzt, Dateiname mit gezeigtem Monat)
+- [x] Fester Hinweis zu Korrekturen in SharePoint
+
+**Hinweise**
+- [x] Tageshinweise sichtbar (offen, Überschneidung, unplausibel, Ferien und Arbeitszeit)
+- [x] Eigene Bemerkung sichtbar
+- [x] Vermerk „aus SharePoint“ ausgeblendet (auch hinter einer eigenen Bemerkung)
+- [x] Monatstotal-Abgleich ausgeblendet (zusätzlich auch der Tagestotal-Abgleich, siehe Implementation Notes)
+
+**Wählbare Monate**
+- [x] Beginn der Auswertung bis aktueller Monat; ausserhalb per URL → nächster erlaubter Monat; Pfeile/Kalender begrenzt
+- [x] Ohne Beginn nur aktueller Monat mit Hinweis an die Personalverantwortung
+- [x] Austritt → bis und mit Austrittsmonat
+
+**Sonderfälle**
+- [x] „nicht auswerten“ → „Für dich wird kein Zeitnachweis geführt“
+- [x] Keine Einträge und kein Personendatensatz → Hinweis mit Anmelde-E-Mail statt leerem Zeitnachweis
+- [x] Dataverse nicht erreichbar → Meldung ohne Personendaten
+
+**Handy**
+- [x] Kennzahlen zwei pro Zeile, Datum und Zeiten bleiben unter 768 px beim seitlichen Wischen stehen, Monatswahl und PDF-Knopf 40 px hoch — per Code-Review; Sichtprüfung auf dem Gerät steht aus
+
+### Edge Cases Status
+- [x] Anmelde-E-Mail mit Grossbuchstaben → klein geschrieben
+- [x] Andere Domain/Alias → Hinweis „keine Zeiteinträge gefunden“
+- [x] Personendatensatz ohne Einträge (Neueintritt) → Zeitnachweis statt „nicht gefunden“
+- [x] Tag ohne Arbeitszeit mit Soll → −Soll wie für Freigeber
+- [x] Freigeber ohne Rolle Mitarbeiter → kein „Mein Zeitnachweis“, Seite zeigt den Rollen-Hinweis
+- [x] Austritt in der Zukunft, Beginn im aktuellen Monat, Beginn in der Zukunft → Unit-Tests
+- [ ] Tage vor dem Stichtag im Startmonat → technischer Hinweis sichtbar (BUG-1)
+
+### Security Audit Results
+- [x] Authentifizierung: `/mein-zeitnachweis` ohne Sitzung → `/login` (E2E)
+- [x] Autorisierung Seiten: Nur-Mitarbeiter erreichen keine andere Seite (Proxy-Unit-Tests)
+- [x] Autorisierung Aktionen: Geräte speichern, Prüfbericht-PDF, Prüfberichte erfassen/bearbeiten/stornieren und Firmen-/Standortwahl prüfen „Bearbeiter oder Freigeber“ (Unit-Tests: ohne Rolle kein Dataverse-Zugriff); Zeiterfassung und Sync prüfen „nur Freigeber“ (unverändert); ohne Prüfung nur reine Cookie-Aktionen (Geräte-Filter, Zeitnachweis-Auswahl, Abmelden)
+- [x] Fremde Daten: keine Eingabe bestimmt die Person (Seite und PDF), Fehlermeldungen ohne Personendaten
+- [x] Keine neuen Geheimnisse, Umgebungsvariablen oder Rechte
+- [ ] Proxy-Matcher lässt Pfade auf `.png`/`.jpg` ungeprüft durch (BUG-2, bestand schon seit PROJ-1)
+
+### Bugs Found
+
+#### BUG-1: Technischer Tageshinweis „vor Startsaldo (Excel-Zeitraum)“ für Mitarbeitende
+- **Severity:** Low
+- **Steps to Reproduce:** Person mit Startsaldo-Stichtag mitten im Monat (z.B. 15.) und Einträgen vor dem Stichtag → „Mein Zeitnachweis“ des Startmonats öffnen
+  - Expected: keine internen Begriffe (die Spec blendet Monate vor dem Beginn ganz aus)
+  - Actual: Tage vor dem Stichtag tragen den Hinweis „vor Startsaldo (Excel-Zeitraum)“ bzw. „vor Arbeitsmodell“
+- **Priority:** Nice to have (z.B. in der Mitarbeiteransicht „zählt noch nicht zur Gleitzeit“)
+
+#### BUG-2: Proxy prüft Pfade auf `.png`/`.jpg` nicht (bestehend seit PROJ-1)
+- **Severity:** Low
+- **Steps to Reproduce:** Ohne Anmeldung `/geraete/<id>.png`, `/pruefberichte/<id>.png` oder `/zeiterfassung/personen/<email>.png` aufrufen
+  - Expected: Umleitung auf `/login`
+  - Actual: Seitenrahmen wird gerendert (Status 200); die Seite selbst zeigt „nicht gefunden“ bzw. „nur für Freigeber“ — **keine Daten**, weil die Endung die ID ungültig macht
+- **Risiko:** Heute keine Datenpreisgabe; Geräte- und Prüfbericht-Seiten verlassen sich aber allein auf den Proxy. Der Matcher sollte nur echte Dateien im Ordner `public/` ausnehmen
+- **Priority:** Fix in next sprint (eigener Fix ausserhalb von PROJ-20 möglich)
+
+### Vor dem Go-live (keine Bugs, offene Prüfungen)
+- Mit einem Konto mit **nur** Rolle Mitarbeiter anmelden: Start auf „Mein Zeitnachweis“, Menü, Umleitung von `/geraete`, PDF
+- Prüfen, dass dieses Konto die E-Mail der SharePoint-Liste liefert (offene Frage der Spec)
+- Ansicht auf einem Handy anschauen
+- Nach dem Deploy einmal neu anmelden (E-Mail wird nur beim Login übernommen)
+
+### Summary
+- **Acceptance Criteria:** 25/25 erfüllt (Handy und Nur-Mitarbeiter-Konto per Code-Review/Unit-Tests, Sichtprüfung offen)
+- **Bugs Found:** 2 total (0 critical, 0 high, 0 medium, 2 low)
+- **Security:** bestanden; BUG-2 ist ein bestehender, derzeit folgenloser Mangel des Proxy-Matchers
+- **Production Ready:** YES — nach den Prüfungen „Vor dem Go-live“
+- **Recommendation:** Deploy nach Test mit einem Nur-Mitarbeiter-Konto; BUG-1 optional vorher, BUG-2 separat beheben
 
 ## Deployment
 _To be added by /deploy_
