@@ -89,8 +89,8 @@ PROJ-20 zeigt Mitarbeitenden ihren Zeitnachweis nur zum Lesen, mit dem Hinweis, 
 - [ ] Reicht die bestehende Power-Automate-/Dataverse-Lizenz für den Flow mit Dataverse-Trigger, „Office 365 Users – Manager abrufen“ und Teams-Karte mit Antwort („Adaptive Karte posten und auf Antwort warten“)? (Nutzer)
 - [x] Wartet der Flow auf den Klick „Erledigt“? → Ja, „Adaptive Karte posten und auf Antwort warten“, höchstens 30 Tage; danach bleibt die Anfrage offen (Tech Design C)
 - [x] Empfänger ohne Manager? → Mitglieder der Entra-Gruppen „Admin-Tool Freigeber“ und „Admin-Tool Bearbeiter“; App-Rollen werden diesen Gruppen zugewiesen (Nutzer-Entscheid 2026-11-21)
-- [ ] Entra-Gruppen anlegen und die App-Rollen Freigeber/Bearbeiter den Gruppen zuweisen (setzt Entra ID P1 voraus) (Nutzer)
-- [ ] Dataverse-Tabelle „Korrektur-Anfrage“ anlegen und dem App-Benutzer Erstellen + Lesen erteilen (Nutzer, vor /backend)
+- [x] Entra-Gruppen anlegen und die App-Rollen Freigeber/Bearbeiter den Gruppen zuweisen → Gruppen angelegt 2026-11-21 (Nutzer)
+- [x] Dataverse-Tabelle „Korrektur-Anfrage“ anlegen und dem App-Benutzer Erstellen + Lesen erteilen → angelegt und geprüft 2026-11-21 (Tech Design B)
 
 ## Decision Log
 
@@ -177,6 +177,8 @@ Neue Dataverse-Tabelle **„Korrektur-Anfrage“**, **vom Nutzer anzulegen** (in
 | Erstellt am | Systemspalte | Zeitpunkt der Anfrage (Anzeige „angefragt 21.11.“) |
 
 Rechte des App-Benutzers (Tool): **Erstellen und Lesen** auf der Tabelle — kein Ändern, kein Löschen. Der Flow läuft mit der Verbindung des Nutzers (Lesen und Ändern).
+
+**Angelegt und geprüft (2026-11-21):** Tabelle `bmvcc_korrekturanfrage` (Entitätsmenge `bmvcc_korrekturanfrages`), Primärspalte `bmvcc_titel`; Spalten `bmvcc_mitarbeiteremail` (E-Mail, 100), `bmvcc_mitarbeitername` (100), `bmvcc_datum` (Nur Datum, zeitzonenunabhängig), `bmvcc_nachricht` (1'000), `bmvcc_bisherigezeiten` (200), `bmvcc_link` (URL, 500), `bmvcc_status` (0 offen / 1 erledigt, Standard offen), `bmvcc_erledigtam` (Datum und Uhrzeit), `bmvcc_erledigtvon` (100). App-Benutzer: Lesen + Erstellen (Organisation). Zusätzlich vorhanden: Verweis `bmvcc_zeitnachweis` auf „Zeiterfassung-Person“ — vom Tool nicht genutzt (bleibt leer; Füllen bräuchte Anfügen-Rechte).
 
 ### C) Flow des Nutzers (Vorschlag, wird nicht im Repo gebaut)
 1. Trigger: Dataverse „Wenn eine Zeile hinzugefügt wird“ auf „Korrektur-Anfrage“
