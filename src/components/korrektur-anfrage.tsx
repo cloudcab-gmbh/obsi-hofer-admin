@@ -125,8 +125,7 @@ export function KorrekturAnfrage({
             <DialogHeader>
               <DialogTitle>Korrektur anfragen</DialogTitle>
               <DialogDescription>
-                Die Anfrage geht an deinen Vorgesetzten. Er korrigiert die Zeiten direkt im Zeitnachweis; die Änderung
-                erscheint hier sofort.
+                Die Anfrage geht an deinen Vorgesetzten. Sobald er die Zeiten korrigiert hat, erscheinen sie hier.
               </DialogDescription>
             </DialogHeader>
             {festesDatum ? (

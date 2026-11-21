@@ -56,7 +56,7 @@ PROJ-20 zeigt Mitarbeitenden ihren Zeitnachweis nur zum Lesen, mit dem Hinweis, 
 **Status im Zeitnachweis**
 - [ ] Angenommen zu einem Tag gibt es eine Anfrage, dann zeigt „Mein Zeitnachweis“ beim Tag „Korrektur angefragt (offen)“ bzw. „Korrektur erledigt“
 - [ ] Angenommen zu einem Tag gibt es mehrere Anfragen, dann zeigt der Tag den Status der neuesten; eine weitere Anfrage zum selben Tag ist jederzeit möglich
-- [ ] Angenommen eine Anfrage ist erledigt, dann zeigt „Mein Zeitnachweis“ die korrigierten Zeiten sofort („erledigt“ heisst korrigiert in Dataverse über den Zeitnachweis im Tool)
+- [ ] Angenommen eine Anfrage ist erledigt, dann zeigt „Mein Zeitnachweis“ die korrigierten Zeiten sofort („erledigt“ heisst korrigiert in Dataverse — bis PROJ-22 direkt in der Tabelle, danach im Zeitnachweis des Tools; Nutzer-Entscheid 2026-11-21: PROJ-20/21 gehen vor PROJ-22 live)
 
 **Freigeber**
 - [ ] Angenommen ein Freigeber öffnet den Zeitnachweis einer Person (PROJ-13), dann steht bei Tagen mit Anfragen in „Bemerkung / Hinweise“ jede Anfrage mit Datum der Anfrage, Status und Nachricht, z.B. „Korrektur angefragt 21.11. (offen): Gehen war 17:30 statt 16:30“
