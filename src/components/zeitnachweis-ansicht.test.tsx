@@ -9,6 +9,7 @@ vi.mock("@/app/(protected)/zeiterfassung/actions", () => ({
   planeFerienAction: vi.fn(),
   loescheAbwesenheitenAction: vi.fn(),
 }));
+vi.mock("@/app/(protected)/mein-zeitnachweis/actions", () => ({ sendeKorrekturAnfrageAction: vi.fn() }));
 import { ZeitnachweisAnsicht } from "./zeitnachweis-ansicht";
 import { berechneZeitnachweis, type ZeitnachweisEingabe } from "@/lib/zeiterfassung/zeitnachweis";
 import type { Zeiteintrag } from "@/lib/zeiterfassung/tagesauswertung";
@@ -211,6 +212,80 @@ describe("ZeitnachweisAnsicht", () => {
       lesen(eingabe({ versionen: [], startsaldoStunden: null, stichtag: null }));
       expect(screen.queryByRole("link")).not.toBeInTheDocument();
       expect(screen.getByText("Arbeitsmodell noch nicht erfasst – bitte an die Personalverantwortung wenden.")).toBeInTheDocument();
+    });
+  });
+
+  describe("Korrektur-Anfragen (PROJ-21)", () => {
+    const anfrage = (id: string, datum: string, status: "offen" | "erledigt", erstelltAm: string, nachricht = "Gehen war 17:30") => ({
+      id,
+      datum,
+      nachricht,
+      status,
+      erstelltAm,
+    });
+
+    it("offers 'Korrektur anfragen' only for days inside the allowed period", () => {
+      render(
+        <ZeitnachweisAnsicht
+          zeitnachweis={berechneZeitnachweis(eingabe({ heute: "2026-11-05" }))}
+          personName="Anna"
+          personEmail="anna@x.ch"
+          personHref="/x"
+          nurLesen
+          anfrageZeitraum={{ von: "2026-11-02", bis: "2026-11-04" }}
+        />
+      );
+      expect(within(zeile("02.11.")).getByRole("button", { name: /Korrektur anfragen für 02.11.2026/ })).toBeInTheDocument();
+      expect(within(zeile("04.11.")).getByRole("button", { name: /Korrektur anfragen/ })).toBeInTheDocument();
+      expect(within(zeile("01.11.")).queryByRole("button")).not.toBeInTheDocument();
+      expect(within(zeile("05.11.")).queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("shows employees only the status of the newest request", () => {
+      render(
+        <ZeitnachweisAnsicht
+          zeitnachweis={berechneZeitnachweis(eingabe())}
+          personName="Anna"
+          personEmail="anna@x.ch"
+          personHref="/x"
+          nurLesen
+          anfragen={{
+            "2026-11-02": [anfrage("2", "2026-11-02", "offen", "2026-11-04T08:00:00Z"), anfrage("1", "2026-11-02", "erledigt", "2026-11-03T08:00:00Z")],
+            "2026-11-03": [anfrage("3", "2026-11-03", "erledigt", "2026-11-04T08:00:00Z")],
+          }}
+        />
+      );
+      expect(zeile("02.11.")).toHaveTextContent("Korrektur angefragt (offen)");
+      expect(zeile("02.11.")).not.toHaveTextContent("Gehen war 17:30");
+      expect(zeile("03.11.")).toHaveTextContent("Korrektur erledigt");
+    });
+
+    it("shows Freigeber every request with date, status and message as plain text", () => {
+      render(
+        <ZeitnachweisAnsicht
+          zeitnachweis={berechneZeitnachweis(eingabe())}
+          personName="Anna"
+          personEmail="anna@x.ch"
+          personHref="/x"
+          anfragen={{
+            "2026-11-02": [
+              anfrage("2", "2026-11-02", "offen", "2026-11-20T23:30:00Z", "<b>fett</b>"),
+              anfrage("1", "2026-11-02", "erledigt", "2026-11-03T08:00:00Z"),
+            ],
+          }}
+        />
+      );
+      // 20.11. 23:30 UTC = 21.11. in der Schweiz
+      expect(zeile("02.11.")).toHaveTextContent("Korrektur angefragt 21.11. (offen): <b>fett</b>");
+      expect(zeile("02.11.")).toHaveTextContent("Korrektur angefragt 03.11. (erledigt): Gehen war 17:30");
+      expect(screen.queryByRole("button", { name: /Korrektur anfragen/ })).not.toBeInTheDocument();
+    });
+
+    it("notes when requests could not be loaded", () => {
+      render(
+        <ZeitnachweisAnsicht zeitnachweis={berechneZeitnachweis(eingabe())} personName="Anna" personEmail="anna@x.ch" personHref="/x" anfragenFehler />
+      );
+      expect(screen.getByText("Korrektur-Anfragen konnten nicht geladen werden.")).toBeInTheDocument();
     });
   });
 });

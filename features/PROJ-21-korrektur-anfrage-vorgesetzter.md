@@ -1,6 +1,6 @@
 # PROJ-21: Korrektur-Anfrage an den Vorgesetzten
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -200,6 +200,14 @@ Rechte des App-Benutzers (Tool): **Erstellen und Lesen** auf der Tabelle — kei
 
 ### E) Abhängigkeiten
 Keine neuen Pakete (Dialog, Textarea, Badge sind als shadcn-Bausteine vorhanden). Keine neuen Umgebungsvariablen.
+
+## Implementation Notes (Frontend, 2026-11-21)
+- **Regeln** (`src/lib/zeiterfassung/korrektur.ts`, 23 Unit-Tests): erlaubter Zeitraum (aktueller/vorheriger Monat bis heute, geschnitten mit den sichtbaren Monaten aus PROJ-20), Tag/Monat anfragbar, Text der bisherigen Zeiten (Paare in Schweizer Zeit, „offen“, Art des Tages, max. 200 Zeichen), Gruppierung pro Tag (neueste zuerst), Prüfung der Nachricht (1–1'000 Zeichen)
+- **Dialog** `KorrekturAnfrage` (`src/components/korrektur-anfrage.tsx`): aus der Tageszeile mit festem Datum (Link unter den Zeiten, auf dem Handy in der stehenbleibenden Spalte), vom Knopf oben mit Datumsfeld (min/max = erlaubte Tage des gewählten Monats); zeigt die bisherigen Zeiten, Zeichenzähler, Senden gesperrt während des Sendens, Fehler im Dialog mit erhaltener Nachricht, danach „Anfrage gesendet — Dein Vorgesetzter erhält sie in Teams.“
+- **Mein Zeitnachweis:** Knopf „Korrektur anfragen“ neben „PDF herunterladen“ ersetzt den Hinweis auf SharePoint; in älteren Monaten der Hinweis „Für ältere Monate bitte direkt an deinen Vorgesetzten wenden.“; pro Tag „Korrektur angefragt (offen)“ bzw. „Korrektur erledigt“ (neueste Anfrage)
+- **Zeitnachweis für Freigeber:** alle Anfragen des Tages mit Anfragedatum (Schweizer Zeit), Status und Nachricht als reiner Text mit Zeilenumbrüchen, ohne Knöpfe
+- **Laden:** `ladeAnfragenDesMonats` (`korrektur-laden.ts`) — ein Fehler zeigt nur „Korrektur-Anfragen konnten nicht geladen werden.“, der Zeitnachweis bleibt
+- **Mitgebaut (Backend-Teil):** Dataverse-Zugriff `src/lib/dataverse/korrekturanfragen.ts` (Lesen pro Person/Zeitraum, Anlegen mit Status offen) und Server-Aktion `sendeKorrekturAnfrageAction(datum, nachricht)` — Person aus der Anmeldung, Frist und bisherige Zeiten auf dem Server, Link = `AUTH_URL` (sonst Vercel-Produktionsadresse) + Zeitnachweis der Person im Monat. Tests der Aktion folgen in /backend
 
 ## QA Test Results
 _To be added by /qa_

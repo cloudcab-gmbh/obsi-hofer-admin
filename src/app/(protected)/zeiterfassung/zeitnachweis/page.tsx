@@ -9,6 +9,8 @@ import { ZeitnachweisAnsicht } from "@/components/zeitnachweis-ansicht";
 import { personHref } from "@/lib/zeiterfassung/links";
 import { NUR_FREIGEBER_HINWEIS, ZeiterfassungHinweis } from "@/components/zeiterfassung-hinweis";
 import { Card, CardContent } from "@/components/ui/card";
+import { ladeAnfragenDesMonats } from "@/lib/zeiterfassung/korrektur-laden";
+import type { KorrekturAnfrage } from "@/lib/zeiterfassung/korrektur";
 
 const TITEL = "Zeiterfassung · Zeitnachweis";
 
@@ -39,6 +41,9 @@ export default async function ZeitnachweisPage({
   let optionen: { id: string; name: string }[] = [];
   let zeitnachweis: Zeitnachweis | null = null;
   let person: { email: string; anzeige: string } | null = null;
+  // PROJ-21: Korrektur-Anfragen der Person (nur lesen).
+  let anfragen: Record<string, KorrekturAnfrage[]> = {};
+  let anfragenFehler = false;
   try {
     // Alle Personen aus PROJ-14 ausser "nicht auswerten".
     const auswertbar = await ladeAuswertbarePersonen(heute);
@@ -48,6 +53,7 @@ export default async function ZeitnachweisPage({
     if (geladen) {
       person = geladen.person;
       zeitnachweis = geladen.zeitnachweis;
+      ({ anfragen, fehler: anfragenFehler } = await ladeAnfragenDesMonats(geladen.person.email, monat));
     }
   } catch {
     // Keine Zeitdaten in der Meldung oder im Log (Technical Requirements).
@@ -77,6 +83,8 @@ export default async function ZeitnachweisPage({
           personName={person.anzeige}
           personEmail={person.email}
           personHref={personHref(person.email)}
+          anfragen={anfragen}
+          anfragenFehler={anfragenFehler}
         />
       ) : (
         <Card>

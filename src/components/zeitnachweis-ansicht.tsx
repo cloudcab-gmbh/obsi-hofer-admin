@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Tageszeile, Zeitnachweis } from "@/lib/zeiterfassung/zeitnachweis";
-import { formatKalenderdatum, formatMonat, wochentagName } from "@/lib/zeiterfassung/datum";
+import { formatKalenderdatum, formatMonat, wochentagName, zuSchweizerDatum } from "@/lib/zeiterfassung/datum";
 import { formatGleitzeitTage, formatMinuten, formatMinutenMitVorzeichen } from "@/lib/zeiterfassung/format";
 import { cn } from "@/lib/utils";
 import { grundText } from "@/lib/zeiterfassung/anzeige";
@@ -12,6 +12,8 @@ import { GehenNachtragen } from "@/components/gehen-nachtragen";
 import { TagErfassen } from "@/components/tag-erfassen";
 import { AbwesenheitLoeschen } from "@/components/abwesenheit-loeschen";
 import { ohneHerkunftsvermerk } from "@/lib/zeiterfassung/mein-zeitnachweis";
+import { bisherigeZeiten, darfAnfragen, type AnfrageZeitraum, type KorrekturAnfrage } from "@/lib/zeiterfassung/korrektur";
+import { KorrekturAnfrage as KorrekturAnfrageDialog } from "@/components/korrektur-anfrage";
 
 function Hinweis({ warnung = false, children }: { warnung?: boolean; children: React.ReactNode }) {
   const Icon = warnung ? AlertTriangle : Info;
@@ -83,6 +85,9 @@ export function ZeitnachweisAnsicht({
   personEmail,
   personHref,
   nurLesen = false,
+  anfragen = {},
+  anfragenFehler = false,
+  anfrageZeitraum = null,
 }: {
   zeitnachweis: Zeitnachweis;
   personName: string;
@@ -96,6 +101,12 @@ export function ZeitnachweisAnsicht({
    * „aus SharePoint“.
    */
   nurLesen?: boolean;
+  /** PROJ-21: Korrektur-Anfragen der Person pro Tag (neueste zuerst). */
+  anfragen?: Record<string, KorrekturAnfrage[]>;
+  /** PROJ-21: Anfragen konnten nicht geladen werden. */
+  anfragenFehler?: boolean;
+  /** PROJ-21 (nur Mitarbeiteransicht): Tage, für die eine Korrektur angefragt werden darf. */
+  anfrageZeitraum?: AnfrageZeitraum | null;
 }) {
   const gleitzeitTitel = z.laufenderMonat ? "Gleitzeit Stand heute" : "Gleitzeit Monatsende";
 
@@ -125,6 +136,7 @@ export function ZeitnachweisAnsicht({
           </Hinweis>
         )}
         {z.keineEintraege && <Hinweis>Keine Zeiteinträge in diesem Monat.</Hinweis>}
+        {anfragenFehler && <Hinweis>Korrektur-Anfragen konnten nicht geladen werden.</Hinweis>}
         {z.offeneTage > 0 && nurLesen && (
           <Hinweis warnung>
             {z.offeneTage === 1 ? "An 1 Tag fehlt" : `An ${z.offeneTage} Tagen fehlt`} ein „Gehen“ — diese Einträge zählen
@@ -269,6 +281,12 @@ export function ZeitnachweisAnsicht({
                               </span>
                             ))}
                         </div>
+                        {/* PROJ-21: Korrektur anfragen (aktueller/vorheriger Monat, bis heute). */}
+                        {nurLesen && darfAnfragen(t.datum, anfrageZeitraum) && (
+                          <div className="mt-0.5">
+                            <KorrekturAnfrageDialog datum={t.datum} zeiten={{ [t.datum]: bisherigeZeiten(t) }} />
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {grund && (
@@ -316,6 +334,21 @@ export function ZeitnachweisAnsicht({
                       <TableCell className="whitespace-nowrap">{essen.join(", ")}</TableCell>
                       <TableCell className="min-w-48 text-sm">
                         {bemerkungen.length > 0 && <div>{bemerkungen.join(" · ")}</div>}
+                        {/* PROJ-21: Mitarbeitende sehen den Status der neuesten Anfrage, Freigeber alle mit Text. */}
+                        {nurLesen && anfragen[t.datum]?.[0] && (
+                          <div className="text-xs font-medium text-primary">
+                            {anfragen[t.datum][0].status === "erledigt" ? "Korrektur erledigt" : "Korrektur angefragt (offen)"}
+                          </div>
+                        )}
+                        {!nurLesen &&
+                          anfragen[t.datum]?.map((a) => (
+                            <div key={a.id} className="whitespace-pre-line text-xs">
+                              <span className="font-medium text-primary">
+                                Korrektur angefragt {a.erstelltAm ? formatKalenderdatum(zuSchweizerDatum(a.erstelltAm) ?? a.erstelltAm.slice(0, 10)).slice(0, 6) : ""} ({a.status}):
+                              </span>{" "}
+                              {a.nachricht}
+                            </div>
+                          ))}
                         {hinweise.map((h) => (
                           <div
                             key={h.text}

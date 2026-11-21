@@ -111,7 +111,7 @@ function zuArbeitsmodell(r: Record<string, unknown>): PersonArbeitsmodell | null
   };
 }
 
-function odataString(wert: string): string {
+export function odataString(wert: string): string {
   return `'${wert.replace(/'/g, "''")}'`;
 }
 
