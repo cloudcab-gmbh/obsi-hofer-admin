@@ -75,3 +75,38 @@ describe("proxy (PROJ-1 Zugriffsprüfung)", () => {
     expect(res).toBeUndefined();
   });
 });
+
+describe("proxy (PROJ-20 Rolle Mitarbeiter)", () => {
+  it("lets a user with only the mitarbeiter role open the own Zeitnachweis", () => {
+    expect(proxy(makeRequest("/mein-zeitnachweis", ["mitarbeiter"]))).toBeUndefined();
+  });
+
+  it.each(["/start", "/geraete", "/geraete/abc", "/pruefberichte", "/sync-freigabe", "/zeiterfassung", "/zeiterfassung/zeitnachweis", "/mein-zeitnachweis-x"])(
+    "redirects a user with only the mitarbeiter role from %s to /mein-zeitnachweis",
+    (pfad) => {
+      const res = proxy(makeRequest(pfad, ["mitarbeiter"]));
+      expect(res?.status).toBe(307);
+      expect(new URL(res!.headers.get("location")!).pathname).toBe("/mein-zeitnachweis");
+    }
+  );
+
+  it.each(["/login", "/kein-zugang"])("sends a user with only the mitarbeiter role from %s to /mein-zeitnachweis", (pfad) => {
+    const res = proxy(makeRequest(pfad, ["mitarbeiter"]));
+    expect(new URL(res!.headers.get("location")!).pathname).toBe("/mein-zeitnachweis");
+  });
+
+  it("keeps Bearbeiter with the mitarbeiter role on all their pages and starts them on /start", () => {
+    expect(proxy(makeRequest("/geraete", ["bearbeiter", "mitarbeiter"]))).toBeUndefined();
+    expect(proxy(makeRequest("/mein-zeitnachweis", ["bearbeiter", "mitarbeiter"]))).toBeUndefined();
+    expect(new URL(proxy(makeRequest("/login", ["bearbeiter", "mitarbeiter"]))!.headers.get("location")!).pathname).toBe("/start");
+  });
+
+  it("keeps Freigeber with the mitarbeiter role on the Zeiterfassung", () => {
+    expect(proxy(makeRequest("/zeiterfassung", ["freigeber", "mitarbeiter"]))).toBeUndefined();
+  });
+
+  it("still sends users without any known role to /kein-zugang", () => {
+    const res = proxy(makeRequest("/mein-zeitnachweis", ["gast"]));
+    expect(res?.headers.get("location")).toContain("/kein-zugang");
+  });
+});

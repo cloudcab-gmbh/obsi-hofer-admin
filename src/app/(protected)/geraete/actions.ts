@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { aktuellerBenutzerIstBearbeiterOderFreigeber, NUR_BEARBEITER_HINWEIS } from "@/lib/auth/freigeber";
 import { revalidatePath } from "next/cache";
 import { listGeraeteForStandorte, updateGeraetStammdaten } from "@/lib/dataverse/geraete";
 import { DataverseError } from "@/lib/dataverse/errors";
@@ -33,6 +34,7 @@ function emptyToNull(value: FormDataEntryValue | null): string | null {
 }
 
 export async function saveGeraetStammdaten(id: string, formData: FormData): Promise<SaveGeraetResult> {
+  if (!(await aktuellerBenutzerIstBearbeiterOderFreigeber())) return { success: false, message: NUR_BEARBEITER_HINWEIS };
   const parsed = stammdatenSchema.safeParse({
     serienummer: emptyToNull(formData.get("serienummer")),
     barcode: emptyToNull(formData.get("barcode")),
@@ -73,6 +75,7 @@ export type GeneratePdfResult =
  * weder Daten fälschen noch Geräte eines anderen Standorts einschleusen.
  */
 export async function generatePdfAction(geraetIds: string[], lagerortFilter: string | null): Promise<GeneratePdfResult> {
+  if (!(await aktuellerBenutzerIstBearbeiterOderFreigeber())) return { success: false, message: NUR_BEARBEITER_HINWEIS };
   try {
     const kontext = await ladeArbeitskontext();
     if (kontext.zustand === "keine-firma") return { success: false, message: "Keine Firma ausgewählt." };

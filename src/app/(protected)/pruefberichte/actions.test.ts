@@ -13,6 +13,12 @@ vi.mock("@/lib/dataverse/pruefberichte", () => ({
   ERGEBNIS_OPTIONEN: ["Freigabe", "keine Freigabe", "letzte Freigabe"],
 }));
 vi.mock("@/auth", () => ({ auth: () => authMock() }));
+// PROJ-20: Rollenprüfung „Bearbeiter oder Freigeber“ steuerbar (ohne echtes Auth.js).
+const rolleOk = vi.fn(() => true);
+vi.mock("@/lib/auth/freigeber", () => ({
+  aktuellerBenutzerIstBearbeiterOderFreigeber: async () => rolleOk(),
+  NUR_BEARBEITER_HINWEIS: "Nur für Benutzer mit der Rolle „Bearbeiter“ oder „Freigeber“.",
+}));
 vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => revalidatePath(...args) }));
 
 import { createPruefberichtAction, stornierePruefberichtAction, updatePruefberichtAction } from "./actions";
@@ -33,6 +39,25 @@ beforeEach(() => {
   stornierePruefbericht.mockReset();
   authMock.mockReset();
   revalidatePath.mockReset();
+  rolleOk.mockReset();
+  rolleOk.mockReturnValue(true);
+});
+
+describe("Rollenprüfung (PROJ-20)", () => {
+  it("rejects all Prüfbericht actions without Bearbeiter/Freigeber role, without touching Dataverse", async () => {
+    rolleOk.mockReturnValue(false);
+    const form = formDataWith({ pruefdatum: "2026-11-21", ergebnis: "Freigabe", bemerkungen: "" });
+    for (const result of [
+      await createPruefberichtAction(GERAET_ID, form),
+      await updatePruefberichtAction(BERICHT_ID, form),
+      await stornierePruefberichtAction(BERICHT_ID),
+    ]) {
+      expect(result).toEqual({ success: false, message: expect.stringContaining("Bearbeiter") });
+    }
+    expect(createPruefbericht).not.toHaveBeenCalled();
+    expect(updatePruefbericht).not.toHaveBeenCalled();
+    expect(stornierePruefbericht).not.toHaveBeenCalled();
+  });
 });
 
 describe("createPruefberichtAction", () => {

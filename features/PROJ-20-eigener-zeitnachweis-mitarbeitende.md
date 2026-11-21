@@ -212,7 +212,14 @@ Keine neuen Pakete.
 - **Monatswahl:** `MeinZeitnachweisMonat` mit Grenzen (Pfeile/Kalender deaktiviert ausserhalb); die Monatswahl wird nicht pro Sitzung gemerkt, sie steht nur in der Adresse (einfacher, Startmonat ist immer der aktuelle)
 - **PDF:** `erzeugeEigenesZeitnachweisPdfAction(monat)` ohne E-Mail-Parameter; „Erstellt von“ = angemeldete Person
 - **Menü:** „Mein Zeitnachweis“ mit Rolle Mitarbeiter; Geräte, Prüfberichte und Firmenwahl nur für Bearbeiter/Freigeber
-- **Noch offen (Backend):** Proxy (Rolle Mitarbeiter zulassen, Nur-Mitarbeiter auf `/mein-zeitnachweis` umleiten, Startseite), E-Mail aus dem Konto mit Fallback auf den Anmeldenamen in der Sitzung, Rollenprüfung in den Aktionen für Geräte, Prüfberichte und Firmen-/Standortwahl
+
+## Implementation Notes (Backend, 2026-11-21)
+- **Zugriffsschutz (`src/proxy.ts`):** Rolle `mitarbeiter` kommt ins Tool. Wer *nur* Mitarbeiter ist, wird von jeder Seite ausser `/mein-zeitnachweis` dorthin umgeleitet (auch von `/login`, `/kein-zugang`, `/start`); Bearbeiter/Freigeber unverändert mit Startseite `/start`, auch wenn sie zusätzlich Mitarbeiter sind
+- **E-Mail in der Sitzung (`src/auth.ts`):** beim Login aus dem Claim `email`, sonst `preferred_username` bzw. `upn` (nur Werte mit „@“), klein geschrieben; wie die Rollen nur beim Login gesetzt → nach dem Deploy einmal neu anmelden
+- **Rollenprüfung in den Aktionen:** `aktuellerBenutzerIstBearbeiterOderFreigeber` (`src/lib/auth/freigeber.ts`) in Geräte speichern, Prüfbericht-PDF, Prüfbericht erfassen/bearbeiten/stornieren sowie Firmen- und Standortwahl (`firma-session.ts`). Unverändert ohne Prüfung: reine Cookie-Aktionen ohne Dataverse-Zugriff (Geräte-Filter, Zeitnachweis-Auswahl, Abmelden). Zeiterfassung und Sync prüfen bereits „nur Freigeber“
+- **Eigenes PDF:** `erzeugeEigenesZeitnachweisPdfAction(monat)` — Rolle Mitarbeiter, E-Mail aus der Sitzung, Monat wie auf der Seite begrenzt (Dateiname mit dem tatsächlich gezeigten Monat), keine Personendaten in Fehlermeldungen
+- **Tests:** Proxy (Mitarbeiter allein, kombiniert mit Bearbeiter/Freigeber, unbekannte Rolle), Rollenprüfung in Geräte-, Prüfbericht- und Firmenwahl-Aktionen, eigenes PDF (ohne Rolle, ohne E-Mail, ungültiger Monat, immer eigene Person, keine Details im Fehler). 762 Unit-Tests grün
+- **Keine** neuen Umgebungsvariablen, Pakete oder Dataverse-Rechte
 
 ## QA Test Results
 _To be added by /qa_

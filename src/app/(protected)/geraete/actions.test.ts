@@ -30,6 +30,12 @@ vi.mock("@/lib/pruefbericht-export/export", () => {
 vi.mock("next/cache", () => ({
   revalidatePath: (...args: unknown[]) => revalidatePath(...args),
 }));
+// PROJ-20: Rollenprüfung „Bearbeiter oder Freigeber“ steuerbar (ohne echtes Auth.js).
+const rolleOk = vi.fn(() => true);
+vi.mock("@/lib/auth/freigeber", () => ({
+  aktuellerBenutzerIstBearbeiterOderFreigeber: async () => rolleOk(),
+  NUR_BEARBEITER_HINWEIS: "Nur für Benutzer mit der Rolle „Bearbeiter“ oder „Freigeber“.",
+}));
 
 import { saveGeraetStammdaten, generatePdfAction } from "./actions";
 import { DataverseError } from "@/lib/dataverse/errors";
@@ -37,6 +43,19 @@ import { ExportFehler } from "@/lib/pruefbericht-export/export";
 import { SignaturFehler } from "@/lib/pdf-signatur/konfiguration";
 
 const GERAET_ID = "44444444-4444-4444-4444-444444444444";
+
+describe("Rollenprüfung (PROJ-20)", () => {
+  it("rejects saving and PDF export without Bearbeiter/Freigeber role, without touching Dataverse", async () => {
+    rolleOk.mockReturnValueOnce(false).mockReturnValueOnce(false);
+    const form = new FormData();
+    form.set("serienummer", "X");
+    expect(await saveGeraetStammdaten(GERAET_ID, form)).toEqual({ success: false, message: expect.stringContaining("Bearbeiter") });
+    expect(await generatePdfAction([GERAET_ID], null)).toEqual({ success: false, message: expect.stringContaining("Bearbeiter") });
+    expect(updateGeraetStammdaten).not.toHaveBeenCalled();
+    expect(ladeArbeitskontext).not.toHaveBeenCalled();
+    expect(listGeraeteForStandorte).not.toHaveBeenCalled();
+  });
+});
 
 function formDataWith(fields: Record<string, string>): FormData {
   const formData = new FormData();

@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
+import { aktuellerBenutzerIstBearbeiterOderFreigeber, NUR_BEARBEITER_HINWEIS } from "@/lib/auth/freigeber";
 import { createPruefbericht, updatePruefbericht, stornierePruefbericht, ERGEBNIS_OPTIONEN } from "@/lib/dataverse/pruefberichte";
 import { computePrueferKuerzel } from "@/lib/pruefer-kuerzel";
 import { DataverseError } from "@/lib/dataverse/errors";
@@ -32,6 +33,7 @@ export async function createPruefberichtAction(
   geraetId: string,
   formData: FormData
 ): Promise<PruefberichtActionResult> {
+  if (!(await aktuellerBenutzerIstBearbeiterOderFreigeber())) return { success: false, message: NUR_BEARBEITER_HINWEIS };
   const parsed = parsePruefberichtFormData(formData);
   if (!parsed.success) {
     return { success: false, message: parsed.error.issues[0]?.message ?? "Ungültige Eingabe." };
@@ -53,6 +55,7 @@ export async function createPruefberichtAction(
 }
 
 export async function updatePruefberichtAction(id: string, formData: FormData): Promise<PruefberichtActionResult> {
+  if (!(await aktuellerBenutzerIstBearbeiterOderFreigeber())) return { success: false, message: NUR_BEARBEITER_HINWEIS };
   const parsed = parsePruefberichtFormData(formData);
   if (!parsed.success) {
     return { success: false, message: parsed.error.issues[0]?.message ?? "Ungültige Eingabe." };
@@ -73,6 +76,7 @@ export async function updatePruefberichtAction(id: string, formData: FormData): 
 }
 
 export async function stornierePruefberichtAction(id: string): Promise<PruefberichtActionResult> {
+  if (!(await aktuellerBenutzerIstBearbeiterOderFreigeber())) return { success: false, message: NUR_BEARBEITER_HINWEIS };
   let geraetId: string;
   try {
     ({ geraetId } = await stornierePruefbericht(id));

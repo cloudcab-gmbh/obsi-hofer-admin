@@ -18,11 +18,17 @@ import { auth } from "@/auth";
 //    anderen Namens-Stolperstein in einer älteren Next.js-16-Version) — bei
 //    proxy.ts an derselben Stelle im Root wird die Datei komplett ignoriert,
 //    ohne jede Fehlermeldung oder Warnung.
+const MEIN_ZEITNACHWEIS = "/mein-zeitnachweis";
+
 export default auth((request) => {
   const { pathname } = request.nextUrl;
   const isLoggedIn = !!request.auth;
   const roles = request.auth?.user?.roles ?? [];
-  const hatZugang = roles.includes("bearbeiter") || roles.includes("freigeber");
+  const istBearbeiterOderFreigeber = roles.includes("bearbeiter") || roles.includes("freigeber");
+  // PROJ-20: Wer nur die Rolle Mitarbeiter hat, sieht ausschliesslich den eigenen Zeitnachweis.
+  const nurMitarbeiter = !istBearbeiterOderFreigeber && roles.includes("mitarbeiter");
+  const hatZugang = istBearbeiterOderFreigeber || nurMitarbeiter;
+  const startseite = nurMitarbeiter ? MEIN_ZEITNACHWEIS : "/start";
 
   const isPublicPath = pathname === "/login" || pathname === "/kein-zugang";
 
@@ -35,7 +41,11 @@ export default auth((request) => {
   }
 
   if (isLoggedIn && hatZugang && (pathname === "/login" || pathname === "/kein-zugang")) {
-    return NextResponse.redirect(new URL("/start", request.nextUrl));
+    return NextResponse.redirect(new URL(startseite, request.nextUrl));
+  }
+
+  if (nurMitarbeiter && pathname !== MEIN_ZEITNACHWEIS && !pathname.startsWith(`${MEIN_ZEITNACHWEIS}/`)) {
+    return NextResponse.redirect(new URL(MEIN_ZEITNACHWEIS, request.nextUrl));
   }
 });
 

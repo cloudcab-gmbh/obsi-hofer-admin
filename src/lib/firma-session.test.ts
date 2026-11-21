@@ -14,6 +14,13 @@ vi.mock("./dataverse/geraete", async (importOriginal) => ({
   listStandorteForFirma: (...args: unknown[]) => listStandorteForFirma(...args),
 }));
 
+// PROJ-20: Rollenprüfung „Bearbeiter oder Freigeber“ steuerbar (ohne echtes Auth.js).
+const rolleOk = vi.fn(() => true);
+vi.mock("./auth/freigeber", () => ({
+  aktuellerBenutzerIstBearbeiterOderFreigeber: async () => rolleOk(),
+  NUR_BEARBEITER_HINWEIS: "Nur für Benutzer mit der Rolle „Bearbeiter“ oder „Freigeber“.",
+}));
+
 import { getCurrentFirmaId, getCurrentStandortId, setCurrentFirmaId, setCurrentStandortId } from "./firma-session";
 
 /** Cookie-Store mit festen Werten pro Name. */
@@ -28,6 +35,7 @@ beforeEach(() => {
   del.mockReset();
   listStandorteForFirma.mockReset();
   listStandorteForFirma.mockResolvedValue([standort("s1"), standort("s2")]);
+  rolleOk.mockReturnValue(true);
 });
 
 describe("getCurrentFirmaId", () => {
@@ -159,5 +167,18 @@ describe("setCurrentStandortId (PROJ-10)", () => {
 
     await setCurrentStandortId("s2");
     expect(del).toHaveBeenCalledWith("geraete_filter");
+  });
+});
+
+describe("Rollenprüfung (PROJ-20)", () => {
+  it("ignores Firmen- und Standortwahl without Bearbeiter/Freigeber role", async () => {
+    rolleOk.mockReturnValue(false);
+    cookiesMit({ aktuelle_firma_id: "firma-1" });
+
+    expect(await setCurrentFirmaId("firma-2")).toEqual({ standortWaehlen: true });
+    expect(await setCurrentStandortId("s1")).toEqual({ ok: false });
+    expect(set).not.toHaveBeenCalled();
+    expect(del).not.toHaveBeenCalled();
+    expect(listStandorteForFirma).not.toHaveBeenCalled();
   });
 });

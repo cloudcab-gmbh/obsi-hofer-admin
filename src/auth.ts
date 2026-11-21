@@ -22,10 +22,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (profile && "roles" in profile) {
         token.roles = (profile.roles as string[] | undefined) ?? [];
       }
+      // PROJ-20: E-Mail für „Mein Zeitnachweis“ — Claim "email", sonst der
+      // Anmeldename (UPN). Nur beim Login gesetzt, wie die Rollen.
+      if (profile) {
+        const email = [profile.email, profile.preferred_username, (profile as { upn?: unknown }).upn].find(
+          (wert): wert is string => typeof wert === "string" && wert.includes("@")
+        );
+        if (email) token.email = email.toLowerCase();
+      }
       return token;
     },
     async session({ session, token }) {
       session.user.roles = (token.roles as string[] | undefined) ?? [];
+      if (typeof token.email === "string") session.user.email = token.email;
       return session;
     },
   },

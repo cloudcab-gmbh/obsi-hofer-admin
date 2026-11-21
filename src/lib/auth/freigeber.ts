@@ -15,6 +15,22 @@ export async function aktuellerBenutzerIstFreigeber(): Promise<boolean> {
 }
 
 /**
+ * PROJ-20: Seit der Rolle „Mitarbeiter“ kommen auch Personen ins Tool, die
+ * Geräte und Prüfberichte nicht sehen dürfen. Server Actions sind unabhängig
+ * von der Seite aufrufbar — deshalb prüfen die Aktionen dieser Bereiche selbst.
+ */
+export function istBearbeiterOderFreigeber(session: Session | null): boolean {
+  const roles = session?.user?.roles ?? [];
+  return roles.includes("bearbeiter") || roles.includes("freigeber");
+}
+
+export async function aktuellerBenutzerIstBearbeiterOderFreigeber(): Promise<boolean> {
+  return istBearbeiterOderFreigeber(await auth());
+}
+
+export const NUR_BEARBEITER_HINWEIS = "Nur für Benutzer mit der Rolle „Bearbeiter“ oder „Freigeber“.";
+
+/**
  * PROJ-6: Name des eingeloggten Freigebers (für "Ausgelöst von" im
  * Sync-Verlauf), oder `null`, wenn der Benutzer kein Freigeber ist — eine
  * Abfrage für Prüfung und Name zugleich.

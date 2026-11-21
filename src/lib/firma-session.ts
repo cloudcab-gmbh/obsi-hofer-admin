@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { aktuellerBenutzerIstBearbeiterOderFreigeber } from "./auth/freigeber";
 import { listStandorteForFirma } from "./dataverse/geraete";
 import { clearGeraeteFilterState } from "./geraete-filter-session";
 
@@ -45,6 +46,8 @@ export async function getCurrentStandortId(): Promise<string | null> {
  * Standorte nicht geladen werden konnten (die Startseite zeigt dann den Fehler).
  */
 export async function setCurrentFirmaId(firmaId: string): Promise<{ standortWaehlen: boolean }> {
+  // PROJ-20: Firmenwahl (lädt Standorte aus Dataverse) nur für Bearbeiter und Freigeber.
+  if (!(await aktuellerBenutzerIstBearbeiterOderFreigeber())) return { standortWaehlen: true };
   const store = await cookies();
   // Nutzerwunsch 2026-10-06: Filter der Geräteliste gelten nur für die Firma,
   // für die sie gesetzt wurden (Lagerorte/Standorte sind firmenspezifisch).
@@ -74,6 +77,7 @@ export async function setCurrentFirmaId(firmaId: string): Promise<{ standortWaeh
  * Ein Wechsel setzt die Geräte-Filter zurück (Lagerorte sind standortspezifisch).
  */
 export async function setCurrentStandortId(standortId: string): Promise<{ ok: boolean }> {
+  if (!(await aktuellerBenutzerIstBearbeiterOderFreigeber())) return { ok: false };
   const store = await cookies();
   const firmaId = store.get(COOKIE_NAME)?.value;
   if (!firmaId) return { ok: false };
