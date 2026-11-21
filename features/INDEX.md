@@ -35,10 +35,11 @@
 | PROJ-18 | Feiertage im Tool pflegen | Deployed | [Spec](../features/PROJ-18-feiertage-pflegen.md) | 2026-10-27 |
 | PROJ-19 | Import der SharePoint-Zeiterfassung | Deployed | [Spec](../features/PROJ-19-import-sharepoint-zeiterfassung.md) | 2026-11-09 |
 | PROJ-20 | Eigener Zeitnachweis für Mitarbeitende | Approved | [Spec](../features/PROJ-20-eigener-zeitnachweis-mitarbeitende.md) | 2026-11-21 |
+| PROJ-21 | Korrektur-Anfrage an den Vorgesetzten | Planned | [Spec](../features/PROJ-21-korrektur-anfrage-vorgesetzter.md) | 2026-11-21 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-21
+## Next Available ID: PROJ-22
 
 ## Dependencies (für /write-spec)
 - PROJ-1: None
@@ -61,6 +62,7 @@
 - PROJ-18: Requires PROJ-1, PROJ-13; betrifft PROJ-15, PROJ-17 — Dataverse: Tabellen "Feiertagsjahr" und "Feiertag" (vom Nutzer anzulegen, siehe Tech Design)
 - PROJ-19: Requires PROJ-2, PROJ-13; betrifft PROJ-14, PROJ-15, PROJ-17 — Dataverse: Erstellen und Löschen auf `bmvcc_timetrackingentry` (vorhanden, vor dem Lauf prüfen); extern: Tagestotal-Flow während des Imports aus, danach übernimmt ein Flow des Nutzers neue/geänderte SharePoint-Einträge
 - PROJ-20: Requires PROJ-1 (Login/Rollen), PROJ-13 (Zeitnachweis); optional PROJ-16 (PDF); betrifft PROJ-14, PROJ-15 — extern: App-Rolle „Mitarbeiter“ in Entra ID anlegen und zuweisen (Nutzer)
+- PROJ-21: Requires PROJ-20 (Mein Zeitnachweis), PROJ-13 (Anzeige für Freigeber) — Dataverse: neue Tabelle für Korrektur-Anfragen (vom Nutzer anzulegen, Form in /architecture); extern: Power-Automate-Flow des Nutzers (Manager aus Entra ID, Teams-Karte mit „Erledigt“). PROJ-20 geht erst zusammen mit PROJ-21 live (Nutzer-Entscheid 2026-11-21)
 
 ## Empfohlene Baureihenfolge
 1. PROJ-1 und PROJ-2 parallel (beide unabhängig, beide Grundlage für alles Weitere)
@@ -74,3 +76,4 @@
 9. Zeiterfassung: PROJ-14 (Arbeitsmodell) → PROJ-13 (Zeitnachweis) → PROJ-15 (Ferien) → PROJ-17 (Übersicht, vom Nutzer vorgezogen) → PROJ-16 (PDF). Nutzer-Vorgabe 2026-10-26: erst alles lokal testen, kein Deploy vorher
 10. PROJ-19 (Import der SharePoint-Zeiterfassung) — Erstbefüllung von Dataverse aus der weiterlaufenden SharePoint-Liste
 11. PROJ-20 (Eigener Zeitnachweis für Mitarbeitende) — nur lesen, Zugang über neue Entra-Rolle „Mitarbeiter“
+12. PROJ-21 (Korrektur-Anfrage an den Vorgesetzten) — vor dem Go-live von PROJ-20; beide gemeinsam deployen
