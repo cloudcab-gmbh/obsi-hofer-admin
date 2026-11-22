@@ -36,7 +36,7 @@
 | PROJ-19 | Import der SharePoint-Zeiterfassung | Deployed | [Spec](../features/PROJ-19-import-sharepoint-zeiterfassung.md) | 2026-11-09 |
 | PROJ-20 | Eigener Zeitnachweis für Mitarbeitende | Deployed | [Spec](../features/PROJ-20-eigener-zeitnachweis-mitarbeitende.md) | 2026-11-21 |
 | PROJ-21 | Korrektur-Anfrage an den Vorgesetzten | Deployed | [Spec](../features/PROJ-21-korrektur-anfrage-vorgesetzter.md) | 2026-11-21 |
-| PROJ-22 | Arbeitszeiten im Zeitnachweis ändern und löschen | Architected | [Spec](../features/PROJ-22-arbeitszeiten-aendern-und-loeschen.md) | 2026-11-21 |
+| PROJ-22 | Arbeitszeiten im Zeitnachweis ändern und löschen | In Progress | [Spec](../features/PROJ-22-arbeitszeiten-aendern-und-loeschen.md) | 2026-11-21 |
 
 <!-- Add features above this line -->
 

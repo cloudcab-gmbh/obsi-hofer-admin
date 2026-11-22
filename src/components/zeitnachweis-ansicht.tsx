@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Info, X } from "lucide-react";
+import { AlertTriangle, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -7,8 +7,8 @@ import type { Tageszeile, Zeitnachweis } from "@/lib/zeiterfassung/zeitnachweis"
 import { formatKalenderdatum, formatMonat, wochentagName, zuSchweizerDatum } from "@/lib/zeiterfassung/datum";
 import { formatGleitzeitTage, formatMinuten, formatMinutenMitVorzeichen } from "@/lib/zeiterfassung/format";
 import { cn } from "@/lib/utils";
-import { grundText } from "@/lib/zeiterfassung/anzeige";
-import { GehenNachtragen } from "@/components/gehen-nachtragen";
+import { grundText, korrekturTexte } from "@/lib/zeiterfassung/anzeige";
+import { EintragBearbeiten } from "@/components/eintrag-bearbeiten";
 import { TagErfassen } from "@/components/tag-erfassen";
 import { AbwesenheitLoeschen } from "@/components/abwesenheit-loeschen";
 import { ohneHerkunftsvermerk } from "@/lib/zeiterfassung/mein-zeitnachweis";
@@ -153,9 +153,16 @@ export function ZeitnachweisAnsicht({
             {z.offeneEintraege.map((o, i) => (
               <span key={o.eintragId}>
                 {i > 0 && ", "}
-                <GehenNachtragen eintragId={o.eintragId} datum={o.datum} kommen={o.kommen} personName={personName}>
+                <EintragBearbeiten
+                  eintragId={o.eintragId}
+                  datum={o.datum}
+                  kommen={o.kommen}
+                  gehen={null}
+                  bemerkung={o.bemerkung}
+                  personName={personName}
+                >
                   {wochentagName(o.datum).slice(0, 2)} {formatKalenderdatum(o.datum).slice(0, 6)} {o.kommen}
-                </GehenNachtragen>
+                </EintragBearbeiten>
               </span>
             ))}
           </Hinweis>
@@ -254,30 +261,41 @@ export function ZeitnachweisAnsicht({
                       <TableCell className={cn("whitespace-nowrap tabular-nums", ZEITEN_SPALTE, stehendBg)}>
                         {/* Nutzerwunsch 2026-11-13: höchstens zwei Einträge pro Zeile, weitere darunter. */}
                         <div className="grid grid-cols-[auto_auto] justify-start gap-y-0.5">
-                          {t.auswertung.paare.map((p, i) => (
-                              <span key={p.eintragId} className={cn(p.unplausibel && "text-destructive line-through")}>
-                                {i % 2 === 1 && ", "}
+                          {t.auswertung.paare.map((p, i) => {
+                            const text = (
+                              <>
                                 {p.kommen}–{p.gehen ?? "…"}
                                 {p.folgetag && " (+1)"}
-                                {/* Nutzerwunsch 2026-10-27: einzelnen Eintrag löschen. */}
-                                {!nurLesen && (
-                                  <span className="ml-1 inline-flex align-middle">
-                                    <AbwesenheitLoeschen
-                                      eintragIds={[p.eintragId]}
-                                      beschreibung={`Der Eintrag ${p.kommen}–${p.gehen ?? "(offen)"} vom ${formatKalenderdatum(t.datum)}`}
-                                      label={<X className="h-3 w-3" aria-hidden />}
-                                      ariaLabel={`Eintrag ${p.kommen}–${p.gehen ?? "offen"} löschen`}
-                                    />
-                                  </span>
+                              </>
+                            );
+                            return (
+                              <span key={p.eintragId} className={cn(p.unplausibel && "text-destructive line-through")}>
+                                {i % 2 === 1 && ", "}
+                                {/* PROJ-22: Zeitpaar anklicken → ändern oder löschen. */}
+                                {nurLesen ? (
+                                  text
+                                ) : (
+                                  <EintragBearbeiten
+                                    eintragId={p.eintragId}
+                                    datum={t.datum}
+                                    kommen={p.kommen}
+                                    gehen={p.gehen}
+                                    folgetag={p.folgetag}
+                                    bemerkung={p.bemerkung}
+                                    personName={personName}
+                                  >
+                                    {text}
+                                  </EintragBearbeiten>
                                 )}
-                                {!nurLesen && p.gehen === null && !t.zukunft && (
-                                  <>
-                                    {" "}
-                                    <GehenNachtragen eintragId={p.eintragId} datum={t.datum} kommen={p.kommen} personName={personName}>
-                                      nachtragen
-                                    </GehenNachtragen>
-                                  </>
-                                )}
+                              </span>
+                            );
+                          })}
+                          {/* PROJ-22: im Tool gelöschte Einträge (nur Freigeber), zählen nicht. */}
+                          {!nurLesen &&
+                            t.auswertung.geloeschte.map((g, i) => (
+                              <span key={g.eintragId} className="text-muted-foreground">
+                                {(t.auswertung.paare.length + i) % 2 === 1 && ", "}
+                                <s aria-label={`gelöscht: ${g.text}`}>{g.text}</s>
                               </span>
                             ))}
                         </div>
@@ -334,6 +352,12 @@ export function ZeitnachweisAnsicht({
                       <TableCell className="whitespace-nowrap">{essen.join(", ")}</TableCell>
                       <TableCell className="min-w-48 text-sm">
                         {bemerkungen.length > 0 && <div>{bemerkungen.join(" · ")}</div>}
+                        {/* PROJ-22: Markierung der Korrekturen im Tool. */}
+                        {korrekturTexte(t.auswertung, nurLesen).map((text) => (
+                          <div key={text} className="text-xs font-medium text-primary">
+                            {text}
+                          </div>
+                        ))}
                         {/* PROJ-21: Mitarbeitende sehen den Status der neuesten Anfrage, Freigeber alle mit Text. */}
                         {nurLesen && anfragen[t.datum]?.[0] && (
                           <div className="text-xs font-medium text-primary">

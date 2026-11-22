@@ -2,7 +2,7 @@ import type { Content, TableCell, TDocumentDefinitions } from "pdfmake/interface
 import { formatKalenderdatum, formatMonat, tageDesMonats, wochentagName } from "./datum";
 import { formatGleitzeitTage, formatMinuten, formatMinutenMitVorzeichen } from "./format";
 import { formatArbeitstage, formatPensum, sortiereVersionen, type ArbeitsmodellVersion } from "./soll";
-import { artTexte } from "./anzeige";
+import { artTexte, korrekturTexte } from "./anzeige";
 import type { Tageszeile, Zeitnachweis } from "./zeitnachweis";
 
 // PROJ-16: Druckansicht des Zeitnachweises (rein, ohne Datenzugriff). Gleiche
@@ -64,7 +64,8 @@ function tageszeile(t: Tageszeile): TableCell[] {
     }),
     zelle(t.saldoMinuten !== null ? formatMinutenMitVorzeichen(t.saldoMinuten) : "", { alignment: "right" }),
     zelle([t.auswertung.mittagessen && "Mittag", t.auswertung.abendessen && "Abend"].filter(Boolean).join(", ")),
-    zelle(t.auswertung.bemerkungen.join(" · ")),
+    // PROJ-22: korrigierte Einträge nur mit „korrigiert“ (ohne Namen).
+    zelle([...t.auswertung.bemerkungen, ...korrekturTexte(t.auswertung, true)].join(" · ")),
   ];
   return hinterlegt ? zellen.map((z) => ({ ...(z as object), fillColor: hinterlegt }) as TableCell) : zellen;
 }

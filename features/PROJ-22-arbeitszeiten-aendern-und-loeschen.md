@@ -1,6 +1,6 @@
 # PROJ-22: Arbeitszeiten im Zeitnachweis ändern und löschen
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-22
 
@@ -204,6 +204,46 @@ Keine neuen Pakete.
 1. ~~Die vier Spalten in `bmvcc_timetrackingentry` anlegen~~ — erledigt und geprüft 2026-11-22 (siehe B).
 2. App-Benutzer: Schreiben und Löschen auf `bmvcc_timetrackingentry` (sind vorhanden seit PROJ-13/19, beim Bau prüfen).
 3. Die SharePoint-Flows anpassen (E), am besten vor dem Go-live. Bis dahin können Korrekturen beim nächsten Ändern der SharePoint-Zeile überschrieben werden.
+
+## Implementation Notes (Frontend, 2026-11-22)
+Branch `proj-22-eintraege-bearbeiten`. Die Server-Aktionen sind mitgebaut. Ihre Tests folgen in /backend.
+
+- **Dialog** `EintragBearbeiten` (`src/components/eintrag-bearbeiten.tsx`):
+  - Auslöser ist das Zeitpaar selbst (gepunktet unterstrichen, Bildschirmleser: „Eintrag 07:30–16:30 vom 02.11.2026 bearbeiten“).
+  - Felder: Kommen, Gehen (optional nur bei offenem Eintrag), Bemerkung (max. 500).
+  - „Löschen“ wechselt im selben Dialog zu einer Bestätigung („Eintrag löschen?“). Es gibt keinen zweiten, verschachtelten Dialog, das ist auf dem Handy stabiler.
+  - Bei einem Eintrag über Mitternacht weist der Dialog darauf hin, dass Gehen beim Speichern am selben Tag gilt.
+  - Fehler erscheinen im Dialog, die Eingaben bleiben erhalten. Doppelklick-Schutz.
+- **Zeitnachweis** (`zeitnachweis-ansicht.tsx`):
+  - Jedes Zeitpaar öffnet den Dialog, auch die offenen Einträge im Hinweis oben.
+  - Das × an Zeitpaaren und „nachtragen“ entfallen.
+  - Das × bei Abwesenheiten bleibt; der Bestätigungstext lautet jetzt „… wird gelöscht und zählt danach nicht mehr“.
+  - Gelöschte Einträge stehen durchgestrichen und grau in der Spalte „Zeiten“ (nur Freigeber, nicht anklickbar).
+  - Markierungen in „Bemerkung / Hinweise“:
+    - für Freigeber z.B. „korrigiert 21.11. von Robert Bienz (vorher 07:30–16:30)“ bzw. „17:00–19:00 gelöscht 21.11. von Robert Bienz“. Abweichend vom Spec-Beispiel steht beim Löschen das Zeitpaar dabei, damit klar ist, welcher Eintrag gemeint ist.
+    - für Mitarbeitende nur „korrigiert“.
+- **PDF:** In der Spalte Bemerkung steht bei korrigierten Einträgen „korrigiert“ (ohne Namen). Gelöschte Einträge fehlen.
+- **Rechnen:**
+  - `werteTagAus` trennt gelöschte Einträge ab: Sie zählen nicht und werden in `geloeschte` nur zur Anzeige mitgegeben.
+  - Ferientage und Feriensaldo rechnen nur mit nicht gelöschten Einträgen.
+  - Der Abgleich mit dem Flow-Total entfällt an Tagen bzw. in Monaten mit gelöschtem Eintrag.
+- **Dataverse** (`src/lib/dataverse/zeiterfassung.ts`):
+  - Folgende Abfragen lassen gelöschte Einträge standardmässig weg (`bmvcc_imtoolgeloscht ne true`): `listZeiteintraege`, `listFerienUndKrankheit`, `listZeiterfassungEmails` (`$apply=filter(…)/groupby`, gegen Dataverse geprüft) und `ersterZeiteintrag`.
+  - Option `mitGeloeschten` bzw. `mitKorrekturDetails` (Name, Zeiten vorher). Nur der Freigeber-Zeitnachweis nutzt sie. Mein Zeitnachweis und beide PDFs laden die Details nicht.
+  - Neu: `korrigiereZeiteintrag` und `markiereAlsGeloescht`.
+  - `getZeiteintragFuerKorrektur` liefert zusätzlich Bemerkung, SharePoint-ID und „gelöscht“.
+- **Server-Aktionen** (`zeiterfassung/actions.ts`):
+  - `aendereZeiteintragAction`:
+    - prüft: Freigeber; Eintrag frisch gelesen, nicht gelöscht, Arbeitszeit; Prüfregeln.
+    - Ist nichts geändert, wird nichts gespeichert und nichts markiert.
+  - `loescheAbwesenheitenAction`: markiert Einträge mit SharePoint-ID, löscht die übrigen endgültig, überspringt bereits gelöschte.
+  - `trageGehenNachAction` und die Komponente `GehenNachtragen` sind entfernt.
+- **Prüfregeln** `src/lib/zeiterfassung/eintrag-pruefung.ts` (rein, mit Tests): Dauer, 14 h, Zukunft, Überschneidung, Gehen nicht leeren. „Tag erfassen“ nutzt Dauer und Überschneidung jetzt ebenfalls daraus.
+- **Tests:**
+  - neu `eintrag-pruefung.test.ts` und 2 Ansichtstests (Freigeber- und Mitarbeiteranzeige).
+  - angepasst: Ansichts- und Dataverse-Tests.
+  - entfernt: Tests von „Gehen nachtragen“.
+  - Stand: 801 Tests grün, `tsc` und `lint` sauber.
 
 ## QA Test Results
 _To be added by /qa_

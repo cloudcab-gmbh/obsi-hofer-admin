@@ -1,7 +1,7 @@
 import { folgetag, tageDesMonats } from "./datum";
 import { VORSCHLAGS_KALENDER, type Feiertagskalender } from "./feiertage";
 import { gueltigeVersion, sollAmDatum, type ArbeitsmodellVersion } from "./soll";
-import { werteTagAus, type Tagesauswertung, type Zeiteintrag } from "./tagesauswertung";
+import { istImToolGeloescht, werteTagAus, type Tagesauswertung, type Zeiteintrag } from "./tagesauswertung";
 import { ferienBeginn, feriensaldoAm, ferientagWert } from "./ferien";
 
 // PROJ-13: Zeitnachweis einer Person für einen Monat (rein, ohne Datenzugriff).
@@ -83,7 +83,7 @@ export interface Zeitnachweis {
   ohneArbeitsmodell: boolean;
   offeneTage: number;
   /** Einträge ohne Gehen an vergangenen Tagen (zum Nachtragen). */
-  offeneEintraege: { eintragId: string; datum: string; kommen: string }[];
+  offeneEintraege: { eintragId: string; datum: string; kommen: string; bemerkung: string | null }[];
   /** Höchstes Monatstotal des Flows und eigene Summe der Arbeitszeit, für den Abgleich. */
   flowMonatstotal: number | null;
   arbeitszeitMonatMinuten: number;
@@ -116,11 +116,13 @@ function bestimmeBeginn(e: ZeitnachweisEingabe): { tag: string | null; startMinu
 
 function zeile(datum: string, eintraege: Zeiteintrag[], e: ZeitnachweisEingabe, beginn: string | null): Omit<Tageszeile, "saldoMinuten"> {
   const auswertung = werteTagAus(eintraege);
+  // PROJ-22: Gelöschte Einträge zählen auch für Ferien nicht.
+  const zaehlende = eintraege.filter((x) => !istImToolGeloescht(x));
   const zukunft = datum > e.heute;
   const vorBeginn = beginn === null || datum < beginn;
   const feiertag = (e.feiertage ?? VORSCHLAGS_KALENDER).am(datum);
   const ganzerFeiertag = feiertag && !feiertag.halb ? feiertag.name : null;
-  const ferientag = ferientagWert(e, datum, eintraege);
+  const ferientag = ferientagWert(e, datum, zaehlende);
   const version = gueltigeVersion(e.versionen, datum);
   const nachAustritt = !!e.austrittAm && datum > e.austrittAm;
 
@@ -140,7 +142,9 @@ function zeile(datum: string, eintraege: Zeiteintrag[], e: ZeitnachweisEingabe, 
   // Krankheit: Soll gilt als erfüllt. Komp. GLZ: kein zusätzliches Ist, Soll bleibt.
   const istMinuten = auswertung.krankheit ? Math.max(sollMinuten, auswertung.arbeitszeitMinuten) : auswertung.arbeitszeitMinuten;
 
+  // PROJ-22: Der Totals-Flow kennt die Lösch-Markierung nicht — an solchen Tagen kein Abgleich.
   const flowAbweichung =
+    auswertung.geloeschte.length === 0 &&
     datum < e.heute &&
     auswertung.hatArbeitszeit &&
     auswertung.flowTagestotal !== null &&
@@ -198,13 +202,16 @@ export function berechneZeitnachweis(e: ZeitnachweisEingabe): Zeitnachweis {
     tage.push({ ...z, saldoMinuten: zaehlt ? laufend : null });
   }
 
-  const flowWerte = e.eintraege
-    .filter((x) => x.datum.startsWith(e.monat))
+  const imMonat = e.eintraege.filter((x) => x.datum.startsWith(e.monat));
+  const geloeschtImMonat = imMonat.some(istImToolGeloescht);
+  const flowWerte = imMonat
+    .filter((x) => !istImToolGeloescht(x))
     .map((x) => x.monatstotal)
     .filter((t): t is number => t !== null);
   const flowMonatstotal = flowWerte.length > 0 ? Math.max(...flowWerte) : null;
   const arbeitszeitMonat = tage.filter((t) => !t.zukunft).reduce((s, t) => s + t.auswertung.arbeitszeitMinuten, 0);
 
+  const zaehlendeEintraege = e.eintraege.filter((x) => !istImToolGeloescht(x));
   const ferienPerson = { ...e, ferienanspruch: e.ferienanspruch ?? null, ferienStartsaldo: e.ferienStartsaldo ?? null };
   const ferienAb = ferienBeginn(ferienPerson);
   const zaehltFerien = (t: Tageszeile) => ferienAb !== null && t.datum >= ferienAb;
@@ -222,18 +229,18 @@ export function berechneZeitnachweis(e: ZeitnachweisEingabe): Zeitnachweis {
     abweichungMinuten: summeIst - summeSoll,
     saldoEndeMinuten: vorBeginn ? null : laufend,
     laufenderMonat,
-    keineEintraege: !e.eintraege.some((x) => x.datum.startsWith(e.monat)),
+    keineEintraege: !zaehlendeEintraege.some((x) => x.datum.startsWith(e.monat)),
     ohneArbeitsmodell: e.versionen.length === 0,
     offeneTage: tage.filter((t) => t.offenWarnung).length,
     offeneEintraege: tage
       .filter((t) => t.offenWarnung)
-      .flatMap((t) => t.auswertung.paare.filter((p) => p.gehen === null).map((p) => ({ eintragId: p.eintragId, datum: t.datum, kommen: p.kommen }))),
+      .flatMap((t) => t.auswertung.paare.filter((p) => p.gehen === null).map((p) => ({ eintragId: p.eintragId, datum: t.datum, kommen: p.kommen, bemerkung: p.bemerkung }))),
     flowMonatstotal,
     arbeitszeitMonatMinuten: arbeitszeitMonat,
-    flowMonatsAbweichung: flowMonatstotal !== null && Math.abs(flowMonatstotal - arbeitszeitMonat) > 1,
+    flowMonatsAbweichung: !geloeschtImMonat && flowMonatstotal !== null && Math.abs(flowMonatstotal - arbeitszeitMonat) > 1,
     ferienBezogenMonat: tage.filter((t) => zaehltFerien(t) && !t.zukunft).reduce((s, t) => s + t.ferientag, 0),
     ferienGeplantMonat: tage.filter((t) => zaehltFerien(t) && t.zukunft).reduce((s, t) => s + t.ferientag, 0),
-    feriensaldoEnde: feriensaldoAm(ferienPerson, e.eintraege, tageImMonat.at(-1)!),
+    feriensaldoEnde: feriensaldoAm(ferienPerson, zaehlendeEintraege, tageImMonat.at(-1)!),
   };
 }
 

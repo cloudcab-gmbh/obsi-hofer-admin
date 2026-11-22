@@ -5,6 +5,7 @@ import {
   listZeiteintraege,
   listZeiterfassungEmails,
   normalisiereEmail,
+  type ZeiteintraegeOptionen,
   type PersonArbeitsmodell,
   type ZeiterfassungPerson,
 } from "@/lib/dataverse/zeiterfassung";
@@ -40,7 +41,9 @@ export async function ladeZeitnachweis(
   email: string,
   monat: string,
   heute: string,
-  vorgeladen?: Awaited<ReturnType<typeof ladeAuswertbarePersonen>>
+  vorgeladen?: Awaited<ReturnType<typeof ladeAuswertbarePersonen>>,
+  /** PROJ-22: Freigeber-Ansicht lädt gelöschte Einträge und Korrektur-Details mit. */
+  optionen: ZeiteintraegeOptionen = {}
 ): Promise<GeladenerZeitnachweis | null> {
   const { personen, gespeichert } = vorgeladen ?? (await ladeAuswertbarePersonen(heute));
   const gewaehlt = personen.find((p) => p.email === normalisiereEmail(email));
@@ -59,7 +62,7 @@ export async function ladeZeitnachweis(
   const von = ladebeginn(monat, person);
   const bis = tageDesMonats(monat).at(-1)!;
   // PROJ-18: gepflegte Feiertage der betroffenen Jahre, einmal pro Aufruf.
-  const [eintraege, feiertage] = await Promise.all([listZeiteintraege(gewaehlt.email, von, bis), ladeFeiertagskalender(von, bis)]);
+  const [eintraege, feiertage] = await Promise.all([listZeiteintraege(gewaehlt.email, von, bis, optionen), ladeFeiertagskalender(von, bis)]);
   return {
     person: { email: gewaehlt.email, anzeige: gewaehlt.anzeige },
     zeitnachweis: berechneZeitnachweis({ ...person, monat, heute, eintraege, feiertage }),

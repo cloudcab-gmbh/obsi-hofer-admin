@@ -12,14 +12,15 @@ import {
   erstelleZeiteintrag,
   getPersonByEmail,
   getZeiteintragFuerKorrektur,
+  korrigiereZeiteintrag,
   listZeiteintraege,
   listArbeitsmodelle,
   listZeiterfassungEmails,
   loescheZeiteintrag,
+  markiereAlsGeloescht,
   setzeHalberTag,
   stosseFlowAn,
   normalisiereEmail,
-  setzeGehen,
 } from "@/lib/dataverse/zeiterfassung";
 import {
   alsSchweizerMitternacht,
@@ -30,61 +31,77 @@ import {
   istGueltigesDatum,
   istGueltigerMonat,
   istGueltigeUhrzeit,
-  zuSchweizerDatum,
+  zuSchweizerUhrzeit,
 } from "@/lib/zeiterfassung/datum";
+import { paarText, pruefeDauer, pruefeKorrektur, ueberschneiden } from "@/lib/zeiterfassung/eintrag-pruefung";
 import { bestehendeFerienNachTag, planeFerien, type FerienPlan } from "@/lib/zeiterfassung/ferien";
 import { uebersprungenText } from "@/lib/zeiterfassung/format";
 
-export type GehenNachtragenResult = { success: true } | { success: false; message: string };
+export type EintragAendernResult = { success: true } | { success: false; message: string };
 
-/** Mehr als 14 h am Stück gilt als unplausibel (wie in der Tagesauswertung). */
-const MAX_DAUER_MS = 14 * 60 * 60 * 1000;
+const NICHT_MEHR_DA = "Diesen Eintrag gibt es nicht mehr. Bitte die Seite neu laden.";
 
-const eingabeSchema = z.object({
+const aendernSchema = z.object({
   eintragId: z.guid("Ungültiger Eintrag."),
-  uhrzeit: z.string().refine(istGueltigeUhrzeit, "Bitte eine Uhrzeit im Format HH:MM angeben."),
-  folgetag: z.boolean(),
+  kommen: z.string().refine(istGueltigeUhrzeit, "Bitte „Kommen“ im Format HH:MM angeben."),
+  // Leer = Gehen bleibt offen (nur erlaubt, wenn es vorher offen war).
+  gehen: z.string().refine((u) => u === "" || istGueltigeUhrzeit(u), "Bitte „Gehen“ im Format HH:MM angeben."),
+  bemerkung: z.string().trim().max(500, "Die Bemerkung darf höchstens 500 Zeichen lang sein."),
 });
 
+export type EintragAendernEingabe = z.input<typeof aendernSchema>;
+
 /**
- * PROJ-13: Trägt bei einem offenen Eintrag (Kommen ohne Gehen) das Gehen nach
- * (Nutzer-Entscheidung 2026-10-27). Nur offene Einträge — erfasste Zeiten
- * werden nicht überschrieben.
+ * PROJ-22: Ändert Kommen, Gehen und Bemerkung eines Arbeitszeit-Eintrags
+ * (ersetzt „Gehen nachtragen“ aus PROJ-13). Gleiche Prüfungen wie „Tag
+ * erfassen“; Gehen gilt am Tag des Eintrags. Der Eintrag wird als „im Tool
+ * korrigiert“ markiert und ist damit vor dem SharePoint-Flow geschützt.
  */
-export async function trageGehenNachAction(
-  eintragId: string,
-  uhrzeit: string,
-  amFolgetag: boolean
-): Promise<GehenNachtragenResult> {
-  if (!(await aktuellerBenutzerIstFreigeber())) {
-    return { success: false, message: "Nur Freigeber dürfen Zeiteinträge korrigieren." };
-  }
-  const parsed = eingabeSchema.safeParse({ eintragId, uhrzeit, folgetag: amFolgetag });
+export async function aendereZeiteintragAction(eingabe: EintragAendernEingabe): Promise<EintragAendernResult> {
+  const freigeber = await aktuellerFreigeberName();
+  if (!freigeber) return { success: false, message: "Nur Freigeber dürfen Zeiteinträge ändern." };
+  const parsed = aendernSchema.safeParse(eingabe);
   if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Ungültige Eingabe." };
+  const d = parsed.data;
 
   try {
-    const eintrag = await getZeiteintragFuerKorrektur(parsed.data.eintragId);
+    const eintrag = await getZeiteintragFuerKorrektur(d.eintragId);
+    if (eintrag.geloescht || !eintrag.datum) return { success: false, message: NICHT_MEHR_DA };
     if (eintrag.typ !== "arbeitszeit" || !eintrag.kommen) {
-      return { success: false, message: "Dieser Eintrag hat kein „Kommen“ und kann nicht ergänzt werden." };
-    }
-    if (eintrag.gehen) {
-      return { success: false, message: "Für diesen Eintrag ist bereits ein „Gehen“ erfasst. Bitte die Seite neu laden." };
+      return { success: false, message: "Nur Arbeitszeit-Einträge können geändert werden." };
     }
 
-    const kommenTag = zuSchweizerDatum(eintrag.kommen)!;
-    const gehen = alsSchweizerZeitpunkt(parsed.data.folgetag ? folgetag(kommenTag) : kommenTag, parsed.data.uhrzeit);
-    const dauer = new Date(gehen).getTime() - new Date(eintrag.kommen).getTime();
-    if (dauer <= 0) return { success: false, message: "„Gehen“ muss nach „Kommen“ liegen." };
-    if (dauer > MAX_DAUER_MS) return { success: false, message: "Mehr als 14 Stunden am Stück sind nicht möglich." };
+    const kommen = alsSchweizerZeitpunkt(eintrag.datum, d.kommen);
+    const gehen = d.gehen ? alsSchweizerZeitpunkt(eintrag.datum, d.gehen) : null;
+    const bemerkung = d.bemerkung || null;
+    const zeitpunkt = (iso: string) => new Date(iso).getTime();
+    // Unverändert (gleiche Zeitpunkte, gleiche Bemerkung): nichts speichern, keine Markierung.
+    const gleicheZeiten =
+      zeitpunkt(kommen) === zeitpunkt(eintrag.kommen) &&
+      (gehen === null ? eintrag.gehen === null : !!eintrag.gehen && zeitpunkt(gehen) === zeitpunkt(eintrag.gehen));
+    if (gleicheZeiten && bemerkung === (eintrag.bemerkung?.trim() || null)) return { success: true };
 
-    await setzeGehen(parsed.data.eintragId, gehen);
+    const andere = (await listZeiteintraege(eintrag.email, eintrag.datum, eintrag.datum)).filter(
+      (e) => e.id !== d.eintragId && e.typ === "arbeitszeit"
+    );
+    const fehler = pruefeKorrektur({ kommen, gehen, hatteGehen: eintrag.gehen !== null, jetzt: new Date(), andere });
+    if (fehler) return { success: false, message: fehler };
+
+    await korrigiereZeiteintrag(d.eintragId, {
+      datum: eintrag.datum,
+      kommen,
+      gehen,
+      bemerkung,
+      von: freigeber,
+      vorher: paarText(zuSchweizerUhrzeit(eintrag.kommen), eintrag.gehen ? zuSchweizerUhrzeit(eintrag.gehen) : null),
+    });
   } catch (error) {
     const message =
       error instanceof DataverseError && error.category === "not_found"
-        ? "Diesen Eintrag gibt es nicht mehr. Bitte die Seite neu laden."
+        ? NICHT_MEHR_DA
         : error instanceof DataverseError
           ? error.message
-          : "Das „Gehen“ konnte nicht gespeichert werden.";
+          : "Der Eintrag konnte nicht gespeichert werden.";
     return { success: false, message };
   }
 
@@ -142,12 +159,9 @@ export async function erfasseTagAction(eingabe: TagErfassenEingabe): Promise<Tag
     gehen: alsSchweizerZeitpunkt(d.datum, p.gehen),
   }));
   for (const i of intervalle) {
-    const dauer = new Date(i.gehen).getTime() - new Date(i.kommen).getTime();
-    if (dauer <= 0) return { success: false, message: "„Gehen“ muss nach „Kommen“ liegen." };
-    if (dauer > MAX_DAUER_MS) return { success: false, message: "Mehr als 14 Stunden am Stück sind nicht möglich." };
+    const dauer = pruefeDauer(i.kommen, i.gehen);
+    if (dauer) return { success: false, message: dauer };
   }
-  const ueberschneiden = (a: { kommen: string; gehen: string }, b: { kommen: string; gehen: string }) =>
-    a.kommen < b.gehen && b.kommen < a.gehen;
   if (intervalle.some((a, i) => intervalle.some((b, j) => i < j && ueberschneiden(a, b)))) {
     return { success: false, message: "Die erfassten Paare überschneiden sich." };
   }
@@ -164,9 +178,8 @@ export async function erfasseTagAction(eingabe: TagErfassenEingabe): Promise<Tag
     }
     const bestehendeIntervalle = bestehende
       .filter((e) => e.typ === "arbeitszeit" && e.kommen && e.gehen)
-      .map((e) => ({ kommen: new Date(e.kommen!).toISOString(), gehen: new Date(e.gehen!).toISOString() }));
-    const normiert = intervalle.map((i) => ({ kommen: new Date(i.kommen).toISOString(), gehen: new Date(i.gehen).toISOString() }));
-    if (normiert.some((n) => bestehendeIntervalle.some((b) => ueberschneiden(n, b)))) {
+      .map((e) => ({ kommen: e.kommen!, gehen: e.gehen! }));
+    if (intervalle.some((n) => bestehendeIntervalle.some((b) => ueberschneiden(n, b)))) {
       return { success: false, message: "Ein Paar überschneidet sich mit einem bestehenden Eintrag dieses Tages." };
     }
 
@@ -365,11 +378,12 @@ export type LoeschenResult = { success: true; geloescht: number } | { success: f
  * PROJ-15: löscht Ferien- und Frei-Einträge; seit 2026-10-27 (Nutzerwunsch)
  * auch einzelne Arbeitszeit-, Krankheits- und Komp.-GLZ-Einträge. Der Typ
  * wird vor dem Löschen neu gelesen — Einträge unbekannten Typs werden nie gelöscht.
+ * PROJ-22: Einträge aus SharePoint werden als „im Tool gelöscht“ markiert statt
+ * entfernt (sonst legt der Flow sie wieder an); im Tool erfasste endgültig gelöscht.
  */
 export async function loescheAbwesenheitenAction(eintragIds: string[]): Promise<LoeschenResult> {
-  if (!(await aktuellerBenutzerIstFreigeber())) {
-    return { success: false, message: "Nur Freigeber dürfen Einträge löschen." };
-  }
+  const freigeber = await aktuellerFreigeberName();
+  if (!freigeber) return { success: false, message: "Nur Freigeber dürfen Einträge löschen." };
   const ids = z.array(z.guid()).min(1).max(MAX_FERIEN_TAGE).safeParse(eintragIds);
   if (!ids.success) return { success: false, message: "Ungültige Auswahl." };
 
@@ -378,20 +392,21 @@ export async function loescheAbwesenheitenAction(eintragIds: string[]): Promise<
   const betroffen = new Map<string, { email: string; datum: string }>();
   try {
     for (const id of ids.data) {
-      let typ;
+      let eintrag;
       try {
-        const eintrag = await getZeiteintragFuerKorrektur(id);
-        typ = eintrag.typ;
+        eintrag = await getZeiteintragFuerKorrektur(id);
         if (eintrag.email && eintrag.datum) betroffen.set(`${eintrag.email}|${eintrag.datum}`, { email: eintrag.email, datum: eintrag.datum });
       } catch (error) {
         // Bereits gelöscht → Ziel erreicht.
         if (error instanceof DataverseError && error.category === "not_found") continue;
         throw error;
       }
-      if (typ === "unbekannt") {
+      if (eintrag.geloescht) continue;
+      if (eintrag.typ === "unbekannt") {
         return { success: false, message: "Einträge unbekannten Typs können im Tool nicht gelöscht werden." };
       }
-      await loescheMitNachpruefung(id);
+      if (typeof eintrag.sharepointId === "number") await markiereAlsGeloescht(id, freigeber);
+      else await loescheMitNachpruefung(id);
       geloescht++;
     }
   } catch (error) {

@@ -10,6 +10,14 @@ import type { Eintragstyp, Zeiteintrag } from "@/lib/zeiterfassung/tagesauswertu
 // Schlüssel) und beim ersten Speichern per Upsert angelegt. Alle Datumsfelder
 // sind "Benutzer lokal" → Umrechnung in Schweizer Zeit (datum.ts).
 const ZEITEINTRAEGE_ENTITY = "bmvcc_timetrackingentries";
+
+// PROJ-22: Markierungen für Korrekturen im Tool (vom Nutzer angelegt 2026-11-22).
+const GEAENDERT_AM = "bmvcc_imtoolgeandertam";
+const GEAENDERT_VON = "bmvcc_imtoolgeandertvon";
+const GELOESCHT = "bmvcc_imtoolgeloscht";
+const ZEITEN_VORHER = "bmvcc_zeitenvorher";
+/** Bestehende Einträge haben „gelöscht“ leer — `ne true` liefert sie mit (geprüft 2026-11-22). */
+const NICHT_GELOESCHT = `${GELOESCHT} ne true`;
 const PERSONEN_ENTITY = "bmvcc_zeiterfassungpersons";
 const ARBEITSMODELLE_ENTITY = "bmvcc_arbeitsmodells";
 const NAME_MAX = 100;
@@ -122,7 +130,7 @@ export function odataString(wert: string): string {
  */
 export async function listZeiterfassungEmails(): Promise<string[]> {
   const emails = new Set<string>();
-  let url: string | null = `/api/data/v9.2/${ZEITEINTRAEGE_ENTITY}?$apply=groupby((bmvcc_useremail))`;
+  let url: string | null = `/api/data/v9.2/${ZEITEINTRAEGE_ENTITY}?$apply=filter(${NICHT_GELOESCHT})/groupby((bmvcc_useremail))`;
   while (url) {
     const res = await dataverseFetch(url);
     const body = (await res.json()) as { value: { bmvcc_useremail?: string | null }[]; "@odata.nextLink"?: string };
@@ -140,7 +148,7 @@ export async function ersterZeiteintrag(email: string): Promise<string | null> {
   const { records } = await listRecords<{ bmvcc_activitydate?: string | null }>(ZEITEINTRAEGE_ENTITY, {
     select: ["bmvcc_activitydate"],
     // Dataverse vergleicht Text ohne Gross-/Kleinschreibung.
-    filter: `bmvcc_useremail eq ${odataString(normalisiereEmail(email))} and bmvcc_activitydate ne null`,
+    filter: `bmvcc_useremail eq ${odataString(normalisiereEmail(email))} and bmvcc_activitydate ne null and ${NICHT_GELOESCHT}`,
     orderBy: "bmvcc_activitydate asc",
     top: 1,
   });
@@ -164,7 +172,12 @@ const ZEITEINTRAG_SPALTEN = [
   "bmvcc_abendessen",
   "bmvcc_remarks",
   HALBER_TAG_SPALTE,
+  GEAENDERT_AM,
+  GELOESCHT,
 ];
+
+/** PROJ-22: Name des Freigebers und frühere Zeiten — nur für die Freigeber-Ansicht geladen. */
+const KORREKTUR_DETAIL_SPALTEN = [GEAENDERT_VON, ZEITEN_VORHER];
 
 // Auswahl "Aktivitätstyp": 0 = Arbeitszeit, 1 = Komp. GLZ, 2 = Krankheit.
 // PROJ-15: 3 = Ferien, 4 = Frei (vom Nutzer ergänzt 2026-10-27).
@@ -194,17 +207,48 @@ function zuZeiteintrag(r: Record<string, unknown>): Zeiteintrag | null {
     abendessen: r.bmvcc_abendessen === true,
     bemerkung: textOderNull(r.bmvcc_remarks),
     halberTag: r[HALBER_TAG_SPALTE] === true,
+    imTool: zuMarkierung(r),
   };
 }
 
-/** Zeiteinträge einer Person mit Aktivitätsdatum von `von` bis `bis` (Schweizer Kalendertage, inklusive). */
-export async function listZeiteintraege(email: string, von: string, bis: string): Promise<Zeiteintrag[]> {
+function zuMarkierung(r: Record<string, unknown>): Zeiteintrag["imTool"] {
+  const am = textOderNull(r[GEAENDERT_AM]);
+  const geloescht = r[GELOESCHT] === true;
+  if (!am && !geloescht) return null;
+  return {
+    // Ohne Zeitpunkt (von Hand gesetzt) gilt der Eintrag trotzdem als markiert.
+    am: am ?? "",
+    von: textOderNull(r[GEAENDERT_VON]),
+    vorher: textOderNull(r[ZEITEN_VORHER]),
+    geloescht,
+  };
+}
+
+export interface ZeiteintraegeOptionen {
+  /** PROJ-22: auch im Tool gelöschte Einträge (nur zur Anzeige für Freigeber). */
+  mitGeloeschten?: boolean;
+  /** PROJ-22: Name des Korrigierenden und frühere Zeiten mitladen (nur Freigeber). */
+  mitKorrekturDetails?: boolean;
+}
+
+/**
+ * Zeiteinträge einer Person mit Aktivitätsdatum von `von` bis `bis` (Schweizer
+ * Kalendertage, inklusive). PROJ-22: Im Tool gelöschte Einträge fehlen, ausser
+ * sie werden ausdrücklich angefordert.
+ */
+export async function listZeiteintraege(
+  email: string,
+  von: string,
+  bis: string,
+  optionen: ZeiteintraegeOptionen = {}
+): Promise<Zeiteintrag[]> {
   const records = await listAllRecords(ZEITEINTRAEGE_ENTITY, {
-    select: ZEITEINTRAG_SPALTEN,
+    select: optionen.mitKorrekturDetails ? [...ZEITEINTRAG_SPALTEN, ...KORREKTUR_DETAIL_SPALTEN] : ZEITEINTRAG_SPALTEN,
     filter: [
       `bmvcc_useremail eq ${odataString(normalisiereEmail(email))}`,
       `bmvcc_activitydate ge ${alsSchweizerMitternacht(von)}`,
       `bmvcc_activitydate lt ${alsSchweizerMitternacht(folgetag(bis))}`,
+      ...(optionen.mitGeloeschten ? [] : [NICHT_GELOESCHT]),
     ].join(" and "),
     orderBy: "bmvcc_activitydate asc",
   });
@@ -218,9 +262,13 @@ export interface OffenerEintrag {
   typ: Eintragstyp;
   kommen: string | null;
   gehen: string | null;
+  /** PROJ-22 */
+  bemerkung: string | null;
+  sharepointId: number | null;
+  geloescht: boolean;
 }
 
-/** Einzelner Zeiteintrag für das Nachtragen von "Gehen" (PROJ-13). */
+/** Einzelner Zeiteintrag, frisch gelesen vor einer Korrektur oder Löschung (PROJ-13, PROJ-22). */
 export async function getZeiteintragFuerKorrektur(id: string): Promise<OffenerEintrag> {
   const r = await getRecord<Record<string, unknown>>(ZEITEINTRAEGE_ENTITY, id, {
     select: [
@@ -231,6 +279,9 @@ export async function getZeiteintragFuerKorrektur(id: string): Promise<OffenerEi
       "bmvcc_activitystarttime",
       "bmvcc_gehen",
       "bmvcc_checkouttime",
+      "bmvcc_remarks",
+      "bmvcc_recordid",
+      GELOESCHT,
     ],
   });
   return {
@@ -239,7 +290,41 @@ export async function getZeiteintragFuerKorrektur(id: string): Promise<OffenerEi
     typ: EINTRAGSTYPEN[r.bmvcc_activitytype as number] ?? "unbekannt",
     kommen: textOderNull(r.bmvcc_kommen) ?? textOderNull(r.bmvcc_activitystarttime),
     gehen: textOderNull(r.bmvcc_gehen) ?? textOderNull(r.bmvcc_checkouttime),
+    bemerkung: textOderNull(r.bmvcc_remarks),
+    sharepointId: zahlOderNull(r.bmvcc_recordid),
+    geloescht: r[GELOESCHT] === true,
   };
+}
+
+/**
+ * PROJ-22: Korrigiert Kommen, Gehen und Bemerkung eines Eintrags und setzt die
+ * Markierung (schützt ihn vor dem SharePoint-Flow). Kommen/Gehen werden wie in
+ * der Erfassungs-App doppelt geschrieben, die Kennung folgt dem neuen Kommen.
+ */
+export async function korrigiereZeiteintrag(
+  id: string,
+  k: { datum: string; kommen: string; gehen: string | null; bemerkung: string | null; von: string; vorher: string }
+): Promise<void> {
+  await updateRecord(ZEITEINTRAEGE_ENTITY, id, {
+    bmvcc_activitydatetimecode: aktivitaetsCode(k.datum, k.kommen),
+    bmvcc_kommen: k.kommen,
+    bmvcc_activitystarttime: k.kommen,
+    bmvcc_gehen: k.gehen,
+    bmvcc_checkouttime: k.gehen,
+    bmvcc_remarks: k.bemerkung,
+    [GEAENDERT_AM]: new Date().toISOString(),
+    [GEAENDERT_VON]: k.von.slice(0, 100),
+    [ZEITEN_VORHER]: k.vorher.slice(0, 50),
+  });
+}
+
+/** PROJ-22: Markiert einen Eintrag aus SharePoint als „im Tool gelöscht“ (bleibt in Dataverse). */
+export async function markiereAlsGeloescht(id: string, von: string): Promise<void> {
+  await updateRecord(ZEITEINTRAEGE_ENTITY, id, {
+    [GELOESCHT]: true,
+    [GEAENDERT_AM]: new Date().toISOString(),
+    [GEAENDERT_VON]: von.slice(0, 100),
+  });
 }
 
 /** QA BUG-1 (PROJ-15): Ferientag auf ganz bzw. halb umstellen. */
@@ -288,6 +373,7 @@ export async function listFerienUndKrankheit(von: string, bis: string): Promise<
     select: ["bmvcc_useremail", ...ZEITEINTRAG_SPALTEN],
     filter: [
       "(bmvcc_activitytype eq 2 or bmvcc_activitytype eq 3)",
+      NICHT_GELOESCHT,
       `bmvcc_activitydate ge ${alsSchweizerMitternacht(von)}`,
       `bmvcc_activitydate lt ${alsSchweizerMitternacht(folgetag(bis))}`,
     ].join(" and "),

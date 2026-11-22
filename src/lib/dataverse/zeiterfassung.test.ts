@@ -46,7 +46,7 @@ describe("listZeiterfassungEmails", () => {
       .mockResolvedValueOnce(Response.json({ value: [{ bmvcc_useremail: "anna@example.ch " }, { bmvcc_useremail: "ben@example.ch" }] }));
 
     expect(await listZeiterfassungEmails()).toEqual(["anna@example.ch", "ben@example.ch"]);
-    expect(dataverseFetch.mock.calls[0][0]).toContain("$apply=groupby((bmvcc_useremail))");
+    expect(dataverseFetch.mock.calls[0][0]).toContain("$apply=filter(bmvcc_imtoolgeloscht ne true)/groupby((bmvcc_useremail))");
     expect(dataverseFetch.mock.calls[1][0]).toBe("https://x/next");
   });
 });
@@ -196,7 +196,7 @@ describe("listZeiteintraege", () => {
     const eintraege = await listZeiteintraege("Anna@Example.ch", "2026-11-01", "2026-11-30");
 
     expect(listAllRecords.mock.calls[0][1].filter).toBe(
-      "bmvcc_useremail eq 'anna@example.ch' and bmvcc_activitydate ge 2026-10-31T23:00:00Z and bmvcc_activitydate lt 2026-11-30T23:00:00Z"
+      "bmvcc_useremail eq 'anna@example.ch' and bmvcc_activitydate ge 2026-10-31T23:00:00Z and bmvcc_activitydate lt 2026-11-30T23:00:00Z and bmvcc_imtoolgeloscht ne true"
     );
     expect(eintraege).toHaveLength(3);
     expect(eintraege[0]).toEqual({
@@ -211,6 +211,7 @@ describe("listZeiteintraege", () => {
       abendessen: false,
       bemerkung: null,
       halberTag: false,
+      imTool: null,
     });
     expect(eintraege.map((e) => e.typ)).toEqual(["arbeitszeit", "krankheit", "unbekannt"]);
   });

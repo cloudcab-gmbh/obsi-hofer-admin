@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/app/(protected)/zeiterfassung/actions", () => ({
-  trageGehenNachAction: vi.fn(),
+  aendereZeiteintragAction: vi.fn(),
   erfasseTagAction: vi.fn(),
   erfasseFerienAction: vi.fn(),
   planeFerienAction: vi.fn(),
@@ -81,7 +81,8 @@ describe("ZeitnachweisAnsicht", () => {
     expect(montag).toHaveTextContent("Mittag");
     expect(montag).toHaveTextContent("Kunde A");
     // Einzelne Einträge löschbar (Nutzerwunsch 2026-10-27)
-    expect(within(montag).getByRole("button", { name: "Eintrag 07:30–12:00 löschen" })).toBeInTheDocument();
+    // PROJ-22: Zeitpaar öffnet „Eintrag bearbeiten“.
+    expect(within(montag).getByRole("button", { name: "Eintrag 07:30–12:00 vom 02.11.2026 bearbeiten" })).toBeInTheDocument();
   });
 
   it("names holidays and free days", () => {
@@ -98,14 +99,14 @@ describe("ZeitnachweisAnsicht", () => {
     expect(screen.getByText(/An 1 Tag fehlt ein „Gehen“/)).toBeInTheDocument();
     expect(zeile("02.11.")).toHaveTextContent("offen – Gehen fehlt");
     // Klickbar: im Hinweis (Datum + Kommen) und in der Tageszeile
-    expect(screen.getByRole("button", { name: "Mo 02.11. 07:30" })).toBeInTheDocument();
-    expect(within(zeile("02.11.")).getByRole("button", { name: "nachtragen" })).toBeInTheDocument();
+    expect(screen.getByText(/Zum Nachtragen anklicken/)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Eintrag 07:30–offen vom 02.11.2026 bearbeiten" })).toHaveLength(2);
   });
 
-  it("offers nachtragen for an open entry today, without a warning", () => {
+  it("offers editing an open entry today, without a warning", () => {
     zeigen(eingabe({ heute: "2026-11-02", eintraege: [arbeit("2026-11-02", "06:30", null)] }));
 
-    expect(within(zeile("02.11.")).getByRole("button", { name: "nachtragen" })).toBeInTheDocument();
+    expect(within(zeile("02.11.")).getByRole("button", { name: "Eintrag 07:30–offen vom 02.11.2026 bearbeiten" })).toBeInTheDocument();
     expect(screen.queryByText(/fehlt ein „Gehen“/)).not.toBeInTheDocument();
   });
 
@@ -287,5 +288,55 @@ describe("ZeitnachweisAnsicht", () => {
       );
       expect(screen.getByText("Korrektur-Anfragen konnten nicht geladen werden.")).toBeInTheDocument();
     });
+  });
+});
+
+describe("Korrekturen im Tool (PROJ-22)", () => {
+  const korrigiert = { am: "2026-11-21T09:00:00Z", von: "Robert Bienz", vorher: "07:30–16:30", geloescht: false };
+  const geloescht = { am: "2026-11-21T09:00:00Z", von: "Robert Bienz", vorher: null, geloescht: true };
+
+  it("shows Freigeber who corrected what and when, and deleted entries struck through without counting them", () => {
+    zeigen(
+      eingabe({
+        eintraege: [
+          arbeit("2026-11-02", "06:30", "15:00", { imTool: korrigiert }),
+          arbeit("2026-11-02", "16:00", "18:00", { imTool: geloescht, tagestotal: 999 }),
+        ],
+      })
+    );
+
+    const montag = zeile("02.11.");
+    expect(montag).toHaveTextContent("korrigiert 21.11. von Robert Bienz (vorher 07:30–16:30)");
+    expect(montag).toHaveTextContent("17:00–19:00 gelöscht 21.11. von Robert Bienz");
+    expect(within(montag).getByLabelText("gelöscht: 17:00–19:00")).toBeInTheDocument();
+    // Nur das korrigierte Paar zählt (8.50 h), kein Abgleich mit dem Flow-Total.
+    expect(montag).toHaveTextContent("8.50 h");
+    expect(montag).not.toHaveTextContent("Tagestotal laut App");
+    expect(within(montag).queryByRole("button", { name: /17:00–19:00/ })).not.toBeInTheDocument();
+  });
+
+  it("shows employees only 'korrigiert' and hides deleted entries completely", () => {
+    render(
+      <ZeitnachweisAnsicht
+        zeitnachweis={berechneZeitnachweis(
+          eingabe({
+            eintraege: [
+              arbeit("2026-11-02", "06:30", "15:00", { imTool: { ...korrigiert, von: null, vorher: null } }),
+              arbeit("2026-11-02", "16:00", "18:00", { imTool: geloescht }),
+            ],
+          })
+        )}
+        personName="Anna"
+        personEmail="anna@x.ch"
+        personHref="/x"
+        nurLesen
+      />
+    );
+
+    const montag = zeile("02.11.");
+    expect(within(montag).getByText("korrigiert")).toBeInTheDocument();
+    expect(montag).not.toHaveTextContent("Robert Bienz");
+    expect(montag).not.toHaveTextContent("vorher");
+    expect(montag).not.toHaveTextContent("17:00");
   });
 });

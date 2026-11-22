@@ -49,7 +49,7 @@ export default async function ZeitnachweisPage({
     const auswertbar = await ladeAuswertbarePersonen(heute);
     optionen = auswertbar.personen.map((p) => ({ id: p.email, name: p.anzeige }));
     // PROJ-16: derselbe Lade- und Rechenweg wie für das PDF.
-    const geladen = angefragtePerson ? await ladeZeitnachweis(angefragtePerson, monat, heute, auswertbar) : null;
+    const geladen = angefragtePerson ? await ladeZeitnachweis(angefragtePerson, monat, heute, auswertbar, { mitGeloeschten: true, mitKorrekturDetails: true }) : null;
     if (geladen) {
       person = geladen.person;
       zeitnachweis = geladen.zeitnachweis;

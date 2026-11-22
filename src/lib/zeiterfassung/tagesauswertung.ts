@@ -23,6 +23,29 @@ export interface Zeiteintrag {
   bemerkung: string | null;
   /** PROJ-15: halber Ferientag. */
   halberTag: boolean;
+  /** PROJ-22: im Tool korrigiert bzw. gelöscht; `null`/fehlend = unverändert. */
+  imTool?: ImToolMarkierung | null;
+}
+
+/** PROJ-22: Markierung eines im Tool geänderten Eintrags. */
+export interface ImToolMarkierung {
+  /** Zeitpunkt der letzten Korrektur bzw. der Löschung (ISO). */
+  am: string;
+  /** Name des Freigebers; `null`, wenn nicht geladen (Mitarbeiteransicht). */
+  von: string | null;
+  /** Zeiten vor der letzten Korrektur, z.B. "07:30–16:30"; `null`, wenn nicht geladen. */
+  vorher: string | null;
+  /** Im Tool gelöscht: zählt nicht mehr. */
+  geloescht: boolean;
+}
+
+/** PROJ-22: im Tool gelöschter Eintrag — nur zur Anzeige (Freigeber), zählt nirgends. */
+export interface GeloeschterEintrag {
+  eintragId: string;
+  /** z.B. "07:30–16:30" oder "Ferien". */
+  text: string;
+  am: string;
+  von: string | null;
 }
 
 /** Ganztägiger Eintrag (Krankheit, Komp. GLZ, Ferien, Frei) — für Anzeige und Löschen. */
@@ -40,6 +63,10 @@ export interface Zeitpaar {
   /** Gehen fällt auf einen späteren Kalendertag. */
   folgetag: boolean;
   unplausibel: boolean;
+  /** PROJ-22: Bemerkung dieses Eintrags (für „Eintrag bearbeiten“). */
+  bemerkung: string | null;
+  /** PROJ-22: letzte Korrektur im Tool, sonst `null`. */
+  korrektur: Omit<ImToolMarkierung, "geloescht"> | null;
 }
 
 export interface Tagesauswertung {
@@ -64,6 +91,27 @@ export interface Tagesauswertung {
   bemerkungen: string[];
   /** Höchstes Tagestotal des Flows (ältere Einträge tragen Zwischenstände), `null` ohne Wert. */
   flowTagestotal: number | null;
+  /** PROJ-22: im Tool gelöschte Einträge des Tages (zählen nicht). */
+  geloeschte: GeloeschterEintrag[];
+}
+
+const TYP_TEXT: Record<Eintragstyp, string> = {
+  arbeitszeit: "Arbeitszeit",
+  "komp-glz": "Komp. GLZ",
+  krankheit: "Krankheit",
+  ferien: "Ferien",
+  frei: "Frei",
+  unbekannt: "Eintrag",
+};
+
+/** PROJ-22: im Tool gelöscht — zählt nirgends mehr. */
+export function istImToolGeloescht(e: Pick<Zeiteintrag, "imTool">): boolean {
+  return e.imTool?.geloescht === true;
+}
+
+function geloeschterText(e: Zeiteintrag): string {
+  if (e.typ !== "arbeitszeit" || !e.kommen) return TYP_TEXT[e.typ];
+  return `${zuSchweizerUhrzeit(e.kommen)}–${e.gehen ? zuSchweizerUhrzeit(e.gehen) : "offen"}`;
 }
 
 /** Mehr als 14 h am Stück gilt als unplausibel (Edge Case). */
@@ -92,7 +140,12 @@ function vereinigungsLaenge(intervalle: [number, number][]): { laenge: number; u
   return { laenge, ueberschneidung };
 }
 
-export function werteTagAus(eintraege: readonly Zeiteintrag[]): Tagesauswertung {
+export function werteTagAus(alle: readonly Zeiteintrag[]): Tagesauswertung {
+  // PROJ-22: Gelöschte Einträge werden nur angezeigt, nie gerechnet.
+  const eintraege = alle.filter((e) => !istImToolGeloescht(e));
+  const geloeschte = alle
+    .filter(istImToolGeloescht)
+    .map((e) => ({ eintragId: e.id, text: geloeschterText(e), am: e.imTool!.am, von: e.imTool!.von }));
   const arbeitszeit = eintraege
     .filter((e) => e.typ === "arbeitszeit" && e.kommen)
     .sort((a, b) => a.kommen!.localeCompare(b.kommen!));
@@ -114,6 +167,8 @@ export function werteTagAus(eintraege: readonly Zeiteintrag[]): Tagesauswertung 
       gehen: e.gehen ? zuSchweizerUhrzeit(e.gehen) : null,
       folgetag: !!e.gehen && (zuSchweizerDatum(e.gehen) ?? "") > (zuSchweizerDatum(e.kommen) ?? ""),
       unplausibel: istUnplausibel,
+      bemerkung: e.bemerkung?.trim() || null,
+      korrektur: e.imTool ? { am: e.imTool.am, von: e.imTool.von, vorher: e.imTool.vorher } : null,
     });
   }
   const { laenge, ueberschneidung } = vereinigungsLaenge(intervalle);
@@ -141,5 +196,6 @@ export function werteTagAus(eintraege: readonly Zeiteintrag[]): Tagesauswertung 
     abendessen: eintraege.some((e) => e.abendessen),
     bemerkungen: eintraege.map((e) => e.bemerkung?.trim() ?? "").filter(Boolean),
     flowTagestotal: tagestotale.length > 0 ? Math.max(...tagestotale) : null,
+    geloeschte,
   };
 }

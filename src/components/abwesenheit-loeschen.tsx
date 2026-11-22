@@ -77,7 +77,7 @@ export function AbwesenheitLoeschen({
         <AlertDialogHeader>
           <AlertDialogTitle>Eintrag löschen?</AlertDialogTitle>
           <AlertDialogDescription>
-            {beschreibung} wird in Dataverse gelöscht. Saldo und Zeitnachweis rechnen danach neu.
+            {beschreibung} wird gelöscht und zählt danach nicht mehr. Saldo und Zeitnachweis rechnen neu.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {fehler && (
