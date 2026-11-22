@@ -81,7 +81,7 @@ Der Zeitnachweis für Freigeber kann heute nur Einträge hinzufügen („Tag erf
 - [ ] Ist das Auditing von Dataverse für die Zeiteinträge eingeschaltet (zusätzliche Nachvollziehbarkeit beim endgültigen Löschen)? (Nutzer)
 - [x] Woran erkennt der Flow geschützte Einträge, und wie wird er angepasst? → „Im Tool geändert am“ gefüllt; ganze SharePoint-Zeile auslassen, auch beim Löschen (Tech Design E; Anpassung durch den Nutzer)
 - [x] Wie werden die Markierungen in Dataverse abgelegt? → vier neue Spalten auf `bmvcc_timetrackingentry` (Tech Design B; vom Nutzer anzulegen)
-- [ ] Logische Namen der vier neuen Spalten (nach dem Anlegen durch den Nutzer)
+- [x] Logische Namen der vier neuen Spalten → `bmvcc_imtoolgeandertam`, `bmvcc_imtoolgeandertvon`, `bmvcc_imtoolgeloscht`, `bmvcc_zeitenvorher` (angelegt und geprüft 2026-11-22)
 
 ## Decision Log
 
@@ -151,14 +151,16 @@ Alles aus vorhandenen shadcn-Bausteinen (Dialog, AlertDialog, Input, Textarea, B
 
 ### B) Daten (Dataverse, Tabelle Zeiterfassung `bmvcc_timetrackingentry`)
 
-Vier neue Spalten, vom Nutzer anzulegen:
+Vier neue Spalten, vom Nutzer angelegt (2026-11-22):
 
-| Spalte (Vorschlag) | Typ | Inhalt |
-|---|---|---|
-| Im Tool geändert am | Datum und Uhrzeit | Zeitpunkt der letzten Korrektur bzw. der Löschung. **Ist das Feld gefüllt, gilt der Eintrag als geschützt** (das prüft der Flow) |
-| Im Tool geändert von | Text (100) | Name des Freigebers |
-| Im Tool gelöscht | Ja/Nein (Standard Nein) | Eintrag zählt nicht mehr |
-| Zeiten vorher | Text (50) | z.B. „07:30–16:30“ bzw. „07:30–offen“, Stand vor der letzten Korrektur |
+| Spalte | Logischer Name | Typ | Inhalt |
+|---|---|---|---|
+| Im Tool geändert am | `bmvcc_imtoolgeandertam` | Datum und Uhrzeit (Benutzerlokal) | Zeitpunkt der letzten Korrektur bzw. der Löschung. **Ist das Feld gefüllt, gilt der Eintrag als geschützt** (das prüft der Flow) |
+| Im Tool geändert von | `bmvcc_imtoolgeandertvon` | Text (100) | Name des Freigebers |
+| Im Tool gelöscht | `bmvcc_imtoolgeloscht` | Ja/Nein (Standard Nein) | Eintrag zählt nicht mehr |
+| Zeiten vorher | `bmvcc_zeitenvorher` | Text (50) | z.B. „07:30–16:30“ bzw. „07:30–offen“, Stand vor der letzten Korrektur |
+
+**Geprüft 2026-11-22:** alle vier auf `bmvcc_timetrackingentry`, optional, Typen und Längen wie oben, vom App-Benutzer lesbar. Bestehende Einträge haben „Im Tool gelöscht“ leer (nicht Nein). Der Filter „gelöscht ungleich Ja“ liefert trotzdem alle 2'455 Einträge, leere Werte zählen also als nicht gelöscht. Eine zuerst versehentlich in ZeiterfassungPerson angelegte Kopie der Spalten ist wieder entfernt.
 
 Was gespeichert wird:
 - **Ändern:** Kommen und Gehen werden wie bei der Erfassungs-App jeweils doppelt geschrieben (Kommen/Arbeitsbeginn, Gehen/Checkout). Die Kennung JJJJMMTTHHMM wird aus dem neuen Kommen gebildet. Dazu kommen die Bemerkung und die vier Spalten. „Zeiten vorher“ wird bei jeder Korrektur überschrieben, es zählt also nur die letzte Korrektur.
@@ -199,7 +201,7 @@ Der Totals-Flow kennt „Im Tool gelöscht“ nicht und rechnet einen markierten
 Keine neuen Pakete.
 
 ### I) Vor /backend (Nutzer)
-1. Die vier Spalten in `bmvcc_timetrackingentry` anlegen (Namen nach Wahl; die logischen Namen in die Spec übernehmen).
+1. ~~Die vier Spalten in `bmvcc_timetrackingentry` anlegen~~ — erledigt und geprüft 2026-11-22 (siehe B).
 2. App-Benutzer: Schreiben und Löschen auf `bmvcc_timetrackingentry` (sind vorhanden seit PROJ-13/19, beim Bau prüfen).
 3. Die SharePoint-Flows anpassen (E), am besten vor dem Go-live. Bis dahin können Korrekturen beim nächsten Ändern der SharePoint-Zeile überschrieben werden.
 
