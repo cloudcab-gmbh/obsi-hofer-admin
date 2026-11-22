@@ -1,8 +1,8 @@
 # PROJ-22: Arbeitszeiten im Zeitnachweis ändern und löschen
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-11-21
-**Last Updated:** 2026-11-21
+**Last Updated:** 2026-11-22
 
 ## Dependencies
 - Requires: PROJ-13 (Zeitnachweis für Freigeber) — dort wird geändert und gelöscht
@@ -79,8 +79,9 @@ Der Zeitnachweis für Freigeber kann heute nur Einträge hinzufügen („Tag erf
 
 ## Open Questions
 - [ ] Ist das Auditing von Dataverse für die Zeiteinträge eingeschaltet (zusätzliche Nachvollziehbarkeit beim endgültigen Löschen)? (Nutzer)
-- [ ] Woran erkennt der Flow geschützte Einträge, und wie wird er angepasst? (/architecture, danach Nutzer)
-- [ ] Wie werden die Markierungen in Dataverse abgelegt (neue Spalten auf den Zeiteinträgen)? (/architecture, Spalten vom Nutzer anzulegen)
+- [x] Woran erkennt der Flow geschützte Einträge, und wie wird er angepasst? → „Im Tool geändert am“ gefüllt; ganze SharePoint-Zeile auslassen, auch beim Löschen (Tech Design E; Anpassung durch den Nutzer)
+- [x] Wie werden die Markierungen in Dataverse abgelegt? → vier neue Spalten auf `bmvcc_timetrackingentry` (Tech Design B; vom Nutzer anzulegen)
+- [ ] Logische Namen der vier neuen Spalten (nach dem Anlegen durch den Nutzer)
 
 ## Decision Log
 
@@ -101,12 +102,106 @@ Der Zeitnachweis für Freigeber kann heute nur Einträge hinzufügen („Tag erf
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Markierung in vier neuen Spalten direkt auf dem Zeiteintrag (geändert am/von, gelöscht, Zeiten vorher) statt eigener Historien-Tabelle | Nur die letzte Korrektur ist gefordert; der Flow prüft eine Spalte am selben Datensatz, ohne Zusatzabfrage auf eine zweite Tabelle | 2026-11-22 |
+| Schutzmerkmal = „Im Tool geändert am“ gefüllt (gilt für Korrektur und Löschung) | Eine einzige, einfache Bedingung im Flow | 2026-11-22 |
+| Flow lässt die ganze SharePoint-Zeile aus, sobald einer ihrer Einträge geschützt ist | Eine Zeile ergibt bis zu zwei Einträge (Pause); teilweises Ersetzen erzeugt doppelte/widersprüchliche Zeiten | 2026-11-22 |
+| Gelöschte Einträge werden standardmässig schon in der Dataverse-Abfrage ausgeblendet; nur der Freigeber-Zeitnachweis holt sie ausdrücklich | Kein Bericht (Ist, Ferien, Übersicht, PDF, Überschneidungsprüfung) kann sie versehentlich mitzählen | 2026-11-22 |
+| Server-Aktionen statt API-Routen, Rolle Freigeber in jeder Aktion geprüft | Wie die bestehenden Korrekturen in PROJ-13/15 | 2026-11-22 |
+| Prüfregeln (Überschneidung, 14 h, Zukunft) gemeinsam mit „Tag erfassen“ | Gleiche Regeln im ganzen Tool (Produkt-Entscheid) ohne doppelte Logik | 2026-11-22 |
+| Abgleich-Hinweis zum Flow-Total an Tagen mit gelöschtem Eintrag ausgeblendet; Totals-Flow muss nicht angepasst werden | Der Flow kennt die Markierung nicht; das Tool rechnet das Ist selbst | 2026-11-22 |
+| Name und frühere Zeiten werden für Mein Zeitnachweis und PDF nicht geladen | Datenschutz: nur Freigeber sehen sie | 2026-11-22 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Überblick
+Kein neues Paket, keine neue Seite. Neu sind vier Spalten auf den Zeiteinträgen in Dataverse, zwei Server-Aktionen („Eintrag ändern“, „Eintrag löschen“) und der Dialog „Eintrag bearbeiten“ im bestehenden Zeitnachweis für Freigeber. Ausserdem muss der Nutzer seinen SharePoint-Flow so anpassen, dass er geschützte Einträge auslässt.
+
+### A) Oberfläche
+
+```
+Zeitnachweis (Freigeber, /zeiterfassung/zeitnachweis) — bestehend
++-- Hinweis „offene Einträge“ oben
+|   +-- je offener Eintrag: öffnet jetzt „Eintrag bearbeiten“ (statt „Gehen nachtragen“)
++-- Tabelle, Spalte „Zeiten“
+|   +-- jedes Zeitpaar ist ein Knopf (Klicken bzw. Antippen auf dem Handy)
+|   |   +-- Dialog „Eintrag bearbeiten“ (neu, ersetzt „Gehen nachtragen“)
+|   |       +-- Kopf: Person, Wochentag + Datum
+|   |       +-- Kommen (Pflicht), Gehen (leer nur, wenn vorher leer), Bemerkung (optional, max. 500)
+|   |       +-- Fehlermeldung im Dialog, Eingaben bleiben erhalten
+|   |       +-- Knöpfe: Löschen (links) · Abbrechen · Speichern
+|   |       +-- Löschen → Bestätigung („Eintrag 07:30–16:30 vom 21.11. löschen?“)
+|   +-- im Tool gelöschte Einträge: durchgestrichen, nicht anklickbar
++-- Abwesenheiten: × bleibt (mit der bestehenden Bestätigung), löscht künftig nach denselben Regeln
++-- Spalte „Bemerkung / Hinweise“
+    +-- „korrigiert 21.11. von Robert Bienz (vorher 07:30–16:30)“
+    +-- „gelöscht 21.11. von Robert Bienz“
+
+Mein Zeitnachweis (Mitarbeitende) — bestehend
++-- Spalte „Bemerkung / Hinweise“: nur „korrigiert“
++-- im Tool gelöschte Einträge erscheinen gar nicht
+
+PDF (Freigeber und Mitarbeitende)
++-- gelöschte Einträge fehlen; bei korrigierten steht „korrigiert“ (ohne Namen)
+```
+
+Alles aus vorhandenen shadcn-Bausteinen (Dialog, AlertDialog, Input, Textarea, Button). Der Dialog übernimmt das Muster von „Gehen nachtragen“ und „Tag erfassen“. Die Komponente „Gehen nachtragen“ entfällt.
+
+### B) Daten (Dataverse, Tabelle Zeiterfassung `bmvcc_timetrackingentry`)
+
+Vier neue Spalten, vom Nutzer anzulegen:
+
+| Spalte (Vorschlag) | Typ | Inhalt |
+|---|---|---|
+| Im Tool geändert am | Datum und Uhrzeit | Zeitpunkt der letzten Korrektur bzw. der Löschung. **Ist das Feld gefüllt, gilt der Eintrag als geschützt** (das prüft der Flow) |
+| Im Tool geändert von | Text (100) | Name des Freigebers |
+| Im Tool gelöscht | Ja/Nein (Standard Nein) | Eintrag zählt nicht mehr |
+| Zeiten vorher | Text (50) | z.B. „07:30–16:30“ bzw. „07:30–offen“, Stand vor der letzten Korrektur |
+
+Was gespeichert wird:
+- **Ändern:** Kommen und Gehen werden wie bei der Erfassungs-App jeweils doppelt geschrieben (Kommen/Arbeitsbeginn, Gehen/Checkout). Die Kennung JJJJMMTTHHMM wird aus dem neuen Kommen gebildet. Dazu kommen die Bemerkung und die vier Spalten. „Zeiten vorher“ wird bei jeder Korrektur überschrieben, es zählt also nur die letzte Korrektur.
+- **Löschen eines Eintrags mit SharePoint-ID** (`bmvcc_recordid` gefüllt): Der Eintrag bleibt in Dataverse. Gesetzt werden „Im Tool gelöscht“, „geändert am“ und „geändert von“.
+- **Löschen eines im Tool erfassten Eintrags** (ohne SharePoint-ID): Der Eintrag wird endgültig gelöscht, wie heute.
+- Datum, Person, Art und Essen bleiben unverändert.
+
+### C) Wo gelöschte Einträge ausgeblendet werden
+Die Lesefunktionen für Zeiteinträge lassen im Tool gelöschte Einträge **standardmässig weg**, und zwar schon bei der Abfrage in Dataverse. Das gilt für Zeitnachweis, Mein Zeitnachweis, PDF, Übersicht, Ferien und Feriensaldo, die Personenliste, den ersten Eintrag einer Person und die Prüfung auf Überschneidungen bei „Tag erfassen“ und Ferien. Nur der Zeitnachweis für Freigeber fragt sie ausdrücklich mit ab, um sie durchgestrichen zu zeigen. Dort werden sie vor jeder Berechnung aussortiert. So kann kein bestehender Bericht einen gelöschten Eintrag versehentlich mitzählen.
+
+### D) Server-Aktionen
+
+| Aktion | Prüfungen (alle auf dem Server) |
+|---|---|
+| Eintrag ändern (Eintrags-ID, Kommen, Gehen, Bemerkung) | Rolle Freigeber; Eintrag frisch aus Dataverse lesen: existiert, ist nicht gelöscht, ist eine Arbeitszeit; Uhrzeiten HH:MM; Gehen nach Kommen, höchstens 14 h, nicht in der Zukunft; Gehen leer nur, wenn es vorher leer war; keine Überschneidung mit den übrigen (nicht gelöschten) Arbeitszeit-Einträgen des Tages; Bemerkung höchstens 500 Zeichen |
+| Eintrag löschen (Eintrags-ID) | Rolle Freigeber; Eintrag existiert und ist nicht schon gelöscht; danach je nach SharePoint-ID markieren oder endgültig löschen |
+| × bei Abwesenheiten (bestehend) | wie heute, aber Einträge mit SharePoint-ID werden markiert statt gelöscht |
+
+Danach wird der Zeitnachweis neu geladen. Ist ein Eintrag inzwischen verschwunden, erscheint die Meldung „Diesen Eintrag gibt es nicht mehr. Bitte die Seite neu laden.“ Die Prüfregeln (Überschneidung, 14 h, Zukunft) werden mit „Tag erfassen“ geteilt, damit beide gleich prüfen.
+
+### E) Schutz vor dem SharePoint-Flow (Anpassung durch den Nutzer)
+Der Flow „SharePoint-Element erstellt oder geändert“ ersetzt heute alle Einträge mit derselben SharePoint-ID (`bmvcc_recordid`). Neu gilt:
+1. Vor dem Ersetzen listet der Flow die Einträge mit dieser SharePoint-ID, bei denen **„Im Tool geändert am“ gefüllt** ist.
+2. Gibt es mindestens einen solchen Eintrag, lässt der Flow die **ganze Zeile** aus und ändert nichts. Eine Zeile kann wegen der Pause zwei Einträge haben. Würde er nur den ungeschützten neu schreiben, entstünden doppelte oder widersprüchliche Zeiten.
+3. Der Flow „SharePoint-Element gelöscht“ lässt geschützte Einträge ebenfalls stehen.
+
+Folge: Ändert die Person die SharePoint-Zeile später nochmals, gilt weiter die Korrektur im Tool. Soll SharePoint wieder massgeblich sein, löscht ein Freigeber den Eintrag im Tool und erfasst ihn neu.
+
+### F) Tages- und Monatstotal (bestehender Totals-Flow)
+Der Totals-Flow kennt „Im Tool gelöscht“ nicht und rechnet einen markierten Eintrag weiter mit. Das Tool rechnet das Ist ohnehin selbst. An Tagen mit einem gelöschten Eintrag blendet es deshalb den Abgleich-Hinweis zum Flow-Total aus, damit keine falsche Warnung erscheint. Nach einer Korrektur stösst das Tool den Totals-Flow wie bisher an. Auf Wunsch kann der Nutzer den Totals-Flow so anpassen, dass er gelöschte Einträge überspringt. Nötig ist das nicht.
+
+### G) Anzeige der Markierung
+- Freigeber sehen „korrigiert dd.mm. von Name (vorher …)“ bzw. „gelöscht dd.mm. von Name“.
+- Mein Zeitnachweis und PDF zeigen nur „korrigiert“. Name und frühere Zeiten werden für Mitarbeitende gar nicht erst geladen.
+- Die Teams-Karte aus PROJ-21: Nach dem Go-live ändert der Nutzer den Text „Korrektur bitte direkt in Dataverse …“ zu „Korrektur im Zeitnachweis (Link) vornehmen“.
+
+### H) Abhängigkeiten
+Keine neuen Pakete.
+
+### I) Vor /backend (Nutzer)
+1. Die vier Spalten in `bmvcc_timetrackingentry` anlegen (Namen nach Wahl; die logischen Namen in die Spec übernehmen).
+2. App-Benutzer: Schreiben und Löschen auf `bmvcc_timetrackingentry` (sind vorhanden seit PROJ-13/19, beim Bau prüfen).
+3. Die SharePoint-Flows anpassen (E), am besten vor dem Go-live. Bis dahin können Korrekturen beim nächsten Ändern der SharePoint-Zeile überschrieben werden.
 
 ## QA Test Results
 _To be added by /qa_
