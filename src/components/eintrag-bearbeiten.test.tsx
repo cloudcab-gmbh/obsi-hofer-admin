@@ -5,6 +5,15 @@ const aendereZeiteintragAction = vi.fn();
 const loescheAbwesenheitenAction = vi.fn();
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+// Radix-Checkbox in einem <form> misst sich mit ResizeObserver, den jsdom nicht kennt.
+vi.stubGlobal(
+  "ResizeObserver",
+  class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+);
 vi.mock("@/app/(protected)/zeiterfassung/actions", () => ({
   aendereZeiteintragAction: (...args: unknown[]) => aendereZeiteintragAction(...args),
   loescheAbwesenheitenAction: (...args: unknown[]) => loescheAbwesenheitenAction(...args),
@@ -46,7 +55,13 @@ describe("EintragBearbeiten (PROJ-22)", () => {
     fireEvent.change(screen.getByLabelText("Gehen"), { target: { value: "16:30" } });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-    expect(aendereZeiteintragAction).toHaveBeenCalledWith({ eintragId: ID, kommen: "07:10", gehen: "16:30", bemerkung: "aus SharePoint" });
+    expect(aendereZeiteintragAction).toHaveBeenCalledWith({
+      eintragId: ID,
+      kommen: "07:10",
+      gehen: "16:30",
+      bemerkung: "aus SharePoint",
+      gehenAmFolgetag: false,
+    });
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(screen.queryByRole("heading", { name: "Eintrag bearbeiten" })).not.toBeInTheDocument();
   });
@@ -85,10 +100,27 @@ describe("EintragBearbeiten (PROJ-22)", () => {
     expect(screen.getByLabelText("Gehen (optional)")).toHaveValue("");
   });
 
-  it("warns that an overnight entry gets Gehen on the same day", async () => {
-    zeigen({ folgetag: true });
-    oeffnen();
-    expect(screen.getByText(/Beim Speichern gilt „Gehen“ am selben Tag/)).toBeInTheDocument();
+  it("keeps an overnight entry on the following day (QA BUG-1)", async () => {
+    aendereZeiteintragAction.mockResolvedValue({ success: true });
+    zeigen({ kommen: "22:00", gehen: "01:30", folgetag: true });
+    fireEvent.click(screen.getByRole("button", { name: "Eintrag 22:00–01:30 (+1) vom 09.11.2026 bearbeiten" }));
+
+    expect(screen.getByLabelText("Gehen am Folgetag (nach Mitternacht)")).toBeChecked();
+    fireEvent.change(screen.getByLabelText(/Bemerkung/), { target: { value: "Nachteinsatz" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(aendereZeiteintragAction).toHaveBeenCalledWith(expect.objectContaining({ gehen: "01:30", gehenAmFolgetag: true, bemerkung: "Nachteinsatz" }));
+  });
+
+  it("can complete an open entry after midnight (QA BUG-1)", () => {
+    zeigen({ kommen: "22:00", gehen: null });
+    fireEvent.click(screen.getByRole("button", { name: "Eintrag 22:00–offen vom 09.11.2026 bearbeiten" }));
+    const folgetag = screen.getByLabelText("Gehen am Folgetag (nach Mitternacht)");
+    expect(folgetag).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Gehen (optional)"), { target: { value: "02:00" } });
+    expect(folgetag).toBeEnabled();
+    fireEvent.click(folgetag);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(aendereZeiteintragAction).toHaveBeenCalledWith(expect.objectContaining({ gehen: "02:00", gehenAmFolgetag: true }));
   });
 
   it("deletes only after confirmation, and cancelling returns to the form", async () => {

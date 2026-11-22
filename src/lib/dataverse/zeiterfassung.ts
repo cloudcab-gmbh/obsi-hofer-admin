@@ -126,11 +126,13 @@ export function odataString(wert: string): string {
 /**
  * Alle E-Mails, die in den Zeiteinträgen vorkommen — über eine
  * zusammenfassende Abfrage statt alle Einträge zu laden. Gross-/Klein-
- * schreibung wird zusammengeführt.
+ * schreibung wird zusammengeführt. Im Tool gelöschte Einträge zählen mit,
+ * damit die Person wählbar bleibt und ihre gelöschten Einträge sichtbar sind
+ * (PROJ-22, QA BUG-3).
  */
 export async function listZeiterfassungEmails(): Promise<string[]> {
   const emails = new Set<string>();
-  let url: string | null = `/api/data/v9.2/${ZEITEINTRAEGE_ENTITY}?$apply=filter(${NICHT_GELOESCHT})/groupby((bmvcc_useremail))`;
+  let url: string | null = `/api/data/v9.2/${ZEITEINTRAEGE_ENTITY}?$apply=groupby((bmvcc_useremail))`;
   while (url) {
     const res = await dataverseFetch(url);
     const body = (await res.json()) as { value: { bmvcc_useremail?: string | null }[]; "@odata.nextLink"?: string };
@@ -303,7 +305,8 @@ export async function getZeiteintragFuerKorrektur(id: string): Promise<OffenerEi
  */
 export async function korrigiereZeiteintrag(
   id: string,
-  k: { datum: string; kommen: string; gehen: string | null; bemerkung: string | null; von: string; vorher: string }
+  /** `vorher` fehlt: Zeiten unverändert, „Zeiten vorher“ bleibt wie es ist (QA BUG-2). */
+  k: { datum: string; kommen: string; gehen: string | null; bemerkung: string | null; von: string; vorher?: string }
 ): Promise<void> {
   await updateRecord(ZEITEINTRAEGE_ENTITY, id, {
     bmvcc_activitydatetimecode: aktivitaetsCode(k.datum, k.kommen),
@@ -314,7 +317,7 @@ export async function korrigiereZeiteintrag(
     bmvcc_remarks: k.bemerkung,
     [GEAENDERT_AM]: new Date().toISOString(),
     [GEAENDERT_VON]: k.von.slice(0, 100),
-    [ZEITEN_VORHER]: k.vorher.slice(0, 50),
+    ...(k.vorher !== undefined ? { [ZEITEN_VORHER]: k.vorher.slice(0, 50) } : {}),
   });
 }
 

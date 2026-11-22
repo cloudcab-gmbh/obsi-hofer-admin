@@ -47,6 +47,8 @@ const aendernSchema = z.object({
   // Leer = Gehen bleibt offen (nur erlaubt, wenn es vorher offen war).
   gehen: z.string().refine((u) => u === "" || istGueltigeUhrzeit(u), "Bitte „Gehen“ im Format HH:MM angeben."),
   bemerkung: z.string().trim().max(500, "Die Bemerkung darf höchstens 500 Zeichen lang sein."),
+  // QA BUG-1: Gehen nach Mitternacht (Einsatz über Mitternacht).
+  gehenAmFolgetag: z.boolean().optional(),
 });
 
 export type EintragAendernEingabe = z.input<typeof aendernSchema>;
@@ -54,7 +56,8 @@ export type EintragAendernEingabe = z.input<typeof aendernSchema>;
 /**
  * PROJ-22: Ändert Kommen, Gehen und Bemerkung eines Arbeitszeit-Eintrags
  * (ersetzt „Gehen nachtragen“ aus PROJ-13). Gleiche Prüfungen wie „Tag
- * erfassen“; Gehen gilt am Tag des Eintrags. Der Eintrag wird als „im Tool
+ * erfassen“; Gehen gilt am Tag des Eintrags, auf Wunsch am Folgetag (QA BUG-1).
+ * Der Eintrag wird als „im Tool
  * korrigiert“ markiert und ist damit vor dem SharePoint-Flow geschützt.
  */
 export async function aendereZeiteintragAction(eingabe: EintragAendernEingabe): Promise<EintragAendernResult> {
@@ -72,7 +75,7 @@ export async function aendereZeiteintragAction(eingabe: EintragAendernEingabe): 
     }
 
     const kommen = alsSchweizerZeitpunkt(eintrag.datum, d.kommen);
-    const gehen = d.gehen ? alsSchweizerZeitpunkt(eintrag.datum, d.gehen) : null;
+    const gehen = d.gehen ? alsSchweizerZeitpunkt(d.gehenAmFolgetag ? folgetag(eintrag.datum) : eintrag.datum, d.gehen) : null;
     const bemerkung = d.bemerkung || null;
     const zeitpunkt = (iso: string) => new Date(iso).getTime();
     // Unverändert (gleiche Zeitpunkte, gleiche Bemerkung): nichts speichern, keine Markierung.
@@ -93,7 +96,8 @@ export async function aendereZeiteintragAction(eingabe: EintragAendernEingabe): 
       gehen,
       bemerkung,
       von: freigeber,
-      vorher: paarText(zuSchweizerUhrzeit(eintrag.kommen), eintrag.gehen ? zuSchweizerUhrzeit(eintrag.gehen) : null),
+      // QA BUG-2: „vorher“ nur, wenn sich die Zeiten ändern; sonst bleibt der bisherige Wert.
+      vorher: gleicheZeiten ? undefined : paarText(zuSchweizerUhrzeit(eintrag.kommen), eintrag.gehen ? zuSchweizerUhrzeit(eintrag.gehen) : null),
     });
   } catch (error) {
     const message =

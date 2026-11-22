@@ -297,6 +297,35 @@ describe("aendereZeiteintragAction (PROJ-22)", () => {
     expect(korrigiereZeiteintrag).toHaveBeenLastCalledWith(ID, expect.objectContaining({ gehen: null, bemerkung: "Gehen folgt" }));
   });
 
+  it("keeps Gehen on the following day for overnight entries (QA BUG-1)", async () => {
+    getZeiteintragFuerKorrektur.mockResolvedValue({ ...EINTRAG, kommen: "2026-08-12T20:00:00Z", gehen: "2026-08-12T23:30:00Z" }); // 22:00–01:30 (+1)
+
+    expect(await aendereZeiteintragAction({ ...AENDERN, kommen: "22:00", gehen: "02:00", gehenAmFolgetag: true })).toEqual({ success: true });
+    expect(korrigiereZeiteintrag).toHaveBeenLastCalledWith(
+      ID,
+      expect.objectContaining({ kommen: "2026-08-12T20:00:00Z", gehen: "2026-08-13T00:00:00Z", vorher: "22:00–01:30" })
+    );
+  });
+
+  it("only changes the remark of an overnight entry without touching its times (QA BUG-1/2)", async () => {
+    getZeiteintragFuerKorrektur.mockResolvedValue({ ...EINTRAG, kommen: "2026-08-12T20:00:00Z", gehen: "2026-08-12T23:30:00Z" });
+
+    await aendereZeiteintragAction({ eintragId: ID, kommen: "22:00", gehen: "01:30", gehenAmFolgetag: true, bemerkung: "Nachteinsatz" });
+    expect(korrigiereZeiteintrag).toHaveBeenLastCalledWith(ID, {
+      datum: "2026-08-12",
+      kommen: "2026-08-12T20:00:00Z",
+      gehen: "2026-08-12T23:30:00Z",
+      bemerkung: "Nachteinsatz",
+      von: "Robert Bienz",
+      vorher: undefined,
+    });
+  });
+
+  it("does not set 'vorher' when only the remark changes (QA BUG-2)", async () => {
+    await aendereZeiteintragAction({ eintragId: ID, kommen: "07:30", gehen: "16:30", bemerkung: "neu" });
+    expect(korrigiereZeiteintrag).toHaveBeenLastCalledWith(ID, expect.objectContaining({ bemerkung: "neu", vorher: undefined }));
+  });
+
   it("saves nothing and sets no marking when nothing changed", async () => {
     expect(await aendereZeiteintragAction({ eintragId: ID, kommen: "07:30", gehen: "16:30", bemerkung: "aus SharePoint " })).toEqual({
       success: true,

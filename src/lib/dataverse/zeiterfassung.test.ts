@@ -51,7 +51,7 @@ describe("listZeiterfassungEmails", () => {
       .mockResolvedValueOnce(Response.json({ value: [{ bmvcc_useremail: "anna@example.ch " }, { bmvcc_useremail: "ben@example.ch" }] }));
 
     expect(await listZeiterfassungEmails()).toEqual(["anna@example.ch", "ben@example.ch"]);
-    expect(dataverseFetch.mock.calls[0][0]).toContain("$apply=filter(bmvcc_imtoolgeloscht ne true)/groupby((bmvcc_useremail))");
+    expect(dataverseFetch.mock.calls[0][0]).toContain("$apply=groupby((bmvcc_useremail))");
     expect(dataverseFetch.mock.calls[1][0]).toBe("https://x/next");
   });
 });
@@ -363,6 +363,12 @@ describe("Korrekturen im Tool (PROJ-22)", () => {
       bmvcc_imtoolgeandertvon: "Robert Bienz",
       bmvcc_zeitenvorher: "07:30–offen",
     });
+  });
+
+  it("leaves 'Zeiten vorher' untouched when the times did not change (QA BUG-2)", async () => {
+    await korrigiereZeiteintrag("e", { datum: "2026-11-02", kommen: "2026-11-02T06:00:00Z", gehen: null, bemerkung: "neu", von: "Robert Bienz" });
+    expect(updateRecord.mock.calls[0][2]).not.toHaveProperty("bmvcc_zeitenvorher");
+    expect(updateRecord.mock.calls[0][2]).toHaveProperty("bmvcc_imtoolgeandertam");
   });
 
   it("marks an entry as deleted without touching its times", async () => {

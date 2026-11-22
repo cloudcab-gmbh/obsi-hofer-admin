@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -53,19 +54,21 @@ export function EintragBearbeiten({
   const [ansicht, setAnsicht] = useState<"bearbeiten" | "loeschen">("bearbeiten");
   const [kommenWert, setKommenWert] = useState(kommen);
   const [gehenWert, setGehenWert] = useState(gehen ?? "");
+  const [amFolgetag, setAmFolgetag] = useState(folgetag);
   const [bemerkungWert, setBemerkungWert] = useState(bemerkung ?? "");
   const [fehler, setFehler] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   // Doppelklick-Schutz: isPending greift erst nach dem ersten Rendern.
   const laeuft = useRef(false);
 
-  const paar = `${kommen}–${gehen ?? "offen"}`;
+  const paar = `${kommen}–${gehen ?? "offen"}${folgetag ? " (+1)" : ""}`;
   const tag = `${wochentagName(datum)}, ${formatKalenderdatum(datum)}`;
 
   function zuruecksetzen() {
     setAnsicht("bearbeiten");
     setKommenWert(kommen);
     setGehenWert(gehen ?? "");
+    setAmFolgetag(folgetag);
     setBemerkungWert(bemerkung ?? "");
     setFehler(null);
   }
@@ -98,7 +101,14 @@ export function EintragBearbeiten({
       return;
     }
     ausfuehren(
-      () => aendereZeiteintragAction({ eintragId, kommen: kommenWert, gehen: gehenWert, bemerkung: bemerkungWert }),
+      () =>
+        aendereZeiteintragAction({
+          eintragId,
+          kommen: kommenWert,
+          gehen: gehenWert,
+          bemerkung: bemerkungWert,
+          gehenAmFolgetag: amFolgetag && gehenWert !== "",
+        }),
       "Der Eintrag konnte nicht gespeichert werden. Bitte die Seite neu laden und erneut versuchen."
     );
   }
@@ -158,7 +168,6 @@ export function EintragBearbeiten({
               <DialogTitle>Eintrag bearbeiten</DialogTitle>
               <DialogDescription>
                 {personName}, {tag} · bisher {paar}
-                {folgetag && " (Gehen am Folgetag)"}
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-wrap gap-4">
@@ -185,11 +194,18 @@ export function EintragBearbeiten({
                 />
               </div>
             </div>
-            {folgetag && (
-              <p className="text-xs text-muted-foreground">
-                Beim Speichern gilt „Gehen“ am selben Tag. Soll der Eintrag über Mitternacht bleiben, löschen und neu erfassen.
-              </p>
-            )}
+            {/* QA BUG-1: Einsatz über Mitternacht. */}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id={`folgetag-${eintragId}`}
+                checked={amFolgetag}
+                disabled={!gehenWert}
+                onCheckedChange={(wert) => setAmFolgetag(wert === true)}
+              />
+              <Label htmlFor={`folgetag-${eintragId}`} className="font-normal">
+                Gehen am Folgetag (nach Mitternacht)
+              </Label>
+            </div>
             <div className="space-y-2">
               <Label htmlFor={`bemerkung-${eintragId}`}>
                 Bemerkung <span className="font-normal text-muted-foreground">(optional)</span>

@@ -1,6 +1,6 @@
 # PROJ-22: Arbeitszeiten im Zeitnachweis ändern und löschen
 
-## Status: In Review
+## Status: Approved
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-22
 
@@ -25,7 +25,6 @@ Der Zeitnachweis für Freigeber kann heute nur Einträge hinzufügen („Tag erf
 ## Out of Scope
 - Ändern durch Bearbeiter oder Mitarbeitende — nur Freigeber
 - Ändern von Datum, Person, Art des Eintrags, Mittag-/Abendessen — dafür löschen und mit „Tag erfassen“ neu erfassen
-- „Gehen am Folgetag“ (über Mitternacht) beim Ändern (Nutzer-Entscheid: nicht nötig)
 - Wiederherstellen gelöschter Einträge — bei Bedarf neu erfassen
 - Eigene Änderungshistorie mit allen Versionen — nur letzte Korrektur mit vorherigen Zeiten
 - Sperre abgeschlossener Monate
@@ -63,7 +62,7 @@ Der Zeitnachweis für Freigeber kann heute nur Einträge hinzufügen („Tag erf
 - [ ] Angenommen jemand ohne Rolle Freigeber ruft Ändern oder Löschen auf (auch direkt, ohne Oberfläche), dann wird es abgelehnt und nichts geändert
 
 ## Edge Cases
-- **Eintrag über Mitternacht** (bestehend, aus SharePoint): Beim Ändern gilt Gehen am selben Tag; soll er über Mitternacht bleiben, wird er gelöscht und neu erfasst bzw. in SharePoint belassen
+- **Eintrag über Mitternacht:** Das Häkchen „Gehen am Folgetag“ ist bei solchen Einträgen vorbelegt; auch ein offener Nachteinsatz lässt sich damit abschliessen (QA BUG-1, 2026-11-22)
 - **Eintrag wurde inzwischen gelöscht oder geändert** (anderer Freigeber, Flow): Meldung „Diesen Eintrag gibt es nicht mehr. Bitte die Seite neu laden.“ bzw. die letzte Speicherung gilt
 - **Korrektur ergibt Überschneidung** mit einem anderen Eintrag: abgelehnt; erst den anderen Eintrag ändern oder löschen
 - **Freigeber korrigiert eigene Einträge:** erlaubt, mit Markierung wie bei allen
@@ -95,7 +94,7 @@ Der Zeitnachweis für Freigeber kann heute nur Einträge hinzufügen („Tag erf
 | Markierung „korrigiert … von … (vorher …)“ für Freigeber, nur „korrigiert“ für Mitarbeitende | Nachvollziehbar ohne eigene Historie; Mitarbeitende sehen, dass etwas geändert wurde (Nutzer-Entscheid) | 2026-11-21 |
 | Einträge aus SharePoint werden beim Löschen markiert statt entfernt, im Tool erfasste endgültig gelöscht | Sonst legt der Flow gelöschte Einträge wieder an; Löschen bleibt nachvollziehbar (Nutzer-Entscheid) | 2026-11-21 |
 | Gleiche Prüfungen wie „Tag erfassen“; Gehen nur leer, wenn es vorher leer war | Einheitliche Regeln im Tool (Nutzer-Entscheid) | 2026-11-21 |
-| Kein „Gehen am Folgetag“ beim Ändern | Nicht nötig (Nutzer-Entscheid) | 2026-11-21 |
+| ~~Kein „Gehen am Folgetag“ beim Ändern~~ → Häkchen „Gehen am Folgetag“ im Dialog | Ursprünglich nicht nötig; nach QA BUG-1 doch nötig, sonst lassen sich Einträge über Mitternacht nicht bearbeiten (Nutzer-Entscheid „bug-1 bis 3 fixen“) | 2026-11-22 |
 | Ein Dialog „Eintrag bearbeiten“ pro Zeitpaar, ersetzt „Gehen nachtragen“; × bei Abwesenheiten bleibt | Ein Weg für alle Korrekturen, auch auf dem Handy (Nutzer-Entscheid) | 2026-11-21 |
 | PROJ-20/21 gehen vor PROJ-22 live | Mitarbeitende können sofort anfragen; bis PROJ-22 wird direkt in Dataverse korrigiert (Nutzer-Entscheid) | 2026-11-21 |
 
@@ -365,7 +364,7 @@ Die Server-Aktionen und der Dataverse-Zugriff sind mit dem Frontend gebaut (sieh
 
 ### Bugs Found
 
-#### BUG-1: Eintrag über Mitternacht: nur die Bemerkung ändern geht nicht
+#### BUG-1: Eintrag über Mitternacht: nur die Bemerkung ändern geht nicht — BEHOBEN 2026-11-22
 - **Severity:** Low
 - **Steps to Reproduce:**
   1. Einen Eintrag mit Gehen am Folgetag öffnen, z.B. 22:00–01:30 (+1).
@@ -377,7 +376,7 @@ Die Server-Aktionen und der Dataverse-Zugriff sind mit dem Frontend gebaut (sieh
   - Umweg: löschen und neu erfassen bzw. in SharePoint korrigieren.
 - **Priority:** Nice to have
 
-#### BUG-2: Nach einer reinen Bemerkungsänderung zeigt „vorher“ die unveränderten Zeiten
+#### BUG-2: Nach einer reinen Bemerkungsänderung zeigt „vorher“ die unveränderten Zeiten — BEHOBEN 2026-11-22
 - **Severity:** Low
 - **Steps to Reproduce:**
   1. Bei einem Eintrag 07:10–12:04 nur die Bemerkung ändern.
@@ -385,7 +384,7 @@ Die Server-Aktionen und der Dataverse-Zugriff sind mit dem Frontend gebaut (sieh
   3. Actual: „korrigiert 22.11. von … (vorher 07:10–12:04)“, obwohl die Zeiten gleich sind. Live gesehen bei SharePoint-ID 1567.
 - **Priority:** Nice to have
 
-#### BUG-3: Eine Person, deren Einträge alle im Tool gelöscht sind, verschwindet aus der Auswahl
+#### BUG-3: Eine Person, deren Einträge alle im Tool gelöscht sind, verschwindet aus der Auswahl — BEHOBEN 2026-11-22
 - **Severity:** Low
 - **Steps to Reproduce:**
   1. Bei einer Person, die nur SharePoint-Einträge hat, alle Einträge im Tool löschen.
@@ -404,10 +403,21 @@ Die Server-Aktionen und der Dataverse-Zugriff sind mit dem Frontend gebaut (sieh
 
 ### Summary
 - **Acceptance Criteria:** 15/15 passed
-- **Bugs Found:** 3 total (0 critical, 0 high, 0 medium, 3 low)
+- **Bugs Found:** 3 total (0 critical, 0 high, 0 medium, 3 low), alle behoben
 - **Security:** Pass (kein Rate-Limit, Low, wie bisher)
-- **Production Ready:** YES, nach den drei kurzen Live-Prüfungen oben
-- **Recommendation:** Deploy; BUG-1 bis BUG-3 bei Bedarf später
+- **Production Ready:** YES
+- **Recommendation:** Deploy
+
+### Bugfixes (2026-11-22)
+- **BUG-1:**
+  - Der Dialog hat das Häkchen „Gehen am Folgetag (nach Mitternacht)“. Es ist bei Einträgen über Mitternacht vorbelegt und ohne Gehen gesperrt.
+  - Die Aktion nimmt `gehenAmFolgetag` entgegen. Die Prüfungen (14 h, Zukunft, Überschneidung) gelten unverändert.
+  - Das Zeitpaar zeigt im Bildschirmleser-Text „(+1)“.
+- **BUG-2:** Bleiben die Zeiten gleich, schreibt die Aktion „Zeiten vorher“ nicht. Ein älterer Wert bleibt stehen; ohne frühere Zeitkorrektur steht nur „korrigiert … von …“.
+- **BUG-3:** Die Personenliste (`listZeiterfassungEmails`) zählt im Tool gelöschte Einträge wieder mit. Alle übrigen Abfragen blenden sie weiter aus.
+- **Tests:**
+  - +5 Unit-Tests: Aktion Folgetag; nur Bemerkung bei Nachteinsatz; „vorher“ bleibt; Dataverse ohne „Zeiten vorher“; 2 Dialogtests Folgetag.
+  - 849/849 grün, `tsc` und `lint` sauber.
 
 ## Deployment
 _To be added by /deploy_
