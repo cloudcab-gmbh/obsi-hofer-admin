@@ -425,6 +425,8 @@ Die Server-Aktionen und der Dataverse-Zugriff sind mit dem Frontend gebaut (sieh
 - **Vor dem Deploy geprüft:** lint, 849 Unit-Tests, 52 E2E-Tests, `npm run build`; keine neuen Umgebungsvariablen
 - **Dataverse:** vier Spalten auf `bmvcc_timetrackingentry` (angelegt und geprüft 2026-11-22)
 - **Flow:** Schutz in „syncZeiterfassung“ aktiv und getestet (Tech Design E)
-- **Offen beim Nutzer:**
-  - Text der Teams-Karte aus PROJ-21 auf „Korrektur im Zeitnachweis vornehmen (Link)“ ändern.
-  - Entscheid zum Test-Eintrag SharePoint-ID 1567: korrigiert lassen oder Markierung entfernen.
+- **Nach dem Deploy (2026-11-22):**
+  - Der Nutzer hat in Produktion getestet: Ändern, Löschen und Handy, alles ok.
+  - Der Text der Teams-Karte aus PROJ-21 ist angepasst.
+  - Beim Test-Eintrag mit der SharePoint-ID 1567 ist die Markierung per Skript entfernt; der tägliche Flow übernimmt ihn wieder aus SharePoint.
+  - Patch 1.16.1 (`v1.16.1-PROJ-13`): Tage ohne Soll heissen „arbeitsfrei“ statt „frei“, damit sie vom löschbaren Eintrag „Frei“ unterscheidbar sind.
