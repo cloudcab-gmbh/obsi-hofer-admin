@@ -8,7 +8,7 @@
 - Requires: PROJ-13 (Zeitnachweis für Freigeber) — dort wird geändert und gelöscht
 - Requires: PROJ-1 (Rolle Freigeber)
 - Betrifft: PROJ-19 (der tägliche SharePoint-Flow des Nutzers schreibt dieselben Einträge und muss geschützte Einträge auslassen), PROJ-15 (Abwesenheiten löschen), PROJ-16 (PDF), PROJ-17 (Übersicht), PROJ-20 (Anzeige „korrigiert“ für Mitarbeitende), PROJ-21 (Korrektur-Anfragen werden hier erledigt; Link der Teams-Karte)
-- **Extern (Nutzer):** täglichen SharePoint-Flow anpassen, damit er im Tool korrigierte und im Tool gelöschte Einträge auslässt
+- **Extern (Nutzer):** täglichen SharePoint-Flow anpassen, damit er im Tool korrigierte und im Tool gelöschte Einträge auslässt — **erledigt und getestet 2026-11-22** (siehe Tech Design E)
 - **Reihenfolge:** PROJ-20 und PROJ-21 gehen vor PROJ-22 live (Nutzer-Entscheid 2026-11-21); bis dahin wird direkt in der Dataverse-Tabelle korrigiert
 
 ## Ausgangslage
@@ -185,7 +185,11 @@ Danach wird der Zeitnachweis neu geladen. Ist ein Eintrag inzwischen verschwunde
 Der Flow „SharePoint-Element erstellt oder geändert“ ersetzt heute alle Einträge mit derselben SharePoint-ID (`bmvcc_recordid`). Neu gilt:
 1. Vor dem Ersetzen listet der Flow die Einträge mit dieser SharePoint-ID, bei denen **„Im Tool geändert am“ gefüllt** ist.
 2. Gibt es mindestens einen solchen Eintrag, lässt der Flow die **ganze Zeile** aus und ändert nichts. Eine Zeile kann wegen der Pause zwei Einträge haben. Würde er nur den ungeschützten neu schreiben, entstünden doppelte oder widersprüchliche Zeiten.
-3. Der Flow „SharePoint-Element gelöscht“ lässt geschützte Einträge ebenfalls stehen.
+3. ~~Der Flow „SharePoint-Element gelöscht“ lässt geschützte Einträge ebenfalls stehen.~~ Entfällt: Diesen Flow gibt es nicht (Nutzer, 2026-11-22). In SharePoint gelöschte Zeilen bleiben in Dataverse stehen und zählen weiter, wie schon vor PROJ-22. Ein Freigeber kann sie jetzt im Tool löschen.
+
+**Umgesetzt und getestet (2026-11-22):** Der tägliche Flow „syncZeiterfassung“ fragt in der Schleife `alleNeuenRecords` nach „List rows“ mit einer neuen Aktion „Geschuetzt“ ab, ob es geschützte Einträge gibt. Sie sucht in derselben Tabelle mit `$filter = bmvcc_recordid eq <ID> and bmvcc_imtoolgeandertam ne null`, `$top 1`. Die anschliessende Bedingung „nicht geschuetzt“ prüft `empty(outputs('Geschuetzt')?['body/value'])` = true. Nur im True-Zweig laufen „bestehendeloeschen“ und der Switch, der False-Zweig ist leer. Test mit einem manuellen Lauf:
+- SharePoint-ID 1566 (nicht korrigiert): Einträge ersetzt, neue Bemerkung übernommen ✓
+- SharePoint-ID 1567 (im Tool korrigiert, danach in SharePoint geändert): Korrektur und Markierung bleiben, die SharePoint-Änderung wird nicht übernommen ✓
 
 Folge: Ändert die Person die SharePoint-Zeile später nochmals, gilt weiter die Korrektur im Tool. Soll SharePoint wieder massgeblich sein, löscht ein Freigeber den Eintrag im Tool und erfasst ihn neu.
 
@@ -203,7 +207,7 @@ Keine neuen Pakete.
 ### I) Vor /backend (Nutzer)
 1. ~~Die vier Spalten in `bmvcc_timetrackingentry` anlegen~~ — erledigt und geprüft 2026-11-22 (siehe B).
 2. App-Benutzer: Schreiben und Löschen auf `bmvcc_timetrackingentry` (sind vorhanden seit PROJ-13/19, beim Bau prüfen).
-3. Die SharePoint-Flows anpassen (E), am besten vor dem Go-live. Bis dahin können Korrekturen beim nächsten Ändern der SharePoint-Zeile überschrieben werden.
+3. ~~Die SharePoint-Flows anpassen (E)~~ — erledigt und getestet 2026-11-22 (siehe E).
 
 ## Implementation Notes (Frontend, 2026-11-22)
 Branch `proj-22-eintraege-bearbeiten`. Die Server-Aktionen sind mitgebaut. Ihre Tests folgen in /backend.

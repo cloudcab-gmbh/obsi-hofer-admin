@@ -98,7 +98,7 @@ Trockenlauf-Analyse vom 2026-11-09: 1'451 Zeilen, 9 Personen, Juli 2023 bis 09.1
 
 ## Open Questions
 - [x] Wie führt der neue Flow geänderte SharePoint-Zeilen nach? → Der Flow des Nutzers löst bei "Element erstellt oder geändert" aus und übernimmt die Zeile nach derselben Abbildung, Schlüssel `bmvcc_recordid` (Nutzer, 2026-11-09)
-- [x] **Gelöschte** SharePoint-Zeilen? → Ein weiterer Flow des Nutzers löscht die zugehörigen Einträge in Dataverse (über `bmvcc_recordid`) (Nutzer, 2026-11-09)
+- [x] **Gelöschte** SharePoint-Zeilen? → Ein weiterer Flow des Nutzers löscht die zugehörigen Einträge in Dataverse (über `bmvcc_recordid`) (Nutzer, 2026-11-09). **Korrektur 2026-11-22:** Dieser Flow wurde nie erstellt. In SharePoint gelöschte Zeilen bleiben in Dataverse und zählen weiter; seit PROJ-22 kann ein Freigeber sie im Tool löschen.
 - [x] Welche Seite ist massgeblich, solange die Liste weiterläuft? → **SharePoint** (Nutzer, 2026-11-09). Korrekturen gehören in die Liste; Korrekturen im Zeitnachweis (PROJ-13) können beim nächsten Ändern der Zeile vom Flow überschrieben werden
 - [ ] Sollen die Korrektur-Funktionen im Zeitnachweis (Gehen nachtragen, Arbeitszeit erfassen/löschen) deshalb ausgeblendet oder mit einem Hinweis versehen werden? → später mit `/refine PROJ-13` klären
 - [x] Wann wird der Tagestotal-Flow wieder eingeschaltet? → sobald der Import fertig ist (Nutzer, 2026-11-09). Die importierten Einträge erhalten keine Totals (Flow war aus); das Tool rechnet das Ist selbst, ein Abgleich-Hinweis erscheint nur bei vorhandenem Total
