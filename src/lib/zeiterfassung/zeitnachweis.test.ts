@@ -273,3 +273,38 @@ describe("ladebeginn", () => {
     expect(ladebeginn("2027-01", { startsaldoStunden: null, stichtag: null, versionen: [] })).toBe("2027-01-01");
   });
 });
+
+describe("im Tool gelöschte Einträge (PROJ-22)", () => {
+  const geloescht = { imTool: { am: "2026-11-21T09:00:00Z", von: null, vorher: null, geloescht: true } };
+
+  it("counts neither working time nor Ferien and skips the Flow comparison", () => {
+    const z = berechneZeitnachweis(
+      eingabe({
+        ferienanspruch: 25,
+        ferienStartsaldo: 10,
+        eintraege: [
+          arbeit("2026-11-02", 8, 12, { tagestotal: 600, monatstotal: 900 }),
+          arbeit("2026-11-02", 13, 19, { ...geloescht, tagestotal: 600 }),
+          { ...ferien("2026-11-03"), ...geloescht },
+        ],
+      })
+    );
+
+    expect(tag(z, "2026-11-02").istMinuten).toBe(240);
+    expect(tag(z, "2026-11-02").flowAbweichung).toBe(false);
+    expect(tag(z, "2026-11-03").ferientag).toBe(0);
+    expect(tag(z, "2026-11-03").grund).toBeNull();
+    expect(z.ferienBezogenMonat).toBe(0);
+    expect(z.flowMonatsAbweichung).toBe(false);
+  });
+
+  it("still reports the Flow comparison on days without deleted entries", () => {
+    const z = berechneZeitnachweis(eingabe({ eintraege: [arbeit("2026-11-02", 8, 12, { tagestotal: 600 })] }));
+    expect(tag(z, "2026-11-02").flowAbweichung).toBe(true);
+  });
+
+  it("treats a month with only deleted entries as empty", () => {
+    const z = berechneZeitnachweis(eingabe({ eintraege: [arbeit("2026-11-02", 8, 12, geloescht)] }));
+    expect(z.keineEintraege).toBe(true);
+  });
+});

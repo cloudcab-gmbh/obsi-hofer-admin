@@ -245,6 +245,46 @@ Branch `proj-22-eintraege-bearbeiten`. Die Server-Aktionen sind mitgebaut. Ihre 
   - entfernt: Tests von „Gehen nachtragen“.
   - Stand: 801 Tests grün, `tsc` und `lint` sauber.
 
+## Implementation Notes (Backend, 2026-11-22)
+Die Server-Aktionen und der Dataverse-Zugriff sind mit dem Frontend gebaut (siehe oben). In diesem Schritt kamen die Tests dazu und eine Prüfung gegen das echte Dataverse.
+
+- **`aendereZeiteintragAction`** (10 Tests):
+  - Bearbeiter wird abgelehnt, ohne Dataverse-Zugriff.
+  - Korrektur am Tag des Eintrags in Schweizer Zeit, mit Name des Freigebers und „vorher“.
+  - Offenen Eintrag ergänzen oder offen lassen.
+  - Ohne Änderung wird nichts gespeichert und nichts markiert.
+  - Überschneidung nur mit den übrigen Arbeitszeit-Einträgen (nicht mit sich selbst, nicht mit Abwesenheiten).
+  - Abgelehnt werden:
+    - Gehen leeren
+    - Gehen vor Kommen
+    - mehr als 14 h
+    - ungültige Uhrzeiten, Bemerkung über 500 Zeichen, ungültige ID
+    - Zeiten in der Zukunft
+    - andere Typen als Arbeitszeit
+  - Gelöschter oder verschwundener Eintrag → „Diesen Eintrag gibt es nicht mehr …“.
+  - Ein Speicherfehler gibt die Dataverse-Meldung zurück.
+- **`loescheAbwesenheitenAction`** (+3 Tests):
+  - Eintrag mit SharePoint-ID wird mit dem Namen des Freigebers markiert, nicht gelöscht.
+  - Im Tool erfasster Eintrag wird endgültig gelöscht.
+  - Bereits gelöschter Eintrag wird übersprungen.
+  - Bearbeiter kann weder löschen noch markieren.
+- **Dataverse-Zugriff** (+5 Tests):
+  - Markierung lesen; Name und frühere Zeiten nur auf Anfrage.
+  - Standardfilter „nicht gelöscht“.
+  - `getZeiteintragFuerKorrektur` liefert SharePoint-ID, Bemerkung und „gelöscht“.
+  - `korrigiereZeiteintrag` schreibt Kommen/Gehen doppelt, die Kennung und die Markierung.
+  - `markiereAlsGeloescht` ändert die Zeiten nicht.
+- **Rechnen und Anzeige** (+11 Tests):
+  - Tagesauswertung: Gelöschte Einträge zählen nicht (auch nicht Essen, Bemerkung, Krankheit, Flow-Total), werden aber zur Anzeige mitgegeben.
+  - Zeitnachweis: kein Ist, kein Ferientag, kein Flow-Abgleich; ein Monat nur mit gelöschten Einträgen gilt als leer.
+  - `korrekturTexte`: Freigeber- und Mitarbeiterfassung, Datum in Schweizer Zeit.
+  - PDF zeigt nur „korrigiert“.
+- **Gegen Dataverse geprüft (2026-11-22)** mit einem Wegwerf-Eintrag (Test-Adresse, sofort wieder gelöscht, danach 0 Reste):
+  - Der App-Benutzer darf anlegen, korrigieren (inkl. der vier neuen Spalten), markieren, lesen und löschen.
+  - Der Filter `bmvcc_imtoolgeloscht ne true` blendet den markierten Eintrag aus.
+- **Stand:** 834 Tests grün, `tsc` und `lint` sauber.
+- **Kein Rate-Limit:** Nur Freigeber können ändern, wie bei den übrigen Korrekturen (PROJ-13/15).
+
 ## QA Test Results
 _To be added by /qa_
 

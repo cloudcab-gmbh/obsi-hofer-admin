@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const dataverseFetch = vi.fn();
 const listRecords = vi.fn();
@@ -7,6 +7,7 @@ const createRecord = vi.fn();
 const updateRecord = vi.fn();
 const upsertRecordByKey = vi.fn();
 
+const getRecord = vi.fn();
 vi.mock("./client", () => ({ dataverseFetch: (...args: unknown[]) => dataverseFetch(...args) }));
 vi.mock("./records", () => ({
   listRecords: (...args: unknown[]) => listRecords(...args),
@@ -14,6 +15,7 @@ vi.mock("./records", () => ({
   createRecord: (...args: unknown[]) => createRecord(...args),
   updateRecord: (...args: unknown[]) => updateRecord(...args),
   deleteRecord: vi.fn(),
+  getRecord: (...args: unknown[]) => getRecord(...args),
   upsertRecordByKey: (...args: unknown[]) => upsertRecordByKey(...args),
 }));
 
@@ -22,7 +24,10 @@ import {
   erstelleArbeitsmodell,
   erstelleZeiteintrag,
   getPersonByEmail,
+  getZeiteintragFuerKorrektur,
+  korrigiereZeiteintrag,
   listArbeitsmodelle,
+  markiereAlsGeloescht,
   listZeiteintraege,
   listZeiterfassungEmails,
   speicherePersonStammdaten,
@@ -274,6 +279,98 @@ describe("stosseFlowAn", () => {
     expect(updateRecord).toHaveBeenLastCalledWith("bmvcc_timetrackingentries", "b", {
       bmvcc_kommen: "2026-10-27T06:46:00Z",
       bmvcc_activitystarttime: "2026-10-27T06:46:00Z",
+    });
+  });
+});
+
+describe("Korrekturen im Tool (PROJ-22)", () => {
+  beforeEach(() => vi.useFakeTimers({ now: new Date("2026-11-22T10:15:00Z"), toFake: ["Date"] }));
+  afterEach(() => vi.useRealTimers());
+
+  it("maps the marking and loads name and previous times only on request", async () => {
+    listAllRecords.mockResolvedValue([
+      {
+        bmvcc_timetrackingentryid: "k",
+        bmvcc_activitydate: "2026-11-01T23:00:00Z",
+        bmvcc_activitytype: 0,
+        bmvcc_kommen: "2026-11-02T07:00:00Z",
+        bmvcc_imtoolgeandertam: "2026-11-21T09:00:00Z",
+        bmvcc_imtoolgeandertvon: "Robert Bienz",
+        bmvcc_zeitenvorher: "07:30–16:30",
+      },
+      { bmvcc_timetrackingentryid: "g", bmvcc_activitydate: "2026-11-01T23:00:00Z", bmvcc_activitytype: 0, bmvcc_imtoolgeloscht: true },
+      { bmvcc_timetrackingentryid: "n", bmvcc_activitydate: "2026-11-01T23:00:00Z", bmvcc_activitytype: 0, bmvcc_imtoolgeloscht: false },
+    ]);
+
+    const eintraege = await listZeiteintraege("anna@x.ch", "2026-11-01", "2026-11-30", { mitGeloeschten: true, mitKorrekturDetails: true });
+
+    const optionen = listAllRecords.mock.calls[0][1];
+    expect(optionen.filter).not.toContain("bmvcc_imtoolgeloscht");
+    expect(optionen.select).toEqual(expect.arrayContaining(["bmvcc_imtoolgeandertam", "bmvcc_imtoolgeloscht", "bmvcc_imtoolgeandertvon", "bmvcc_zeitenvorher"]));
+    expect(eintraege.map((e) => e.imTool)).toEqual([
+      { am: "2026-11-21T09:00:00Z", von: "Robert Bienz", vorher: "07:30–16:30", geloescht: false },
+      { am: "", von: null, vorher: null, geloescht: true },
+      null,
+    ]);
+  });
+
+  it("does not select name and previous times by default", async () => {
+    listAllRecords.mockResolvedValue([]);
+    await listZeiteintraege("anna@x.ch", "2026-11-01", "2026-11-30");
+    const { select, filter } = listAllRecords.mock.calls[0][1];
+    expect(select).toContain("bmvcc_imtoolgeandertam");
+    expect(select).not.toContain("bmvcc_imtoolgeandertvon");
+    expect(select).not.toContain("bmvcc_zeitenvorher");
+    expect(filter).toContain("bmvcc_imtoolgeloscht ne true");
+  });
+
+  it("reads SharePoint id, remark and deletion flag before a correction", async () => {
+    getRecord.mockResolvedValue({
+      bmvcc_useremail: "Anna@X.ch",
+      bmvcc_activitydate: "2026-11-01T23:00:00Z",
+      bmvcc_activitytype: 0,
+      bmvcc_kommen: "2026-11-02T07:00:00Z",
+      bmvcc_remarks: "aus SharePoint",
+      bmvcc_recordid: 1567,
+      bmvcc_imtoolgeloscht: null,
+    });
+    expect(await getZeiteintragFuerKorrektur("e")).toMatchObject({
+      email: "anna@x.ch",
+      datum: "2026-11-02",
+      bemerkung: "aus SharePoint",
+      sharepointId: 1567,
+      geloescht: false,
+    });
+  });
+
+  it("writes Kommen/Gehen twice, the new code and the marking", async () => {
+    await korrigiereZeiteintrag("e", {
+      datum: "2026-11-02",
+      kommen: "2026-11-02T06:00:00Z",
+      gehen: null,
+      bemerkung: "korrigiert",
+      von: "Robert Bienz",
+      vorher: "07:30–offen",
+    });
+    expect(updateRecord).toHaveBeenCalledWith("bmvcc_timetrackingentries", "e", {
+      bmvcc_activitydatetimecode: "202611020700",
+      bmvcc_kommen: "2026-11-02T06:00:00Z",
+      bmvcc_activitystarttime: "2026-11-02T06:00:00Z",
+      bmvcc_gehen: null,
+      bmvcc_checkouttime: null,
+      bmvcc_remarks: "korrigiert",
+      bmvcc_imtoolgeandertam: "2026-11-22T10:15:00.000Z",
+      bmvcc_imtoolgeandertvon: "Robert Bienz",
+      bmvcc_zeitenvorher: "07:30–offen",
+    });
+  });
+
+  it("marks an entry as deleted without touching its times", async () => {
+    await markiereAlsGeloescht("e", "Robert Bienz");
+    expect(updateRecord).toHaveBeenCalledWith("bmvcc_timetrackingentries", "e", {
+      bmvcc_imtoolgeloscht: true,
+      bmvcc_imtoolgeandertam: "2026-11-22T10:15:00.000Z",
+      bmvcc_imtoolgeandertvon: "Robert Bienz",
     });
   });
 });

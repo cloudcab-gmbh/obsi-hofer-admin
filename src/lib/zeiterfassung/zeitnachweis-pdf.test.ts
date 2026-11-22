@@ -155,4 +155,19 @@ describe("renderePdf", () => {
     const pdf = await renderePdf(dokument());
     expect(pdf.subarray(0, 4).toString()).toBe("%PDF");
   });
+
+  it("marks corrected entries only with 'korrigiert' and leaves out deleted ones (PROJ-22)", () => {
+    const doc = dokument({
+      zeitnachweis: nachweis({
+        eintraege: [
+          eintrag("2026-11-02", "06:30", "11:00", { imTool: { am: "2026-11-21T09:00:00Z", von: "Robert Bienz", vorher: "07:00–11:00", geloescht: false } }),
+          eintrag("2026-11-02", "12:00", "15:00", { imTool: { am: "2026-11-21T09:00:00Z", von: "Robert Bienz", vorher: null, geloescht: true } }),
+        ],
+      }),
+    });
+    const zeile = tabellenzeile(doc, "02.11.");
+    expect(zeile[1]).toBe("07:30–12:00");
+    expect(zeile[8]).toBe("korrigiert");
+    expect(texte(doc).join(" ")).not.toContain("Robert Bienz (vorher");
+  });
 });

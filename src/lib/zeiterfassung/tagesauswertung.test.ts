@@ -95,3 +95,34 @@ describe("werteTagAus", () => {
     expect(tag).toMatchObject({ krankheit: true, kompGlz: true, arbeitszeitMinuten: 0, hatArbeitszeit: false });
   });
 });
+
+describe("im Tool gelöschte Einträge (PROJ-22)", () => {
+  const geloescht = { imTool: { am: "2026-11-21T09:00:00Z", von: "Robert Bienz", vorher: null, geloescht: true } };
+
+  it("never counts them, but lists them for display", () => {
+    const tag = werteTagAus([
+      eintrag("06:30", "11:00", { tagestotal: 270 }),
+      eintrag("11:45", "16:15", { ...geloescht, tagestotal: 540, mittagessen: true, bemerkung: "weg" }),
+      eintrag("00:00", null, { ...geloescht, id: "krank", typ: "krankheit" }),
+    ]);
+
+    expect(tag.paare.map((p) => p.kommen)).toEqual(["07:30"]);
+    expect(tag.arbeitszeitMinuten).toBe(270);
+    expect(tag.krankheit).toBe(false);
+    expect(tag.abwesenheiten).toEqual([]);
+    expect(tag.mittagessen).toBe(false);
+    expect(tag.bemerkungen).toEqual([]);
+    expect(tag.flowTagestotal).toBe(270);
+    expect(tag.geloeschte).toEqual([
+      { eintragId: "e-11:45-16:15", text: "12:45–17:15", am: "2026-11-21T09:00:00Z", von: "Robert Bienz" },
+      { eintragId: "krank", text: "Krankheit", am: "2026-11-21T09:00:00Z", von: "Robert Bienz" },
+    ]);
+  });
+
+  it("passes remark and correction of each pair through", () => {
+    const korrektur = { am: "2026-11-21T09:00:00Z", von: "Robert Bienz", vorher: "07:00–11:00", geloescht: false };
+    const [paar] = werteTagAus([eintrag("06:30", "11:00", { bemerkung: " Kunde A ", imTool: korrektur })]).paare;
+    expect(paar.bemerkung).toBe("Kunde A");
+    expect(paar.korrektur).toEqual({ am: "2026-11-21T09:00:00Z", von: "Robert Bienz", vorher: "07:00–11:00" });
+  });
+});

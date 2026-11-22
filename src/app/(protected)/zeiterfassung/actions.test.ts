@@ -49,6 +49,7 @@ vi.mock("@/lib/zeiterfassung/datum", async (importOriginal) => ({
 }));
 
 import {
+  aendereZeiteintragAction,
   erzeugeZeitnachweisPdfAction,
   erfasseFerienAction,
   erfasseTagAction,
@@ -245,6 +246,122 @@ describe("Ferien QA-Fixes", () => {
   });
 });
 
+describe("aendereZeiteintragAction (PROJ-22)", () => {
+  // 12.08.2026 Schweizer Sommerzeit: 07:30–16:30 = 05:30–14:30 UTC
+  const EINTRAG = {
+    email: "anna@x.ch",
+    datum: "2026-08-12",
+    typ: "arbeitszeit",
+    kommen: "2026-08-12T05:30:00Z",
+    gehen: "2026-08-12T14:30:00Z",
+    bemerkung: "aus SharePoint",
+    sharepointId: 1567,
+    geloescht: false,
+  };
+  const AENDERN = { eintragId: ID, kommen: "07:00", gehen: "16:00", bemerkung: " Stempeln vergessen " };
+
+  beforeEach(() => {
+    getZeiteintragFuerKorrektur.mockResolvedValue(EINTRAG);
+  });
+
+  it("rejects Bearbeiter without touching Dataverse", async () => {
+    istFreigeberMock.mockResolvedValue(false);
+
+    expect(await aendereZeiteintragAction(AENDERN)).toEqual({ success: false, message: "Nur Freigeber dürfen Zeiteinträge ändern." });
+    expect(getZeiteintragFuerKorrektur).not.toHaveBeenCalled();
+    expect(korrigiereZeiteintrag).not.toHaveBeenCalled();
+  });
+
+  it("corrects Kommen, Gehen and remark on the day of the entry and records who and what before", async () => {
+    expect(await aendereZeiteintragAction(AENDERN)).toEqual({ success: true });
+
+    expect(listZeiteintraege).toHaveBeenCalledWith("anna@x.ch", "2026-08-12", "2026-08-12");
+    expect(korrigiereZeiteintrag).toHaveBeenCalledWith(ID, {
+      datum: "2026-08-12",
+      kommen: "2026-08-12T05:00:00Z",
+      gehen: "2026-08-12T14:00:00Z",
+      bemerkung: "Stempeln vergessen",
+      von: "Robert Bienz",
+      vorher: "07:30–16:30",
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/zeiterfassung", "layout");
+  });
+
+  it("completes an open entry and may leave it open", async () => {
+    getZeiteintragFuerKorrektur.mockResolvedValue({ ...EINTRAG, gehen: null });
+
+    await aendereZeiteintragAction({ ...AENDERN, kommen: "07:30", gehen: "17:15" });
+    expect(korrigiereZeiteintrag).toHaveBeenLastCalledWith(ID, expect.objectContaining({ gehen: "2026-08-12T15:15:00Z", vorher: "07:30–offen" }));
+
+    await aendereZeiteintragAction({ ...AENDERN, kommen: "07:30", gehen: "", bemerkung: "Gehen folgt" });
+    expect(korrigiereZeiteintrag).toHaveBeenLastCalledWith(ID, expect.objectContaining({ gehen: null, bemerkung: "Gehen folgt" }));
+  });
+
+  it("saves nothing and sets no marking when nothing changed", async () => {
+    expect(await aendereZeiteintragAction({ eintragId: ID, kommen: "07:30", gehen: "16:30", bemerkung: "aus SharePoint " })).toEqual({
+      success: true,
+    });
+    expect(korrigiereZeiteintrag).not.toHaveBeenCalled();
+  });
+
+  it("checks overlaps only against the other working-time entries of the day", async () => {
+    listZeiteintraege.mockResolvedValue([
+      { id: ID, typ: "arbeitszeit", kommen: EINTRAG.kommen, gehen: EINTRAG.gehen },
+      { id: "krank", typ: "krankheit", kommen: "2026-08-11T22:00:00Z", gehen: null },
+      { id: "nachmittag", typ: "arbeitszeit", kommen: "2026-08-12T15:00:00Z", gehen: "2026-08-12T17:00:00Z" },
+    ]);
+
+    expect(await aendereZeiteintragAction({ ...AENDERN, gehen: "17:30" })).toEqual({
+      success: false,
+      message: "Die Zeiten überschneiden sich mit einem anderen Eintrag dieses Tages.",
+    });
+    expect(await aendereZeiteintragAction({ ...AENDERN, gehen: "17:00" })).toEqual({ success: true });
+  });
+
+  it.each([
+    [{ gehen: "" }, "„Gehen“ darf nicht leer sein — der Eintrag hatte bereits ein „Gehen“. Zum Entfernen den Eintrag löschen."],
+    [{ gehen: "06:00" }, "„Gehen“ muss nach „Kommen“ liegen."],
+    [{ kommen: "05:00", gehen: "19:30" }, "Mehr als 14 Stunden am Stück sind nicht möglich."],
+    [{ kommen: "7:00" }, "Bitte „Kommen“ im Format HH:MM angeben."],
+    [{ gehen: "25:00" }, "Bitte „Gehen“ im Format HH:MM angeben."],
+    [{ bemerkung: "x".repeat(501) }, "Die Bemerkung darf höchstens 500 Zeichen lang sein."],
+    [{ eintragId: "kein-guid" }, "Ungültiger Eintrag."],
+  ])("rejects %o", async (aenderung, message) => {
+    expect(await aendereZeiteintragAction({ ...AENDERN, ...aenderung })).toEqual({ success: false, message });
+    expect(korrigiereZeiteintrag).not.toHaveBeenCalled();
+  });
+
+  it("rejects times in the future", async () => {
+    getZeiteintragFuerKorrektur.mockResolvedValue({ ...EINTRAG, datum: "2099-01-05", kommen: "2099-01-05T06:30:00Z", gehen: null });
+
+    expect(await aendereZeiteintragAction({ ...AENDERN, gehen: "" })).toEqual({
+      success: false,
+      message: "Zeiten in der Zukunft sind nicht möglich.",
+    });
+  });
+
+  it("only changes working-time entries", async () => {
+    getZeiteintragFuerKorrektur.mockResolvedValue({ ...EINTRAG, typ: "ferien" });
+    expect(await aendereZeiteintragAction(AENDERN)).toEqual({ success: false, message: "Nur Arbeitszeit-Einträge können geändert werden." });
+  });
+
+  it("reports entries that are gone or deleted in the tool", async () => {
+    const message = "Diesen Eintrag gibt es nicht mehr. Bitte die Seite neu laden.";
+    getZeiteintragFuerKorrektur.mockResolvedValueOnce({ ...EINTRAG, geloescht: true });
+    expect(await aendereZeiteintragAction(AENDERN)).toEqual({ success: false, message });
+
+    getZeiteintragFuerKorrektur.mockRejectedValueOnce(new DataverseError("not_found", "x"));
+    expect(await aendereZeiteintragAction(AENDERN)).toEqual({ success: false, message });
+    expect(korrigiereZeiteintrag).not.toHaveBeenCalled();
+  });
+
+  it("returns the Dataverse message when saving fails", async () => {
+    korrigiereZeiteintrag.mockRejectedValueOnce(new DataverseError("unavailable", "Dataverse ist nicht erreichbar."));
+    expect(await aendereZeiteintragAction(AENDERN)).toEqual({ success: false, message: "Dataverse ist nicht erreichbar." });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
 describe("loescheAbwesenheitenAction (PROJ-15)", () => {
   it("deletes Ferien and Frei, skipping already deleted entries", async () => {
     getZeiteintragFuerKorrektur
@@ -308,11 +425,36 @@ describe("loescheAbwesenheitenAction (PROJ-15)", () => {
     expect(loescheZeiteintrag).not.toHaveBeenCalled();
   });
 
+  it("marks entries from SharePoint as deleted instead of removing them (PROJ-22)", async () => {
+    getZeiteintragFuerKorrektur.mockResolvedValue({ typ: "arbeitszeit", sharepointId: 1567, geloescht: false });
+
+    expect(await loescheAbwesenheitenAction([ID])).toEqual({ success: true, geloescht: 1 });
+    expect(markiereAlsGeloescht).toHaveBeenCalledWith(ID, "Robert Bienz");
+    expect(loescheZeiteintrag).not.toHaveBeenCalled();
+  });
+
+  it("removes entries created in the tool for good (PROJ-22)", async () => {
+    getZeiteintragFuerKorrektur.mockResolvedValue({ typ: "ferien", sharepointId: null, geloescht: false });
+
+    await loescheAbwesenheitenAction([ID]);
+    expect(loescheZeiteintrag).toHaveBeenCalledWith(ID);
+    expect(markiereAlsGeloescht).not.toHaveBeenCalled();
+  });
+
+  it("skips entries already deleted in the tool (PROJ-22)", async () => {
+    getZeiteintragFuerKorrektur.mockResolvedValue({ typ: "arbeitszeit", sharepointId: 1567, geloescht: true });
+
+    expect(await loescheAbwesenheitenAction([ID])).toEqual({ success: true, geloescht: 0 });
+    expect(markiereAlsGeloescht).not.toHaveBeenCalled();
+    expect(loescheZeiteintrag).not.toHaveBeenCalled();
+  });
+
   it("rejects Bearbeiter and invalid ids", async () => {
     expect((await loescheAbwesenheitenAction(["x"])).success).toBe(false);
     istFreigeberMock.mockResolvedValue(false);
     expect((await loescheAbwesenheitenAction([ID])).success).toBe(false);
     expect(loescheZeiteintrag).not.toHaveBeenCalled();
+    expect(markiereAlsGeloescht).not.toHaveBeenCalled();
   });
 });
 
