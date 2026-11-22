@@ -1,6 +1,6 @@
 # PROJ-22: Arbeitszeiten im Zeitnachweis ändern und löschen
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-22
 
@@ -290,7 +290,124 @@ Die Server-Aktionen und der Dataverse-Zugriff sind mit dem Frontend gebaut (sieh
 - **Kein Rate-Limit:** Nur Freigeber können ändern, wie bei den übrigen Korrekturen (PROJ-13/15).
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-11-22
+**App URL:** http://localhost:3000 (Branch `proj-22-eintraege-bearbeiten`)
+**Tester:** QA Engineer (AI). Live-Schritte hat der Nutzer im Browser gemacht; den Microsoft-Login kann die AI nicht durchspielen.
+
+**Geprüft auf drei Wegen:**
+- **U:** Unit- bzw. Komponententest
+- **L:** live durch den Nutzer (2026-11-22), Ergebnis von der AI direkt in Dataverse kontrolliert
+- **D:** gegen das echte Dataverse mit einem Wegwerf-Eintrag (wieder entfernt)
+
+### Acceptance Criteria Status
+
+#### Ändern
+- [x] AC-1: Klick auf ein Zeitpaar öffnet „Eintrag bearbeiten“ mit Kommen, Gehen, Bemerkung, Speichern und Löschen (U, L: Zeitpaar 07:10–12:04 am 09.11.)
+- [x] AC-2: Eine gültige Änderung wird gespeichert, Ist/Gleitzeit rechnen neu, der Eintrag ist als „im Tool korrigiert“ markiert (U, L: SharePoint-ID 1567 mit Zeitpunkt, Name und „vorher 07:10–12:04“, D)
+- [x] AC-3: Bei einem offenen Eintrag lässt sich Gehen im selben Dialog nachtragen oder leer lassen; ersetzt „Gehen nachtragen“, auch im Hinweis oben (U)
+- [x] AC-4: Ein vorhandenes Gehen zu leeren wird abgelehnt, im Browser und auf dem Server (U)
+- [x] AC-5: Gehen ≤ Kommen, über 14 h, Zukunft und Überschneidung werden abgelehnt, die Eingaben bleiben im Dialog (U)
+- [x] AC-6: Die Bemerkung erscheint beim Tag (U, L)
+
+#### Löschen
+- [x] AC-7: „Löschen“ im Dialog und das × bei Abwesenheiten löschen erst nach Bestätigung; Abbrechen führt zurück (U)
+- [x] AC-8: Ein Eintrag aus SharePoint wird markiert statt entfernt und zählt nirgends mehr: nicht in Ist, Gleitzeit, Ferien, Übersicht, PDF und Mein Zeitnachweis (U, D: Filter blendet den markierten Eintrag aus)
+- [x] AC-9: Ein im Tool erfasster Eintrag wird endgültig gelöscht (U)
+
+#### Nachvollziehbarkeit
+- [x] AC-10: Freigeber sehen „korrigiert 21.11. von … (vorher …)“ (U, L)
+- [x] AC-11: Freigeber sehen einen gelöschten Eintrag durchgestrichen mit „… gelöscht 21.11. von …“ (U)
+- [x] AC-12: Mein Zeitnachweis und PDF zeigen nur „korrigiert“, ohne Namen und alte Zeiten; Name und Zeiten werden dafür gar nicht geladen (U)
+- [x] AC-13: Bei mehreren Korrekturen gilt die letzte, „vorher“ zeigt den Stand vor dieser Korrektur (U). Siehe BUG-2 für reine Bemerkungsänderungen.
+
+#### Schutz vor dem SharePoint-Flow
+- [x] AC-14: Eine im Tool korrigierte Zeile wird vom täglichen Flow nicht überschrieben (L: 1567 behält „test schutz“, die SharePoint-Änderung wird nicht übernommen). Ungeschützte Zeilen ersetzt der Flow weiter normal (L: 1566).
+
+#### Berechtigung
+- [x] AC-15: Ohne Rolle Freigeber lehnen Ändern und Löschen ab, auch bei direktem Aufruf, ohne Dataverse-Zugriff (U). Ohne Sitzung leitet der Proxy schon vorher auf /login um, auch bei einer gefälschten Server-Action-Anfrage (E2E).
+
+### Edge Cases Status
+- [x] EC-1 Eintrag über Mitternacht: Der Dialog weist darauf hin, dass Gehen am selben Tag gilt; ein Speichern mit dem alten Gehen wird als „Gehen vor Kommen“ abgelehnt (U). Siehe BUG-1.
+- [x] EC-2 Eintrag inzwischen gelöscht (endgültig oder im Tool): „Diesen Eintrag gibt es nicht mehr. Bitte die Seite neu laden.“ (U). Ein zweites Löschen desselben Eintrags wird übersprungen (U).
+- [x] EC-3 Korrektur ergibt Überschneidung: abgelehnt (U)
+- [x] EC-4 Freigeber korrigiert eigene Einträge: erlaubt, mit Markierung (L)
+- [x] EC-5 Ältere Monate: keine Sperre (U, keine Datumsgrenze in der Aktion)
+- [x] EC-6 Gelöschte Abwesenheit aus SharePoint: zählt nicht mehr für Ferien und Soll (U)
+- [x] EC-7 Tages-/Monatstotal: Das Speichern stösst den Totals-Flow an; der Abgleich-Hinweis entfällt an Tagen und in Monaten mit gelöschtem Eintrag (U)
+- [x] EC-8 Dataverse nicht erreichbar: Meldung im Dialog, Eingaben bleiben, keine Seitenaktualisierung (U)
+- [x] Zusätzlich: Ohne Änderung wird nichts gespeichert und nichts markiert (U)
+- [x] Zusätzlich: Ein Monat nur mit gelöschten Einträgen gilt als „keine Zeiteinträge“ (U)
+- [x] Zusätzlich: Ein Netzwerkfehler beim Speichern zeigt eine Meldung statt eines Absturzes (U)
+
+### Security Audit Results
+- [x] Authentication: alle betroffenen Seiten und Aktionen nur mit Sitzung (E2E)
+- [x] Authorization: Ändern und Löschen nur mit Rolle Freigeber, serverseitig geprüft, bevor Dataverse gelesen wird (U). Der Eintrag wird auf dem Server frisch gelesen; Tag und Person kommen nie aus dem Browser.
+- [x] Datenschutz: Name des Korrigierenden und frühere Zeiten werden für Mein Zeitnachweis und beide PDFs nicht geladen (U)
+- [x] Input-Validierung:
+  - Zod prüft die GUID, HH:MM und die Bemerkung bis 500 Zeichen.
+  - Name und „vorher“ werden auf die Spaltenlänge gekürzt.
+  - Die OData-Filter enthalten keine Eingaben aus dem Browser.
+- [x] XSS: Bemerkung, Name und Zeiten werden von React als Text ausgegeben (U mit `<img onerror>`)
+- [x] Manipulierte Eingaben: Datum, Person, Art und Essen lassen sich nicht ändern, die Aktion nimmt diese Felder gar nicht entgegen.
+- [ ] Rate-Limit: keines. Nur Freigeber, wie bei den übrigen Korrekturen (PROJ-13/15). Kein Bug, Bewertung Low wie in PROJ-21.
+
+### Regression
+- [x] Alle bestehenden Unit-Tests grün; die Tests für „Gehen nachtragen“ sind entfernt, die Funktion ist im Dialog aufgegangen.
+- [x] „Tag erfassen“ nutzt jetzt die gemeinsamen Prüfregeln; die bestehenden Tests sind unverändert grün. Im Tool gelöschte Einträge blockieren das Neuerfassen nicht mehr.
+- [x] Ferien, Feriensaldo, Übersicht, Personenliste und Korrektur-Anfrage (PROJ-15/17/14/21) lesen ohne gelöschte Einträge (U, Filter im Dataverse-Zugriff).
+- [x] E2E: 52/52 grün, davon 3 neu (`tests/PROJ-22-arbeitszeiten-aendern-und-loeschen.spec.ts`).
+
+### Nicht automatisiert geprüft (Nutzer vor dem Deploy)
+- [ ] Löschen im Dialog einmal live: einen mit „Tag erfassen“ angelegten Test-Eintrag löschen (endgültig)
+- [ ] Handy (375 px): Zeitpaar antippen, Dialog bedienen
+- [ ] Firefox oder Safari: Zeitfelder im Dialog
+
+### Bugs Found
+
+#### BUG-1: Eintrag über Mitternacht: nur die Bemerkung ändern geht nicht
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Einen Eintrag mit Gehen am Folgetag öffnen, z.B. 22:00–01:30 (+1).
+  2. Nur die Bemerkung ändern und speichern.
+  3. Expected: Die Bemerkung wird gespeichert.
+  4. Actual: „„Gehen“ muss nach „Kommen“ liegen.“, weil Gehen beim Speichern am selben Tag gilt.
+- **Hinweis:**
+  - Das folgt aus dem Entscheid „kein Gehen am Folgetag“, und der Dialog weist darauf hin. Seit „Gehen nachtragen“ ersetzt ist, lässt sich ein offener Nachteinsatz im Tool nicht mehr über Mitternacht abschliessen.
+  - Umweg: löschen und neu erfassen bzw. in SharePoint korrigieren.
+- **Priority:** Nice to have
+
+#### BUG-2: Nach einer reinen Bemerkungsänderung zeigt „vorher“ die unveränderten Zeiten
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Bei einem Eintrag 07:10–12:04 nur die Bemerkung ändern.
+  2. Expected: z.B. „korrigiert 22.11. von … (Bemerkung)“ oder ohne „vorher“.
+  3. Actual: „korrigiert 22.11. von … (vorher 07:10–12:04)“, obwohl die Zeiten gleich sind. Live gesehen bei SharePoint-ID 1567.
+- **Priority:** Nice to have
+
+#### BUG-3: Eine Person, deren Einträge alle im Tool gelöscht sind, verschwindet aus der Auswahl
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Bei einer Person, die nur SharePoint-Einträge hat, alle Einträge im Tool löschen.
+  2. Expected: Die Person bleibt wählbar, die gelöschten Einträge sind durchgestrichen sichtbar.
+  3. Actual: Die Personenliste kommt aus den nicht gelöschten Einträgen, deshalb fehlt die Person, sofern sie keine gespeicherten Stammdaten hat.
+- **Hinweis:** In der Praxis kaum relevant, alle aktiven Personen haben Stammdaten bzw. laufende Einträge.
+- **Priority:** Nice to have
+
+#### Bekannte Einschränkung (kein Bug)
+- Der Totals-Flow kennt die Lösch-Markierung nicht. `bmvcc_tagestotal`/`bmvcc_monatstotal` zählen markierte Einträge weiter mit; das Tool rechnet selbst und blendet den Abgleich dort aus (Tech Design F).
+- In SharePoint gelöschte Zeilen bleiben in Dataverse, es gibt keinen Lösch-Flow (Tech Design E).
+
+### Vor dem Deploy (Nutzer)
+- Den Text der Teams-Karte aus PROJ-21 („Korrektur bitte direkt in Dataverse …“) ändern auf: „Korrektur im Zeitnachweis vornehmen (Link)“.
+- Entscheiden, ob der Test-Eintrag SharePoint-ID 1567 korrigiert bleibt oder die Markierung entfernt wird.
+
+### Summary
+- **Acceptance Criteria:** 15/15 passed
+- **Bugs Found:** 3 total (0 critical, 0 high, 0 medium, 3 low)
+- **Security:** Pass (kein Rate-Limit, Low, wie bisher)
+- **Production Ready:** YES, nach den drei kurzen Live-Prüfungen oben
+- **Recommendation:** Deploy; BUG-1 bis BUG-3 bei Bedarf später
 
 ## Deployment
 _To be added by /deploy_
