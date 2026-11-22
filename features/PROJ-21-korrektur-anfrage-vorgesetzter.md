@@ -309,3 +309,7 @@ Keine neuen Pakete (Dialog, Textarea, Badge sind als shadcn-Bausteine vorhanden)
 - **Production URL:** https://obsi-hofer-admin.vercel.app/mein-zeitnachweis
 - **Extern:** Power-Automate-Flow des Nutzers aktiv; Karte verweist bis PROJ-22 auf die Korrektur direkt in Dataverse
 - **Nach dem Deploy:** Test mit einem Konto nur mit Rolle Mitarbeiter und auf dem Handy (Nutzer); Link in der Teams-Karte zeigt auf die Produktionsadresse
+- **Nachtrag 2026-11-22 (Flow):**
+  - Der Trigger stand auf „Added or Modified“. Das Setzen auf „erledigt“ startete den Flow ein zweites Mal, mit einer neuen Karte und einem Lauf, der bis zu 30 Tage wartete.
+  - Der Nutzer hat den Change type auf **„Added“** korrigiert und die hängenden Läufe abgebrochen.
+  - Der Text der Teams-Karte verweist seit PROJ-22 auf die Korrektur im Zeitnachweis des Tools (Link in der Karte) statt direkt in Dataverse.
