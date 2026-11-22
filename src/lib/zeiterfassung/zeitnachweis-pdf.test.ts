@@ -102,7 +102,7 @@ describe("bauePdfDokument", () => {
       "Mittag",
       "Kunde A",
     ]);
-    expect(tabellenzeile(dokument(), "07.11.")[2]).toBe("frei");
+    expect(tabellenzeile(dokument(), "07.11.")[2]).toBe("arbeitsfrei");
   });
 
   it("marks open entries as 'Gehen fehlt' and leaves internal hints out", () => {

@@ -89,7 +89,7 @@ describe("ZeitnachweisAnsicht", () => {
     zeigen(eingabe({ monat: "2026-12", stichtag: "2026-11-30" }));
 
     expect(zeile("25.12.")).toHaveTextContent("Feiertag: Weihnachten");
-    expect(zeile("06.12.")).toHaveTextContent("frei");
+    expect(zeile("06.12.")).toHaveTextContent("arbeitsfrei");
     expect(zeile("26.12.")).toHaveTextContent("Feiertag: Stephanstag"); // Samstag
   });
 

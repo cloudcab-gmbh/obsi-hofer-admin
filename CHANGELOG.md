@@ -2,6 +2,10 @@
 
 Alle für Nutzer relevanten Änderungen am Admin-Tool. Neueste Version zuerst. Versionen entsprechen den Git-Tags `vX.Y.Z-PROJ-N`.
 
+## [1.16.1] – 2026-11-22 · PROJ-13 Beschriftung arbeitsfreier Tage
+### Geändert
+- Tage, die laut Arbeitsmodell keine Arbeitstage sind (z.B. Sonntag), heissen im Zeitnachweis und im PDF jetzt „arbeitsfrei“ statt „frei“. So sind sie klar vom erfassten Eintrag „Frei“ unterscheidbar, den man löschen kann.
+
 ## [1.16.0] – 2026-11-22 · PROJ-22 Arbeitszeiten im Zeitnachweis ändern und löschen
 Für Freigeber im Zeitnachweis (Zeiterfassung → Zeitnachweis).
 ### Neu

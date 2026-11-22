@@ -5,7 +5,7 @@ import type { Tageszeile } from "./zeitnachweis";
 // Beschriftung eines Tages (Spalte "Art") — gemeinsam für den Zeitnachweis am
 // Bildschirm (PROJ-13) und das PDF (PROJ-16), damit beide gleich lauten.
 
-/** Hauptgrund des Tages, z.B. "Krankheit", "Feiertag: Auffahrt", "½ Ferien", "frei". */
+/** Hauptgrund des Tages, z.B. "Krankheit", "Feiertag: Auffahrt", "½ Ferien", "arbeitsfrei". */
 export function grundText(t: Tageszeile): string | null {
   if (t.auswertung.krankheit) return "Krankheit";
   if (t.auswertung.kompGlz) return "Komp. GLZ";
@@ -16,7 +16,7 @@ export function grundText(t: Tageszeile): string | null {
     case "ferien":
       return "Ferien";
     case "frei":
-      return "frei";
+      return "arbeitsfrei"; // Nutzerwunsch 2026-11-22: unterscheidbar vom Eintrag „Frei“
     case "kein-arbeitsmodell":
       return "kein Arbeitsmodell";
     case "nicht-angestellt":
