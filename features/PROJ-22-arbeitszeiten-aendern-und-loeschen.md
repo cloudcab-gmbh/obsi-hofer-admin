@@ -1,6 +1,6 @@
 # PROJ-22: Arbeitszeiten im Zeitnachweis ändern und löschen
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-22
 
@@ -420,4 +420,11 @@ Die Server-Aktionen und der Dataverse-Zugriff sind mit dem Frontend gebaut (sieh
   - 849/849 grün, `tsc` und `lint` sauber.
 
 ## Deployment
-_To be added by /deploy_
+- **Deployed:** 2026-11-22 als Version 1.16.0 (Tag `v1.16.0-PROJ-22`), Merge von `proj-22-eintraege-bearbeiten` nach `main`, Vercel-Auto-Deploy
+- **Production URL:** https://obsi-hofer-admin.vercel.app/zeiterfassung/zeitnachweis
+- **Vor dem Deploy geprüft:** lint, 849 Unit-Tests, 52 E2E-Tests, `npm run build`; keine neuen Umgebungsvariablen
+- **Dataverse:** vier Spalten auf `bmvcc_timetrackingentry` (angelegt und geprüft 2026-11-22)
+- **Flow:** Schutz in „syncZeiterfassung“ aktiv und getestet (Tech Design E)
+- **Offen beim Nutzer:**
+  - Text der Teams-Karte aus PROJ-21 auf „Korrektur im Zeitnachweis vornehmen (Link)“ ändern.
+  - Entscheid zum Test-Eintrag SharePoint-ID 1567: korrigiert lassen oder Markierung entfernen.

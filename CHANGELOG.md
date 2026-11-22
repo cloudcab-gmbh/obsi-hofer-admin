@@ -2,6 +2,15 @@
 
 Alle für Nutzer relevanten Änderungen am Admin-Tool. Neueste Version zuerst. Versionen entsprechen den Git-Tags `vX.Y.Z-PROJ-N`.
 
+## [1.16.0] – 2026-11-22 · PROJ-22 Arbeitszeiten im Zeitnachweis ändern und löschen
+Für Freigeber im Zeitnachweis (Zeiterfassung → Zeitnachweis).
+### Neu
+- Arbeitszeiten ändern: Ein Klick auf ein Zeitpaar öffnet „Eintrag bearbeiten“. Dort lassen sich Kommen, Gehen (auch nach Mitternacht) und die Bemerkung ändern. Damit lassen sich auch Korrektur-Anfragen direkt im Tool erledigen.
+- Einträge löschen, auch Arbeitszeiten aus SharePoint: Sie zählen danach nirgends mehr und sind für Freigeber durchgestrichen sichtbar.
+- Nachvollziehbar: Freigeber sehen „korrigiert … von … (vorher …)“ bzw. „gelöscht … von …“. Mitarbeitende sehen in „Mein Zeitnachweis“ und im PDF nur „korrigiert“.
+### Geändert
+- Im Tool korrigierte oder gelöschte Einträge werden vom täglichen Abgleich mit SharePoint nicht mehr überschrieben. „Gehen nachtragen“ ist im neuen Dialog aufgegangen.
+
 ## [1.15.0] – 2026-11-21 · PROJ-20 und PROJ-21 Mein Zeitnachweis mit Korrektur-Anfrage
 Für Mitarbeitende mit der neuen Rolle „Mitarbeiter“.
 ### Neu
