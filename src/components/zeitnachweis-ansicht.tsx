@@ -32,8 +32,9 @@ function Hinweis({ warnung = false, children }: { warnung?: boolean; children: R
 
 // PROJ-20: Spalten, die auf dem Handy beim seitlichen Wischen stehen bleiben
 // (feste Breite für das Datum, damit die Zeiten direkt daneben haften).
-const DATUM_SPALTE = "max-md:sticky max-md:left-0 max-md:z-[1] max-md:w-[5.5rem] max-md:min-w-[5.5rem]";
-const ZEITEN_SPALTE = "max-md:sticky max-md:left-[5.5rem] max-md:z-[1] max-md:border-r";
+// Nutzerwunsch 2026-11-25: Auf dem Handy bleibt nur das Datum stehen; mit den Zeiten
+// war die stehende Fläche fast so breit wie der Bildschirm.
+const DATUM_SPALTE = "max-md:sticky max-md:left-0 max-md:z-[1] max-md:w-[5.5rem] max-md:min-w-[5.5rem] max-md:border-r";
 
 function formatTage(tage: number): string {
   return `${tage} ${tage === 1 ? "Tag" : "Tage"}`;
@@ -214,9 +215,9 @@ export function ZeitnachweisAnsicht({
             <Table containerClassName="h-full">
               <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_hsl(var(--border))]">
                 <TableRow>
-                  {/* PROJ-20: Auf dem Handy bleiben Datum und Zeiten beim seitlichen Wischen stehen. */}
+                  {/* PROJ-20: Auf dem Handy bleibt das Datum beim seitlichen Wischen stehen. */}
                   <TableHead className={cn(DATUM_SPALTE, "max-md:bg-card")}>Datum</TableHead>
-                  <TableHead className={cn(ZEITEN_SPALTE, "max-md:bg-card")}>Zeiten</TableHead>
+                  <TableHead>Zeiten</TableHead>
                   <TableHead>Art</TableHead>
                   <TableHead className="text-right">Ist</TableHead>
                   <TableHead className="text-right">Soll</TableHead>
@@ -258,7 +259,7 @@ export function ZeitnachweisAnsicht({
                         )}{" "}
                         <span className="text-muted-foreground">{wochentagName(t.datum).slice(0, 2)}</span>
                       </TableCell>
-                      <TableCell className={cn("whitespace-nowrap tabular-nums", ZEITEN_SPALTE, stehendBg)}>
+                      <TableCell className="whitespace-nowrap tabular-nums">
                         {/* Nutzerwunsch 2026-11-13: höchstens zwei Einträge pro Zeile, weitere darunter. */}
                         <div className="grid grid-cols-[auto_auto] justify-start gap-y-0.5">
                           {t.auswertung.paare.map((p, i) => {

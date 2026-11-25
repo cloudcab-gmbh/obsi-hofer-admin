@@ -68,7 +68,7 @@ Jede Zeile ist ein Tag:
 - **Essen:** Mittag- bzw. Abendessen
 - **Bemerkung / Hinweise:** deine Bemerkungen, Hinweise wie „offen – Gehen fehlt“ und der Stand deiner Korrektur-Anfragen
 
-Auf dem Handy bleiben Datum und Zeiten beim seitlichen Wischen stehen.
+Auf dem Handy bleibt das Datum beim seitlichen Wischen stehen.
 
 ### PDF herunterladen
 **PDF herunterladen** oben rechts erzeugt den Zeitnachweis des gewählten Monats als PDF.

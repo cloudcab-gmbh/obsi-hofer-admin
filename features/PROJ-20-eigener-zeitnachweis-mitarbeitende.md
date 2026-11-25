@@ -75,7 +75,7 @@ Heute kommt nur ins Tool, wer die Rolle Bearbeiter oder Freigeber hat; alle ande
 - [ ] Angenommen Dataverse ist nicht erreichbar, dann erscheint eine verständliche Fehlermeldung (wie in PROJ-13) und keine Daten anderer Personen
 
 **Handy**
-- [ ] Angenommen der Zeitnachweis wird auf einem Handy (375 px) geöffnet, dann stehen die Kennzahlen untereinander (zwei pro Zeile), die Tabelle lässt sich seitlich wischen, wobei Datum und Zeiten links stehen bleiben, und Monats-Auswahl sowie „PDF herunterladen“ sind mit dem Finger bedienbar
+- [ ] Angenommen der Zeitnachweis wird auf einem Handy (375 px) geöffnet, dann stehen die Kennzahlen untereinander (zwei pro Zeile), die Tabelle lässt sich seitlich wischen, wobei das Datum links stehen bleibt (bis 2026-11-25: Datum und Zeiten), und Monats-Auswahl sowie „PDF herunterladen“ sind mit dem Finger bedienbar
 
 ## Edge Cases
 - **Anmelde-E-Mail mit Grossbuchstaben** (z.B. `Vorname.Name@…`): Abgleich ohne Gross-/Kleinschreibung, die Einträge werden gefunden
@@ -145,7 +145,7 @@ Mein Zeitnachweis  (neue Seite, eigene Adresse, z.B. /mein-zeitnachweis)
 +-- „PDF herunterladen“ (immer der eigene Zeitnachweis)
 +-- Zeitnachweis-Ansicht (bestehende Komponente, Nur-Lesen-Variante)
 |   +-- Kennzahlen (auf dem Handy zwei pro Zeile)
-|   +-- Tabelle Tag für Tag (auf dem Handy seitlich wischbar, Datum und Zeiten bleiben links stehen)
+|   +-- Tabelle Tag für Tag (auf dem Handy seitlich wischbar, das Datum bleibt links stehen)
 +-- Sonderfall-Meldungen statt Zeitnachweis
     +-- „Für dich wird kein Zeitnachweis geführt“ (nicht auswerten)
     +-- „Für dein Konto (…) wurden keine Zeiteinträge gefunden …“
@@ -208,7 +208,7 @@ Keine neuen Pakete.
 - **Seite** `/mein-zeitnachweis`: Person nur aus der Anmeldung (`src/lib/auth/mitarbeiter.ts`), Monat aus `?monat=`, auf die erlaubten Monate begrenzt. Meldungen für: keine Rolle, keine E-Mail im Konto, keine Zeiteinträge, „nicht auswerten“, Ladefehler. Fester Hinweis zu Korrekturen in SharePoint
 - **Laden:** `ladeEigenenZeitnachweis` in `zeitnachweis-laden.ts` (unterscheidet unbekannt / nicht auswerten / ok, nutzt denselben Rechenweg wie Seite und PDF der Freigeber); Regeln für erlaubte Monate und den Herkunftsvermerk als reine Funktionen in `src/lib/zeiterfassung/mein-zeitnachweis.ts` mit Unit-Tests; `auswertungsBeginn` aus `zeitnachweis.ts` exportiert
 - **Ansicht:** `ZeitnachweisAnsicht` mit `nurLesen` — ohne Tag erfassen, Löschen, Nachtragen; offene Tage mit Verweis auf SharePoint statt Links; ohne „aus SharePoint“, Tagestotal- und Monatstotal-Abgleich; ohne Arbeitsmodell der Hinweis an die Personalverantwortung. Zusätzlich blendet die Mitarbeiteransicht den App-Tagestotal-Abgleich aus (wie den Monatstotal-Abgleich, technischer Hinweis)
-- **Handy (beide Ansichten):** unter 768 px bleiben Datum und Zeiten beim seitlichen Wischen stehen; Kennzahlen zwei pro Zeile (bestand schon)
+- **Handy (beide Ansichten):** unter 768 px bleibt das Datum beim seitlichen Wischen stehen (Nutzerwunsch 2026-11-25: mit den Zeiten war die stehende Fläche fast bildschirmbreit); Kennzahlen zwei pro Zeile (bestand schon)
 - **Monatswahl:** `MeinZeitnachweisMonat` mit Grenzen (Pfeile/Kalender deaktiviert ausserhalb); die Monatswahl wird nicht pro Sitzung gemerkt, sie steht nur in der Adresse (einfacher, Startmonat ist immer der aktuelle)
 - **PDF:** `erzeugeEigenesZeitnachweisPdfAction(monat)` ohne E-Mail-Parameter; „Erstellt von“ = angemeldete Person
 - **Menü:** „Mein Zeitnachweis“ mit Rolle Mitarbeiter; Geräte, Prüfberichte und Firmenwahl nur für Bearbeiter/Freigeber
@@ -328,3 +328,6 @@ Keine neuen Pakete.
 - **Production URL:** https://obsi-hofer-admin.vercel.app/mein-zeitnachweis
 - **Extern:** App-Rolle „Mitarbeiter“ in Entra ID angelegt; Zuweisung an die Mitarbeitenden durch den Nutzer
 - **Nach dem Deploy:** neu anmelden (E-Mail kommt neu in die Sitzung); Test mit einem Konto nur mit Rolle Mitarbeiter und auf dem Handy (Nutzer)
+- **Nachtrag 2026-11-25 (1.16.2/1.16.3, Handy):** Sichtprüfung auf dem Gerät durch den Nutzer.
+  - 1.16.2: Die Seite verschiebt sich nicht mehr seitlich, auch bei grosser Schrift. Monatsauswahl und Reiter passen in die Breite.
+  - 1.16.3: Nur noch das Datum bleibt beim Wischen stehen. Mit den Zeiten belegte die stehende Fläche fast die ganze Breite.

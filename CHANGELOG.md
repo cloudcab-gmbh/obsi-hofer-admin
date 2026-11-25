@@ -2,6 +2,10 @@
 
 Alle für Nutzer relevanten Änderungen am Admin-Tool. Neueste Version zuerst. Versionen entsprechen den Git-Tags `vX.Y.Z-PROJ-N`.
 
+## [1.16.3] – 2026-11-25 · PROJ-20 Zeitnachweis auf dem Handy
+### Geändert
+- Auf dem Handy bleibt beim seitlichen Wischen der Tabelle nur noch das Datum stehen. Die Zeiten wischen mit, so bleibt Platz für Ist, Soll und Gleitzeit.
+
 ## [1.16.2] – 2026-11-25 · PROJ-20 Zeitnachweis auf dem Handy
 ### Behoben
 - Die Seite lässt sich auf dem Handy nicht mehr seitlich verschieben. Das galt für „Mein Zeitnachweis“ und die Zeiterfassung, auch bei grosser Schrift. Seitlich wischen lässt sich nur noch die Tabelle.
