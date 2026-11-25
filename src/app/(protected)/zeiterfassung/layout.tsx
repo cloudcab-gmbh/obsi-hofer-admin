@@ -14,7 +14,7 @@ export default async function ZeiterfassungLayout({ children }: { children: Reac
           <ZeiterfassungNav />
         </div>
       )}
-      <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">{children}</div>
     </div>
   );
 }

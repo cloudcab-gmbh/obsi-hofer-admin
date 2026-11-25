@@ -65,7 +65,7 @@ export default async function ZeitnachweisPage({
     <main className="mx-auto flex h-full max-w-6xl flex-col gap-6 px-4 py-6">
       <h1 className="text-xl font-semibold">{TITEL}</h1>
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
           <ZeitnachweisAuswahl personen={optionen} person={person?.email ?? null} monat={monat} />
         </div>
         {/* PROJ-16: nur mit gewählter Person. */}

@@ -19,14 +19,14 @@ export function MeinZeitnachweisMonat({ monat, von, bis }: { monat: string; von:
   }
 
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 max-w-full space-y-2">
       <Label htmlFor="monat">Monat</Label>
       <div className="flex items-center gap-1">
         <Button
           type="button"
           variant="outline"
           size="icon"
-          className="h-10 w-10"
+          className="h-10 w-10 shrink-0"
           aria-label="Vormonat"
           disabled={isPending || monat <= von}
           onClick={() => wechsle(verschiebeMonat(monat, -1))}
@@ -36,7 +36,7 @@ export function MeinZeitnachweisMonat({ monat, von, bis }: { monat: string; von:
         <Input
           id="monat"
           type="month"
-          className="h-10 w-44"
+          className="h-10 w-44 min-w-0"
           value={monat}
           min={von}
           max={bis}
@@ -52,7 +52,7 @@ export function MeinZeitnachweisMonat({ monat, von, bis }: { monat: string; von:
           type="button"
           variant="outline"
           size="icon"
-          className="h-10 w-10"
+          className="h-10 w-10 shrink-0"
           aria-label="Folgemonat"
           disabled={isPending || monat >= bis}
           onClick={() => wechsle(verschiebeMonat(monat, 1))}

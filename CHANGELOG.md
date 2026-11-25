@@ -2,6 +2,11 @@
 
 Alle für Nutzer relevanten Änderungen am Admin-Tool. Neueste Version zuerst. Versionen entsprechen den Git-Tags `vX.Y.Z-PROJ-N`.
 
+## [1.16.2] – 2026-11-25 · PROJ-20 Zeitnachweis auf dem Handy
+### Behoben
+- Die Seite lässt sich auf dem Handy nicht mehr seitlich verschieben. Das galt für „Mein Zeitnachweis“ und die Zeiterfassung, auch bei grosser Schrift. Seitlich wischen lässt sich nur noch die Tabelle.
+- Die Reiter der Zeiterfassung (Übersicht, Zeitnachweis, Personen …) lassen sich auf schmalen Bildschirmen seitlich wischen. Person und Monat stehen untereinander und passen in die Breite.
+
 ## [1.16.1] – 2026-11-22 · PROJ-13 Beschriftung arbeitsfreier Tage
 ### Geändert
 - Tage, die laut Arbeitsmodell keine Arbeitstage sind (z.B. Sonntag), heissen im Zeitnachweis und im PDF jetzt „arbeitsfrei“ statt „frei“. So sind sie klar vom erfassten Eintrag „Frei“ unterscheidbar, den man löschen kann.

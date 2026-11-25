@@ -17,7 +17,7 @@ const SEITEN = [
 export function ZeiterfassungNav() {
   const pfad = usePathname();
   return (
-    <nav aria-label="Zeiterfassung" className="flex gap-1 border-b">
+    <nav aria-label="Zeiterfassung" className="flex gap-1 overflow-x-auto border-b">
       {SEITEN.map((seite) => {
         const aktiv = seite.href === "/zeiterfassung" ? pfad === seite.href : pfad.startsWith(seite.href);
         return (
@@ -26,7 +26,7 @@ export function ZeiterfassungNav() {
             href={seite.href}
             aria-current={aktiv ? "page" : undefined}
             className={cn(
-              "-mb-px border-b-2 px-3 py-2 text-sm",
+              "-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm",
               aktiv
                 ? "border-primary font-medium text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"

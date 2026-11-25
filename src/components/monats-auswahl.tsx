@@ -26,6 +26,7 @@ export function MonatsAuswahl({ monat }: { monat: string }) {
           type="button"
           variant="outline"
           size="icon"
+          className="shrink-0"
           aria-label="Vormonat"
           disabled={isPending}
           onClick={() => wechsle(verschiebeMonat(monat, -1))}
@@ -35,7 +36,7 @@ export function MonatsAuswahl({ monat }: { monat: string }) {
         <Input
           id="uebersicht-monat"
           type="month"
-          className="w-44"
+          className="w-44 min-w-0"
           value={monat}
           placeholder="JJJJ-MM"
           title={formatMonat(monat)}
@@ -46,6 +47,7 @@ export function MonatsAuswahl({ monat }: { monat: string }) {
           type="button"
           variant="outline"
           size="icon"
+          className="shrink-0"
           aria-label="Folgemonat"
           disabled={isPending}
           onClick={() => wechsle(verschiebeMonat(monat, 1))}

@@ -32,7 +32,7 @@ export function ZeitnachweisAuswahl({
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
       <div className="space-y-2">
         <Label>Person</Label>
         <DurchsuchbareAuswahl
@@ -52,6 +52,7 @@ export function ZeitnachweisAuswahl({
             type="button"
             variant="outline"
             size="icon"
+            className="shrink-0"
             aria-label="Vormonat"
             disabled={isPending}
             onClick={() => startTransition(() => wechsle(person, verschiebeMonat(monat, -1)))}
@@ -61,7 +62,7 @@ export function ZeitnachweisAuswahl({
           <Input
             id="monat"
             type="month"
-            className="w-44"
+            className="w-44 min-w-0"
             value={monat}
             // Firefox/Safari zeigen statt der Monatsauswahl ein Textfeld.
             placeholder="JJJJ-MM"
@@ -76,6 +77,7 @@ export function ZeitnachweisAuswahl({
             type="button"
             variant="outline"
             size="icon"
+            className="shrink-0"
             aria-label="Folgemonat"
             disabled={isPending}
             onClick={() => startTransition(() => wechsle(person, verschiebeMonat(monat, 1)))}

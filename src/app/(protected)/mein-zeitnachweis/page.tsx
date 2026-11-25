@@ -84,7 +84,8 @@ export default async function MeinZeitnachweisPage({
   // Volle Höhe unter der Kopfzeile (h-14): die Tabelle nimmt den Rest ein und scrollt selbst.
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* Handy: nie seitlich verschieben, die Tabelle scrollt selbst. */}
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         <main className="mx-auto flex h-full max-w-6xl flex-col gap-4 px-4 py-6">
           <h1 className="text-xl font-semibold">
             {TITEL} <span className="font-normal text-muted-foreground">· {geladen.person.anzeige}</span>
